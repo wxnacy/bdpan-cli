@@ -5,20 +5,19 @@ import (
 	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/mattn/go-runewidth"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
 
 func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
 	boxWidth := EndX - StartX
-	box := &terminal.Box{
-		StartX: StartX,
-		StartY: StartY,
-		EndX:   EndX,
-		EndY:   EndY,
-		Style:  t.StyleDefault,
-	}
+	box := t.NewBox(
+		StartX,
+		StartY,
+		EndX,
+		EndY,
+		t.StyleDefault,
+	)
 	Select := &terminal.Select{
 		StartX:    StartX + 1,
 		StartY:    StartY + 1,
@@ -37,19 +36,20 @@ func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
 }
 
 type Box struct {
-	Box        *terminal.Box
-	Select     *terminal.Select
-	Dir        string
-	SelectPath string // 中间需要选中的地址
-	File       *bdpan.FileInfoDto
+	Box                 *terminal.Box
+	Select              *terminal.Select
+	EmptySelectFillText string // select 为空时需要填充的内容
+	Dir                 string
+	SelectPath          string // 中间需要选中的地址
+	File                *bdpan.FileInfoDto
 
 	t *terminal.Terminal
 }
 
 func (b *Box) DrawBox() *Box {
 	b.t.DrawBox(*b.Box)
-	b.Box.DrawOneLineText(b.t.S, 0, b.t.StyleDefault, "load files...")
-	b.t.S.Show()
+	// b.Box.DrawOneLineText(0, b.t.StyleDefault, "load files...")
+	// b.t.S.Show()
 	return b
 }
 
@@ -71,6 +71,11 @@ func (b *Box) SetDir(dir string) *Box {
 
 func (b *Box) SetSelectPath(path string) *Box {
 	b.SelectPath = path
+	return b
+}
+
+func (b *Box) SetEmptySelectFillText(text string) *Box {
+	b.EmptySelectFillText = text
 	return b
 }
 
@@ -101,13 +106,13 @@ func (b *Box) FillSelect() error {
 }
 
 func (b *Box) DrawSelect(selectFn func(*bdpan.FileInfoDto)) *Box {
-	// 清除第一行 loading 信息
-	b.Box.DrawOneLineText(b.t.S, 0, b.t.StyleDefault, runewidth.FillRight("", b.Box.Width()))
-	b.t.S.Show()
 	// 没有数据时直接返回
 	s := b.Select
-	if b.Select.Items == nil {
-		return nil
+	drawItems := b.Select.GetDrawItems()
+	if drawItems == nil || len(drawItems) == 0 {
+		// 没有内容时进行填充
+		b.Box.DrawOneLineText(0, b.t.StyleDefault, b.EmptySelectFillText)
+		return b
 	}
 	// 填充 select 信息
 	for i, item := range b.Select.GetDrawItems() {
@@ -117,12 +122,15 @@ func (b *Box) DrawSelect(selectFn func(*bdpan.FileInfoDto)) *Box {
 		if i == b.Select.SelectIndex {
 			style = b.Select.StyleSelect
 		}
-		b.Box.DrawOneLineText(b.t.S, i, style, text)
+		b.Box.DrawOneLineText(i, style, text)
 	}
+	// 绘制选中状态的额外操作
 	selectItem := s.GetSeleteItem()
-	info := selectItem.Info.(*bdpan.FileInfoDto)
-	if selectFn != nil {
-		selectFn(info)
+	if selectItem != nil {
+		info := selectItem.Info.(*bdpan.FileInfoDto)
+		if selectFn != nil {
+			selectFn(info)
+		}
 	}
 	return b
 }

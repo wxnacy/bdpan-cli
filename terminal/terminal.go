@@ -2,12 +2,12 @@ package terminal
 
 import (
 	"github.com/gdamore/tcell/v2"
-	"github.com/mattn/go-runewidth"
 	"github.com/wxnacy/bdpan"
 )
 
 var (
-	Log = bdpan.GetLogger()
+	Log          = bdpan.GetLogger()
+	StyleDefault = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 )
 
 func DrawText(s tcell.Screen, StartX, StartY, EndX, EndY int, style tcell.Style, text string) error {
@@ -54,8 +54,15 @@ func (t *Terminal) Exec() error {
 }
 
 func (t *Terminal) DrawLineText(StartX, StartY, MaxLineW int, style tcell.Style, text string) error {
-	text = runewidth.FillRight(text, MaxLineW)
+	text = OmitString(text, MaxLineW)
+	text = FillString(text, MaxLineW)
 	t.S.SetCell(StartX, StartY, style, []rune(text)...)
+	return nil
+}
+
+func (t *Terminal) DrawOneLineText(StartY int, style tcell.Style, text string) error {
+	w, _ := t.S.Size()
+	t.DrawLineText(0, StartY, w, style, text)
 	return nil
 }
 
@@ -112,6 +119,17 @@ func (t *Terminal) DrawBox(b Box) error {
 	}
 	// return t.DrawText(x1+1, y1+1, x2-1, y2-1, style, text)
 	return nil
+}
+
+func (t *Terminal) NewBox(StartX, StartY, EndX, EndY int, Style tcell.Style) *Box {
+	return &Box{
+		S:      t.S,
+		StartX: StartX,
+		StartY: StartY,
+		EndX:   EndX,
+		EndY:   EndY,
+		Style:  Style,
+	}
 }
 
 func (t *Terminal) Quit() {

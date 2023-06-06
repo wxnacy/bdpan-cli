@@ -18,12 +18,15 @@ type Select struct {
 }
 
 func (s Select) GetSeleteItem() *SelectItem {
+	if s.Items == nil || len(s.Items) <= s.SelectIndex {
+		return nil
+	}
 	return s.Items[s.SelectIndex]
 }
 
 func (s *Select) GetDrawItems() []*SelectItem {
 	if len(s.Items) > s.MaxHeight {
-
+		return s.Items[0:s.MaxHeight]
 	}
 	return s.Items
 }
