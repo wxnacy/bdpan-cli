@@ -25,9 +25,8 @@ var (
 )
 
 type BdpanCommand struct {
+	// 参数
 	Path string
-
-	from string
 
 	T    *terminal.Terminal
 	mode Mode
@@ -46,21 +45,6 @@ func (r *BdpanCommand) initViewDir(file *bdpan.FileInfoDto) error {
 	if path != "/" {
 		r.leftBox.SetDir(filepath.Dir(r.midBox.Dir)).SetSelectPath(r.midBox.Dir)
 	}
-	// if path == "/" {
-	// r.midDir = path
-	// r.midSelectPath = ""
-	// return nil
-	// }
-	// if file.IsDir() {
-	// r.midDir = file.Path
-	// r.midSelectPath = ""
-	// } else {
-	// r.midDir = filepath.Dir(path)
-	// r.midSelectPath = path
-	// }
-	// r.leftDir = filepath.Dir(r.midDir)
-	// r.leftSelectPath = r.midDir
-	// r.midFile = file
 	return nil
 }
 
@@ -189,13 +173,6 @@ func (r *BdpanCommand) DrawBottomRight(text string) error {
 	return r.T.DrawLineText(w-drawW-1, h-1, drawW, r.T.StyleDefault, text)
 }
 
-// 绘制选中的 select item
-// func (r *BdpanCommand) DrawSelectItem(s *terminal.Select) {
-// selectItem := s.GetSeleteItem()
-// info := selectItem.Info.(*bdpan.FileInfoDto)
-// r.rightBox.DrawText(r.T.S, r.T.StyleDefault, info.GetPretty())
-// }
-
 // 获取被选中的文件对象
 func (r *BdpanCommand) GetSelectInfo() *bdpan.FileInfoDto {
 	return r.getSelectInfo(r.midBox.Select)
@@ -229,18 +206,10 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 	case 'j':
 		if r.midBox.Select.MoveDownSelect(1) {
 			r.DrawMidSelect()
-			// err := r.drawSelect(r.midSelect)
-			// if err != nil {
-			// return err
-			// }
 		}
 	case 'k':
 		if r.midBox.Select.MoveUpSelect(1) {
 			r.DrawMidSelect()
-			// err := r.drawSelect(r.midSelect)
-			// if err != nil {
-			// return err
-			// }
 		}
 	case 'l':
 		r.InitScreen(r.GetSelectInfo())
@@ -248,8 +217,6 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 		switch r.prevRune {
 		case 0:
 			r.prevRune = 'y'
-			// case 'y':
-			// info := r.GetSelectInfo()
 		}
 	case 'h':
 		leftSelectFile := r.getSelectInfo(r.leftBox.Select)
