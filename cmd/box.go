@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/mattn/go-runewidth"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
@@ -47,7 +48,7 @@ type Box struct {
 
 func (b *Box) DrawBox() *Box {
 	b.t.DrawBox(*b.Box)
-	b.Box.DrawText(b.t.S, b.t.StyleDefault, "load files...")
+	b.Box.DrawOneLineText(b.t.S, 0, b.t.StyleDefault, "load files...")
 	b.t.S.Show()
 	return b
 }
@@ -73,6 +74,7 @@ func (b *Box) SetSelectPath(path string) *Box {
 	return b
 }
 
+// 填充 select 数据
 func (b *Box) FillSelect() error {
 	s := b.Select
 	if b.Dir == "" {
@@ -99,12 +101,15 @@ func (b *Box) FillSelect() error {
 }
 
 func (b *Box) DrawSelect(selectFn func(*bdpan.FileInfoDto)) *Box {
-	b.Box.DrawText(b.t.S, b.t.StyleDefault, "")
+	// 清除第一行 loading 信息
+	b.Box.DrawOneLineText(b.t.S, 0, b.t.StyleDefault, runewidth.FillRight("", b.Box.Width()))
 	b.t.S.Show()
+	// 没有数据时直接返回
 	s := b.Select
 	if b.Select.Items == nil {
 		return nil
 	}
+	// 填充 select 信息
 	for i, item := range b.Select.GetDrawItems() {
 		info := item.Info.(*bdpan.FileInfoDto)
 		text := fmt.Sprintf(" %s %s", info.GetFileTypeIcon(), info.GetFilename())
@@ -112,12 +117,11 @@ func (b *Box) DrawSelect(selectFn func(*bdpan.FileInfoDto)) *Box {
 		if i == b.Select.SelectIndex {
 			style = b.Select.StyleSelect
 		}
-		b.t.DrawLineText(s.StartX, s.StartY+i, s.MaxWidth, style, text)
+		b.Box.DrawOneLineText(b.t.S, i, style, text)
 	}
 	selectItem := s.GetSeleteItem()
 	info := selectItem.Info.(*bdpan.FileInfoDto)
 	if selectFn != nil {
-
 		selectFn(info)
 	}
 	return b

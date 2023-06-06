@@ -149,21 +149,20 @@ func (r *BdpanCommand) DrawEventKey(ev *tcell.EventKey) error {
 // 绘制中间的 select
 func (r *BdpanCommand) DrawMidSelect() {
 	r.midBox.DrawSelect(func(info *bdpan.FileInfoDto) {
-		r.rightBox.Box.DrawText(r.T.S, r.T.StyleDefault, info.GetPretty())
-
+		r.rightBox.Box.DrawMultiLineText(
+			r.T.S, r.T.StyleDefault, strings.Split(info.GetPretty(), "\n"))
 	})
 }
 
 // 左上角输入内容
 func (r *BdpanCommand) DrawTopLeft(text string) error {
-	w, _ := r.T.S.Size()
-	return r.T.DrawText(0, 0, w-1, 0, r.T.StyleDefault, text)
+	return r.T.DrawLineText(0, 0, 0, r.T.StyleDefault, text)
 }
 
 // 左下角输入内容
 func (r *BdpanCommand) DrawBottomLeft(text string) error {
-	w, h := r.T.S.Size()
-	return r.T.DrawText(0, h-1, w-10, h-1, r.T.StyleDefault, text)
+	_, h := r.T.S.Size()
+	return r.T.DrawLineText(0, h-1, 0, r.T.StyleDefault, text)
 }
 
 // 右下角输入内容

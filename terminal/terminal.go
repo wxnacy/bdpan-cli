@@ -55,7 +55,8 @@ func (t *Terminal) Exec() error {
 
 func (t *Terminal) DrawLineText(StartX, StartY, MaxLineW int, style tcell.Style, text string) error {
 	text = runewidth.FillRight(text, MaxLineW)
-	return t.DrawText(StartX, StartY, StartX+MaxLineW, StartY, style, text)
+	t.S.SetCell(StartX, StartY, style, []rune(text)...)
+	return nil
 }
 
 func (t *Terminal) DrawText(StartX, StartY, EndX, EndY int, style tcell.Style, text string) error {
