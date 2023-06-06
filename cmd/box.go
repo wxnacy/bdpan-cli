@@ -10,7 +10,6 @@ import (
 )
 
 func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
-	boxWidth := EndX - StartX
 	box := t.NewBox(
 		StartX,
 		StartY,
@@ -21,8 +20,8 @@ func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
 	Select := &terminal.Select{
 		StartX:    StartX + 1,
 		StartY:    StartY + 1,
-		MaxWidth:  boxWidth - 2,
-		MaxHeight: EndY - 2,
+		MaxWidth:  box.Width(),
+		MaxHeight: box.Height(),
 		StyleSelect: tcell.StyleDefault.
 			Foreground(tcell.ColorWhite).
 			Background(tcell.ColorDarkCyan),
@@ -105,21 +104,37 @@ func (b *Box) FillSelect() error {
 	return nil
 }
 
-func (b *Box) DrawSelect(selectFn func(*bdpan.FileInfoDto)) *Box {
+func (b *Box) DrawSelect(anchorIndex int, selectFn func(*bdpan.FileInfoDto)) *Box {
 	// 没有数据时直接返回
+	b.Box.Clean()
 	s := b.Select
-	drawItems := b.Select.GetDrawItems()
+	// 计算获取需要绘制的列表开始索引
+	// TODO: 需要重构
+	var offset int = 0
+	selectItemLen := len(b.Select.Items)
+	selectMaxH := b.Select.MaxHeight
+	if selectItemLen > selectMaxH {
+		selectI := b.Select.SelectIndex
+		selectOffset := selectMaxH - anchorIndex
+		if selectI+selectOffset > selectMaxH {
+			offset = selectI + selectOffset - selectMaxH
+			if offset > selectItemLen-selectMaxH {
+				offset = selectItemLen - selectMaxH
+			}
+		}
+	}
+	drawItems := b.Select.GetDrawItems(offset)
 	if drawItems == nil || len(drawItems) == 0 {
 		// 没有内容时进行填充
 		b.Box.DrawOneLineText(0, b.t.StyleDefault, b.EmptySelectFillText)
 		return b
 	}
 	// 填充 select 信息
-	for i, item := range b.Select.GetDrawItems() {
+	for i, item := range drawItems {
 		info := item.Info.(*bdpan.FileInfoDto)
 		text := fmt.Sprintf(" %s %s", info.GetFileTypeIcon(), info.GetFilename())
 		style := b.t.StyleDefault
-		if i == b.Select.SelectIndex {
+		if i+offset == b.Select.SelectIndex {
 			style = b.Select.StyleSelect
 		}
 		b.Box.DrawOneLineText(i, style, text)

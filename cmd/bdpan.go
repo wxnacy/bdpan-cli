@@ -102,13 +102,13 @@ func (r *BdpanCommand) DrawSelect() error {
 	if err != nil {
 		return err
 	}
-	r.DrawMidSelect()
+	r.DrawMidSelect(5)
 	// 绘制 left box
 	err = r.leftBox.FillSelect()
 	if err != nil {
 		return err
 	}
-	r.leftBox.DrawSelect(nil)
+	r.leftBox.DrawSelect(5, nil)
 	return nil
 }
 
@@ -154,8 +154,8 @@ func (r *BdpanCommand) DrawEventKey(ev *tcell.EventKey) error {
 }
 
 // 绘制中间的 select
-func (r *BdpanCommand) DrawMidSelect() {
-	r.midBox.DrawSelect(func(info *bdpan.FileInfoDto) {
+func (r *BdpanCommand) DrawMidSelect(aIndex int) {
+	r.midBox.DrawSelect(aIndex, func(info *bdpan.FileInfoDto) {
 		r.rightBox.Box.DrawMultiLineText(
 			r.T.StyleDefault, strings.Split(info.GetPretty(), "\n"))
 	})
@@ -194,6 +194,18 @@ func (r *BdpanCommand) getSelectInfo(s *terminal.Select) *bdpan.FileInfoDto {
 	return info
 }
 
+func (r *BdpanCommand) MoveUp(step int) {
+	if r.midBox.Select.MoveUpSelect(step) {
+		r.DrawMidSelect(5)
+	}
+}
+
+func (r *BdpanCommand) MoveDown(step int) {
+	if r.midBox.Select.MoveDownSelect(step) {
+		r.DrawMidSelect(r.midBox.Box.Height() - 5)
+	}
+}
+
 func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	// 处理退出的快捷键
 	if ev.Rune() == 'q' || ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
@@ -213,20 +225,11 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 	}
 	switch ev.Rune() {
 	case 'j':
-		if r.midBox.Select.MoveDownSelect(1) {
-			r.DrawMidSelect()
-		}
+		r.MoveDown(1)
 	case 'k':
-		if r.midBox.Select.MoveUpSelect(1) {
-			r.DrawMidSelect()
-		}
+		r.MoveUp(1)
 	case 'l':
 		r.InitScreen(r.GetSelectInfo())
-	case 'y':
-		switch r.prevRune {
-		case 0:
-			r.prevRune = 'y'
-		}
 	case 'h':
 		leftSelectFile := r.getSelectInfo(r.leftBox.Select)
 		file := &bdpan.FileInfoDto{
@@ -234,10 +237,27 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 			FileType: 1,
 		}
 		r.InitScreen(file)
+	case 'y':
+		switch r.prevRune {
+		case 0:
+			r.prevRune = 'y'
+		}
 	default:
 		switch ev.Key() {
 		case tcell.KeyCtrlL:
-			r.T.S.Sync()
+			r.InitScreen(r.midBox.File)
+		case tcell.KeyCtrlD:
+			_, h := r.T.S.Size()
+			r.MoveDown(h / 2)
+		case tcell.KeyCtrlF:
+			_, h := r.T.S.Size()
+			r.MoveDown(h)
+		case tcell.KeyCtrlU:
+			_, h := r.T.S.Size()
+			r.MoveUp(h / 2)
+		case tcell.KeyCtrlB:
+			_, h := r.T.S.Size()
+			r.MoveUp(h)
 		case tcell.KeyEnter:
 			r.DrawBottomLeft("确定要下载?(y/N)")
 			r.mode = ModeConfirm

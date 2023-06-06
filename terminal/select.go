@@ -24,20 +24,32 @@ func (s Select) GetSeleteItem() *SelectItem {
 	return s.Items[s.SelectIndex]
 }
 
-func (s *Select) GetDrawItems() []*SelectItem {
+func (s *Select) GetDrawItems(offset int) []*SelectItem {
 	if len(s.Items) > s.MaxHeight {
-		return s.Items[0:s.MaxHeight]
+		maxEnd := len(s.Items) - 1
+		if offset > maxEnd {
+			offset = maxEnd
+		}
+		end := s.MaxHeight + offset
+		if end > maxEnd {
+			end = maxEnd + 1
+		}
+		return s.Items[offset:end]
 	}
 	return s.Items
 }
 
 func (s *Select) MoveDownSelect(step int) (isChange bool) {
-	var minH = s.MaxHeight
-	if len(s.Items) < minH {
-		minH = len(s.Items)
-	}
-	if s.SelectIndex+1 < minH {
-		s.SelectIndex += 1
+	var minH = len(s.Items)
+	// var minH = s.MaxHeight
+	// if len(s.Items) < minH {
+	// minH = len(s.Items)
+	// }
+	if s.SelectIndex+step < minH {
+		s.SelectIndex += step
+		isChange = true
+	} else if s.SelectIndex < minH && s.SelectIndex+step > minH {
+		s.SelectIndex = minH - 1
 		isChange = true
 	}
 	Log.Debugf("MoveDownSelect step: %d index %d", step, s.SelectIndex)

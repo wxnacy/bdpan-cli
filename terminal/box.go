@@ -30,23 +30,23 @@ func (b Box) DrawRange() (StartX, StartY, EndX, EndY int) {
 
 // 清除内容
 func (b *Box) Clean() *Box {
-	// for i := 0; i < b.Height(); i++ {
-	// b.DrawOneLineText(i, StyleDefault, " ")
-	// }
-	// b.S.Show()
+	for i := 0; i < b.Height(); i++ {
+		b.DrawOneLineText(i, StyleDefault, "")
+	}
+	b.S.Show()
 	return b
 }
 
 // 宽度
 func (b Box) Width() int {
 	sx, _, ex, _ := b.DrawRange()
-	return ex - sx
+	return ex - sx + 1
 }
 
 // 高度
 func (b Box) Height() int {
 	_, sy, _, ey := b.DrawRange()
-	return ey - sy
+	return ey - sy + 1
 }
 
 // 一行的数据，超出部分使用 ... 省略
