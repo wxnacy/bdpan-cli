@@ -9,6 +9,10 @@ import (
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
 
+var (
+	SelectCache = make(map[string]*terminal.Select, 0)
+)
+
 func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
 	box := t.NewBox(
 		StartX,
@@ -41,14 +45,23 @@ type Box struct {
 	Dir                 string
 	SelectPath          string // 中间需要选中的地址
 	File                *bdpan.FileInfoDto
+	UseCache            bool
 
 	t *terminal.Terminal
 }
 
 func (b *Box) DrawBox() *Box {
 	b.t.DrawBox(*b.Box)
-	// b.Box.DrawOneLineText(0, b.t.StyleDefault, "load files...")
-	// b.t.S.Show()
+	b.Box.Clean()
+	return b
+}
+
+func (b *Box) SaveCache() {
+	SelectCache[b.Dir] = b.Select
+}
+
+func (b *Box) EnableUseCache() *Box {
+	b.UseCache = true
 	return b
 }
 
@@ -85,6 +98,14 @@ func (b *Box) FillSelect() error {
 		return nil
 	}
 	if len(s.Items) == 0 {
+		if b.UseCache {
+			selCache, ok := SelectCache[b.Dir]
+			if ok {
+				s.Items = selCache.Items
+				s.SelectIndex = selCache.SelectIndex
+				return nil
+			}
+		}
 		files, err := bdpan.GetDirAllFiles(b.Dir)
 		if err != nil {
 			return err
@@ -100,6 +121,7 @@ func (b *Box) FillSelect() error {
 			}
 		}
 		s.Items = items
+		b.SaveCache()
 	}
 	return nil
 }
