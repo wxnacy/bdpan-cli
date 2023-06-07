@@ -206,6 +206,12 @@ func (r *BdpanCommand) MoveDown(step int) {
 	}
 }
 
+func (r *BdpanCommand) MovePageEnd() {
+	if r.midBox.Select.MoveDownSelect(len(r.midBox.Select.Items)) {
+		r.DrawMidSelect(r.midBox.Box.Height() - 5)
+	}
+}
+
 func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	// 处理退出的快捷键
 	if ev.Rune() == 'q' || ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
@@ -215,6 +221,9 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	return nil
 }
 func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
+	Log.Infof("ListenEventKeyInModeNormal Rune: %v(%s) prevRune: %v(%s) Key: %v",
+		ev.Rune(), strconv.QuoteRune(ev.Rune()),
+		r.prevRune, strconv.QuoteRune(r.prevRune), ev.Key())
 	// 处理退出的快捷键
 	if ev.Rune() == 'q' || ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
 		return ErrQuit
@@ -241,6 +250,16 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 		switch r.prevRune {
 		case 0:
 			r.prevRune = 'y'
+		}
+	case 'G':
+		r.MovePageEnd()
+	case 'g':
+		switch r.prevRune {
+		case 0:
+			r.prevRune = 'g'
+		case 'g':
+			r.MoveUp(len(r.midBox.Select.Items))
+			r.prevRune = 0
 		}
 	default:
 		switch ev.Key() {

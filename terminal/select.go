@@ -41,18 +41,14 @@ func (s *Select) GetDrawItems(offset int) []*SelectItem {
 
 func (s *Select) MoveDownSelect(step int) (isChange bool) {
 	var minH = len(s.Items)
-	// var minH = s.MaxHeight
-	// if len(s.Items) < minH {
-	// minH = len(s.Items)
-	// }
 	if s.SelectIndex+step < minH {
 		s.SelectIndex += step
 		isChange = true
-	} else if s.SelectIndex < minH && s.SelectIndex+step > minH {
+	} else if s.SelectIndex < minH && s.SelectIndex+step >= minH {
 		s.SelectIndex = minH - 1
 		isChange = true
 	}
-	Log.Debugf("MoveDownSelect step: %d index %d", step, s.SelectIndex)
+	Log.Debugf("MoveDownSelect step: %d index %d isChange %v", step, s.SelectIndex, isChange)
 	return
 }
 
