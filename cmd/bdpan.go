@@ -86,6 +86,14 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 	if err = r.DrawSelect(); err != nil {
 		return err
 	}
+	// draw bottom
+	switch r.mode {
+	case ModeConfirm:
+		switch r.prevAction {
+		case KeymapActionDeleteFile:
+			r.DrawBottomLeft(fmt.Sprintf("确定删除 %s (y/N)", r.GetSelectInfo().GetFilename()))
+		}
+	}
 	return nil
 }
 
@@ -325,10 +333,25 @@ func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
 }
 
 func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
-	// 处理退出的快捷键
-	if ev.Rune() == 'q' || ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+	var err error
+	if ev.Rune() != 'y' {
 		r.mode = ModeNormal
-		return ErrQuit
+		r.RefreshScreen()
+		r.DrawBottomLeft("操作取消!")
+		return nil
+	}
+	var action = r.prevAction
+	r.prevAction = 0
+	switch action {
+	case KeymapActionDeleteFile:
+		err = bdpan.DeleteFile(r.GetSelectInfo().Path)
+		r.mode = ModeNormal
+		if err != nil {
+			r.DrawBottomLeft(fmt.Sprintf("删除失败: %v", err))
+		} else {
+			r.ReloadScreen()
+			r.DrawBottomLeft("删除成功!")
+		}
 	}
 	return nil
 }
@@ -366,6 +389,11 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 		r.fromFile = r.GetSelectInfo()
 		r.DrawBottomLeft(fmt.Sprintf("%s 已经剪切", r.fromFile.Path))
 		r.prevAction = KeymapActionCutFile
+	case 'd':
+		r.fromFile = r.GetSelectInfo()
+		r.prevAction = KeymapActionDeleteFile
+		r.mode = ModeConfirm
+		r.RefreshScreen()
 	default:
 		if IsKeymap(ev.Rune()) {
 			r.prevRune = ev.Rune()

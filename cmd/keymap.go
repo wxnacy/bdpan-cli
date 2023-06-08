@@ -41,6 +41,8 @@ const (
 
 	KeymapActionCutFile
 
+	KeymapActionDeleteFile
+
 	KeymapActionPasteFile
 )
 
