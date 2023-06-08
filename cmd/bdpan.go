@@ -92,6 +92,8 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 		switch r.prevAction {
 		case KeymapActionDeleteFile:
 			r.DrawBottomLeft(fmt.Sprintf("确定删除 %s (y/N)", r.GetSelectInfo().GetFilename()))
+		case KeymapActionDownloadFile:
+			r.DrawBottomLeft(fmt.Sprintf("确定下载 %s (y/N)", r.GetSelectInfo().GetFilename()))
 		}
 	}
 	return nil
@@ -342,16 +344,28 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	}
 	var action = r.prevAction
 	r.prevAction = 0
+	r.mode = ModeNormal
 	switch action {
 	case KeymapActionDeleteFile:
 		err = bdpan.DeleteFile(r.GetSelectInfo().Path)
-		r.mode = ModeNormal
 		if err != nil {
 			r.DrawBottomLeft(fmt.Sprintf("删除失败: %v", err))
 		} else {
 			r.ReloadScreen()
 			r.DrawBottomLeft("删除成功!")
 		}
+	case KeymapActionDownloadFile:
+		cmd := &DownloadCommand{
+			isRecursion: true,
+		}
+		err = cmd.Download(r.fromFile)
+		if err != nil {
+			r.DrawBottomLeft(fmt.Sprintf("下载失败: %v", err))
+		} else {
+			r.RefreshScreen()
+			r.DrawBottomLeft("下载成功!")
+		}
+		bdpan.SetOutputFile()
 	}
 	return nil
 }
@@ -416,8 +430,10 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 				_, h := r.T.S.Size()
 				r.MoveUp(h)
 			case tcell.KeyEnter:
-				r.DrawBottomLeft("确定要下载?(y/N)")
+				r.fromFile = r.GetSelectInfo()
+				r.prevAction = KeymapActionDownloadFile
 				r.mode = ModeConfirm
+				r.RefreshScreen()
 			}
 		}
 	}

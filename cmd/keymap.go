@@ -44,6 +44,8 @@ const (
 	KeymapActionDeleteFile
 
 	KeymapActionPasteFile
+
+	KeymapActionDownloadFile
 )
 
 func IsKeymap(r rune) bool {
