@@ -40,8 +40,11 @@ type BdpanCommand struct {
 	bottomBox *Box
 
 	// 按键
-	prevRune rune
-	useCache bool
+	prevRune   rune
+	prevAction KeymapAction
+	useCache   bool
+
+	fromFile *bdpan.FileInfoDto
 }
 
 func (r *BdpanCommand) initViewDir(file *bdpan.FileInfoDto) error {
@@ -54,10 +57,19 @@ func (r *BdpanCommand) initViewDir(file *bdpan.FileInfoDto) error {
 }
 
 func (r *BdpanCommand) RefreshScreen() error {
+	defer func() {
+		r.useCache = false
+	}()
 	r.useCache = true
 	return r.InitScreen(r.midBox.File)
 }
+
+func (r *BdpanCommand) ReloadScreen() error {
+	return r.InitScreen(r.GetSelectInfo())
+}
+
 func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
+	Log.Infof("InitScreen UseCache: %v", r.useCache)
 	r.T.S.Clear()
 	r.T.S.Sync()
 	var err error
@@ -98,13 +110,13 @@ func (r *BdpanCommand) DrawLayout() error {
 	if r.mode == ModeKeymap {
 		endY = endY - bottomBoxH - 1
 	}
-	r.leftBox = NewBox(r.T, startX, startY, endX, endY).EnableUseCache().DrawBox()
+	r.leftBox = NewBox(r.T, startX, startY, endX, endY).SetUseCache(r.useCache).DrawBox()
 	// mid box
 	startX = endX
 	boxWidth = int(float64(w) * 0.4)
 	endX = startX + boxWidth
 	r.midBox = NewBox(r.T, startX, startY, endX, endY).
-		EnableUseCache().SetEmptySelectFillText("没有内容").DrawBox()
+		SetUseCache(r.useCache).SetEmptySelectFillText("没有内容").DrawBox()
 	// right box
 	startX = endX
 	endX = startX + int(float64(w)*0.4)
@@ -243,7 +255,20 @@ func (r *BdpanCommand) MovePageEnd() {
 	r.MoveDown(len(r.midBox.Select.Items))
 }
 
+func (r *BdpanCommand) CopyInModeNormal(msg string) error {
+	err := clipboard.WriteAll(msg)
+	if err != nil {
+		return err
+	}
+	msg = fmt.Sprintf("%s 已经复制到剪切板", msg)
+	r.mode = ModeNormal
+	r.RefreshScreen()
+	r.DrawBottomLeft(msg)
+	return nil
+}
+
 func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
+	var err error
 	// 处理退出的快捷键
 	if ev.Rune() == 'q' || ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
 		r.mode = ModeNormal
@@ -256,14 +281,40 @@ func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
 		switch keyAction {
 		case KeymapActionCopyPath:
 			path := r.GetSelectInfo().Path
-			err := clipboard.WriteAll(path)
-			if err != nil {
-				return err
-			}
-			msg := fmt.Sprintf("%s 已经复制到剪切板", path)
+			r.CopyInModeNormal(path)
+		case KeymapActionCopyName:
+			name := r.GetSelectInfo().GetFilename()
+			r.CopyInModeNormal(name)
+		case KeymapActionCopyDir:
+			path := r.GetSelectInfo().Path
+			r.CopyInModeNormal(filepath.Dir(path))
+		case KeymapActionCopyFile:
+			r.fromFile = r.GetSelectInfo()
+			msg := fmt.Sprintf("%s 已经复制", r.fromFile.Path)
 			r.mode = ModeNormal
 			r.RefreshScreen()
 			r.DrawBottomLeft(msg)
+		case KeymapActionPasteFile:
+			if r.fromFile == nil {
+				return ErrNotCopyFile
+			}
+			dir := filepath.Dir(r.GetSelectInfo().Path)
+			toFile := filepath.Join(dir, r.fromFile.GetFilename())
+			if r.prevAction == KeymapActionCutFile {
+				err = bdpan.MoveFile(r.fromFile.Path, toFile)
+			} else {
+				err = bdpan.CopyFile(r.fromFile.Path, toFile)
+			}
+			if err != nil {
+				return err
+			}
+			msg := fmt.Sprintf("%s 已经粘贴", r.fromFile.Path)
+			r.mode = ModeNormal
+			// TODO: 粘贴后需要将光标停留在指定文件
+			r.ReloadScreen()
+			r.DrawBottomLeft(msg)
+			r.fromFile = nil
+			r.prevAction = 0
 		}
 	} else {
 		r.mode = ModeNormal
@@ -311,11 +362,15 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 			r.MoveUp(len(r.midBox.Select.Items))
 			r.prevRune = 0
 		}
+	case 'x':
+		r.fromFile = r.GetSelectInfo()
+		r.DrawBottomLeft(fmt.Sprintf("%s 已经剪切", r.fromFile.Path))
+		r.prevAction = KeymapActionCutFile
 	default:
 		if IsKeymap(ev.Rune()) {
 			r.prevRune = ev.Rune()
 			r.mode = ModeKeymap
-			r.InitScreen(r.midBox.File)
+			r.RefreshScreen()
 		} else {
 			switch ev.Key() {
 			case tcell.KeyCtrlL:
@@ -389,7 +444,11 @@ func (r *BdpanCommand) Exec(args []string) error {
 				err = r.ListenEventKeyInModeKeymap(ev)
 			}
 			if err != nil {
-				return err
+				if IsInErrors(err, BottomErrs) {
+					r.DrawBottomLeft(err.Error())
+				} else {
+					return err
+				}
 			}
 		}
 	}

@@ -11,19 +11,37 @@ import (
 var (
 	Keymaps = []Keymap{
 		Keymap{R: 'y', RelKeys: []Keymap{
+			Keymap{R: 'd', Msg: "复制所在文件夹名称"},
+			Keymap{R: 'n', Msg: "复制文件名称"},
 			Keymap{R: 'p', Msg: "复制文件路径"},
+			Keymap{R: 'y', Msg: "复制文件"},
+		}},
+		Keymap{R: 'p', RelKeys: []Keymap{
+			Keymap{R: 'p', Msg: "粘贴文件"},
 		}},
 	}
 
 	KeyActionMap = map[string]KeymapAction{
 		"yp": KeymapActionCopyPath,
+		"yn": KeymapActionCopyName,
+		"yd": KeymapActionCopyDir,
+		"yy": KeymapActionCopyFile,
+
+		"pp": KeymapActionPasteFile,
 	}
 )
 
 type KeymapAction int
 
 const (
-	KeymapActionCopyPath KeymapAction = iota
+	KeymapActionCopyPath KeymapAction = iota + 1
+	KeymapActionCopyName
+	KeymapActionCopyDir
+	KeymapActionCopyFile
+
+	KeymapActionCutFile
+
+	KeymapActionPasteFile
 )
 
 func IsKeymap(r rune) bool {

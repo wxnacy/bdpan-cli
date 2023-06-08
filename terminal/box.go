@@ -4,16 +4,6 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// func NewBox(StartX, StartY, EndX, EndY int, Style tcell.Style) *Box {
-// return &Box{
-// StartX: StartX,
-// StartY: StartY,
-// EndX:   EndX,
-// EndY:   EndY,
-// Style:  Style,
-// }
-// }
-
 type Box struct {
 	S      tcell.Screen
 	StartX int

@@ -65,6 +65,11 @@ func (b *Box) EnableUseCache() *Box {
 	return b
 }
 
+func (b *Box) SetUseCache(flag bool) *Box {
+	b.UseCache = flag
+	return b
+}
+
 func (b *Box) SetFile(file *bdpan.FileInfoDto) *Box {
 	b.File = file
 	if file.IsDir() {
