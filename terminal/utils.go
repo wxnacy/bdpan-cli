@@ -8,8 +8,8 @@ import (
 func OmitString(text string, maxWidth int) string {
 	textW := runewidth.StringWidth(text)
 	if textW > maxWidth {
-		// 宽度需要减去边框的，所以是 len("...") + 1
-		return text[0:maxWidth] + "..."
+		// 文字长度需要在减去 ... 的宽度
+		return text[0:maxWidth-3] + "..."
 	}
 	return text
 }
