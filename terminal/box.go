@@ -62,3 +62,12 @@ func (b *Box) DrawOneLineText(StartY int, style tcell.Style, text string) {
 	text = b.FillOneLineText(b.OmitOneLineText(text))
 	b.S.SetCell(sx, sy+StartY, style, []rune(text)...)
 }
+
+// 绘制多行数据
+func (b *Box) DrawText(StartX, StartY int, style tcell.Style, text string) {
+	sx, sy, _, _ := b.DrawRange()
+	sx += StartX
+	sy += StartY
+	Log.Infof("Box: %v DrawText StartX: %d StartY: %d Text: %s", b, sx, sy, text)
+	b.S.SetCell(sx, sy, style, []rune(text)...)
+}

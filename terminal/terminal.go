@@ -8,6 +8,7 @@ import (
 var (
 	Log          = bdpan.GetLogger()
 	StyleDefault = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
+	StyleSelect  = tcell.StyleDefault.Background(tcell.ColorDarkCyan).Foreground(tcell.ColorWhite)
 )
 
 func DrawText(s tcell.Screen, StartX, StartY, EndX, EndY int, style tcell.Style, text string) error {

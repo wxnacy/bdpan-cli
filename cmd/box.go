@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
@@ -22,13 +21,11 @@ func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
 		t.StyleDefault,
 	)
 	Select := &terminal.Select{
-		StartX:    StartX + 1,
-		StartY:    StartY + 1,
-		MaxWidth:  box.Width(),
-		MaxHeight: box.Height(),
-		StyleSelect: tcell.StyleDefault.
-			Foreground(tcell.ColorWhite).
-			Background(tcell.ColorDarkCyan),
+		StartX:      StartX + 1,
+		StartY:      StartY + 1,
+		MaxWidth:    box.Width(),
+		MaxHeight:   box.Height(),
+		StyleSelect: terminal.StyleSelect,
 	}
 
 	return &Box{

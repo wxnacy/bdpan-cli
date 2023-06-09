@@ -38,6 +38,7 @@ type BdpanCommand struct {
 	midBox    *Box
 	rightBox  *Box
 	bottomBox *Box
+	confirm   *terminal.Confirm
 
 	// 按键
 	prevRune   rune
@@ -86,15 +87,18 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 	if err = r.DrawSelect(); err != nil {
 		return err
 	}
-	// draw bottom
 	switch r.mode {
 	case ModeConfirm:
+		var msg string
+		var name = r.GetSelectInfo().GetFilename()
 		switch r.prevAction {
 		case KeymapActionDeleteFile:
-			r.DrawBottomLeft(fmt.Sprintf("确定删除 %s (y/N)", r.GetSelectInfo().GetFilename()))
+			msg = fmt.Sprintf("确定删除 %s?", name)
 		case KeymapActionDownloadFile:
-			r.DrawBottomLeft(fmt.Sprintf("确定下载 %s (y/N)", r.GetSelectInfo().GetFilename()))
+			msg = fmt.Sprintf("确定下载 %s?", name)
 		}
+		// confirm box
+		r.confirm = terminal.NewConfirm(r.T, msg).Draw()
 	}
 	return nil
 }
@@ -131,8 +135,21 @@ func (r *BdpanCommand) DrawLayout() error {
 	startX = endX
 	endX = startX + int(float64(w)*0.4)
 	r.rightBox = NewBox(r.T, startX, startY, endX, endY).DrawBox()
-	if r.mode == ModeKeymap {
+	switch r.mode {
+	case ModeKeymap:
+		// bottom box
 		r.bottomBox = NewBox(r.T, 0, bottomBoxStartY, w-1, bottomBoxEndY).DrawBox()
+		// case ModeConfirm:
+		// var msg string
+		// var name = "ss" // r.GetSelectInfo().GetFilename()
+		// switch r.prevAction {
+		// case KeymapActionDeleteFile:
+		// msg = fmt.Sprintf("确定删除 %s?(y/N)", name)
+		// case KeymapActionDownloadFile:
+		// msg = fmt.Sprintf("确定下载 %s?(y/N)", name)
+		// }
+		// // confirm box
+		// r.confirm = terminal.NewConfirm(r.T, msg).Draw()
 	}
 	return nil
 }
@@ -222,7 +239,9 @@ func (r *BdpanCommand) DrawTopLeft(text string) error {
 // 左下角输入内容
 func (r *BdpanCommand) DrawBottomLeft(text string) error {
 	w, h := r.T.S.Size()
-	return r.T.DrawLineText(0, h-1, w/2, r.T.StyleDefault, text)
+	r.T.DrawLineText(0, h-1, w/2, r.T.StyleDefault, text)
+	r.T.S.Show()
+	return nil
 }
 
 // 右下角输入内容
@@ -336,17 +355,39 @@ func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
 
 func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	var err error
-	if ev.Rune() != 'y' {
-		r.mode = ModeNormal
-		r.RefreshScreen()
-		r.DrawBottomLeft("操作取消!")
+	switch ev.Rune() {
+	case 'h':
+		r.confirm.EnableEnsure().Draw()
 		return nil
+	case 'l':
+		r.confirm.EnableCancel().Draw()
+		return nil
+	case 'y':
+		r.confirm.EnableEnsure().Draw()
+	default:
+		switch ev.Key() {
+		case tcell.KeyLeft:
+			r.confirm.EnableEnsure().Draw()
+			return nil
+		case tcell.KeyRight:
+			r.confirm.EnableCancel().Draw()
+			return nil
+		}
+		if ev.Key() == tcell.KeyEnter && r.confirm.IsEnsure() {
+			r.confirm.EnableEnsure().Draw()
+		} else {
+			r.mode = ModeNormal
+			r.RefreshScreen()
+			r.DrawBottomLeft("操作取消!")
+			return nil
+		}
 	}
 	var action = r.prevAction
 	r.prevAction = 0
 	r.mode = ModeNormal
 	switch action {
 	case KeymapActionDeleteFile:
+		r.DrawBottomLeft("开始删除...")
 		err = bdpan.DeleteFile(r.GetSelectInfo().Path)
 		if err != nil {
 			r.DrawBottomLeft(fmt.Sprintf("删除失败: %v", err))
@@ -355,6 +396,7 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 			r.DrawBottomLeft("删除成功!")
 		}
 	case KeymapActionDownloadFile:
+		r.DrawBottomLeft("开始下载...")
 		cmd := &DownloadCommand{
 			isRecursion: true,
 		}
@@ -403,9 +445,14 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 		r.fromFile = r.GetSelectInfo()
 		r.DrawBottomLeft(fmt.Sprintf("%s 已经剪切", r.fromFile.Path))
 		r.prevAction = KeymapActionCutFile
-	case 'd':
+	case 'D':
 		r.fromFile = r.GetSelectInfo()
 		r.prevAction = KeymapActionDeleteFile
+		r.mode = ModeConfirm
+		r.RefreshScreen()
+	case 'd':
+		r.fromFile = r.GetSelectInfo()
+		r.prevAction = KeymapActionDownloadFile
 		r.mode = ModeConfirm
 		r.RefreshScreen()
 	default:
@@ -429,11 +476,11 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 			case tcell.KeyCtrlB:
 				_, h := r.T.S.Size()
 				r.MoveUp(h)
-			case tcell.KeyEnter:
-				r.fromFile = r.GetSelectInfo()
-				r.prevAction = KeymapActionDownloadFile
-				r.mode = ModeConfirm
-				r.RefreshScreen()
+				// case tcell.KeyEnter:
+				// r.fromFile = r.GetSelectInfo()
+				// r.prevAction = KeymapActionDownloadFile
+				// r.mode = ModeConfirm
+				// r.RefreshScreen()
 			}
 		}
 	}
