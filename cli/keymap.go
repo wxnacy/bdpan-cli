@@ -1,24 +1,20 @@
-package cmd
+package cli
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/gdamore/tcell/v2"
 )
 
 var (
 	Keymaps = []Keymap{
-		Keymap{R: 'y', RelKeys: []Keymap{
-			Keymap{R: 'd', Msg: "复制所在文件夹名称"},
-			Keymap{R: 'n', Msg: "复制文件名称"},
-			Keymap{R: 'p', Msg: "复制文件路径"},
-			Keymap{R: 'y', Msg: "复制文件"},
-		}},
-		Keymap{R: 'p', RelKeys: []Keymap{
-			Keymap{R: 'p', Msg: "粘贴文件"},
-		}},
+		NewKeymap('y', "").
+			AddRelKey(NewKeymap('d', "复制所在文件夹名称")).
+			AddRelKey(NewKeymap('n', "复制文件名称")).
+			AddRelKey(NewKeymap('p', "复制文件路径")).
+			AddRelKey(NewKeymap('y', "复制文件")),
+		NewKeymap('p', "").
+			AddRelKey(NewKeymap('p', "粘贴文件")),
 	}
 
 	KeyActionMap = map[string]KeymapAction{
@@ -81,12 +77,15 @@ func GetRelKeysMsgByRune(r rune) []string {
 	relkeys := GetRelKeysByRune(r)
 	if relkeys != nil {
 		for _, k := range relkeys {
-			rStr := strings.ReplaceAll(strconv.QuoteRune(k.R), "'", "")
-			var msg = fmt.Sprintf("  %s\t%s", rStr, k.Msg)
+			var msg = fmt.Sprintf("  %s\t%s", string(k.R), k.Msg)
 			msgs = append(msgs, msg)
 		}
 	}
 	return msgs
+}
+
+func NewKeymap(r rune, doc string) Keymap {
+	return Keymap{R: r, Msg: doc}
 }
 
 type Keymap struct {
@@ -94,4 +93,9 @@ type Keymap struct {
 	Key     tcell.Key
 	Msg     string
 	RelKeys []Keymap
+}
+
+func (k Keymap) AddRelKey(km Keymap) Keymap {
+	k.RelKeys = append(k.RelKeys, km)
+	return k
 }

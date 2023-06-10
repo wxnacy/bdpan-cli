@@ -10,6 +10,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/wxnacy/bdpan"
+	"github.com/wxnacy/bdpan-cli/cli"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
 
@@ -40,11 +41,11 @@ type BdpanCommand struct {
 	rightBox  *Box
 	bottomBox *Box
 	confirm   *terminal.Confirm
-	helpBox   *Box
+	help      *terminal.Help
 
 	// 按键
 	prevRune   rune
-	prevAction KeymapAction
+	prevAction cli.KeymapAction
 	useCache   bool
 
 	fromFile *bdpan.FileInfoDto
@@ -75,6 +76,10 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 	Log.Infof("InitScreen UseCache: %v", r.useCache)
 	r.T.S.Clear()
 	r.T.S.Sync()
+	if r.mode == ModeHelp {
+		r.help = terminal.NewHelp(r.T, cli.GetHelpItems()).Draw()
+		return nil
+	}
 	var err error
 	if err = r.DrawTopLeft(file.Path); err != nil {
 		return err
@@ -94,9 +99,9 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 		var msg string
 		var name = r.GetSelectInfo().GetFilename()
 		switch r.prevAction {
-		case KeymapActionDeleteFile:
+		case cli.KeymapActionDeleteFile:
 			msg = fmt.Sprintf("确定删除 %s?", name)
-		case KeymapActionDownloadFile:
+		case cli.KeymapActionDownloadFile:
 			msg = fmt.Sprintf("确定下载 %s?", name)
 		}
 		// confirm box
@@ -117,7 +122,7 @@ func (r *BdpanCommand) DrawLayout() error {
 	var endX = startX + boxWidth
 	var endY = h - 2
 	var bottomBoxH = 1
-	var keymaps = GetRelKeysByRune(r.prevRune)
+	var keymaps = cli.GetRelKeysByRune(r.prevRune)
 	if keymaps != nil {
 		bottomBoxH = len(keymaps) + 1
 	}
@@ -163,10 +168,12 @@ func (r *BdpanCommand) DrawSelect() error {
 	}
 	r.leftBox.DrawSelect(5, nil)
 
-	if r.mode == ModeKeymap {
-		var keymaps = GetRelKeysByRune(r.prevRune)
+	switch r.mode {
+	case ModeKeymap:
+		var keymaps = cli.GetRelKeysByRune(r.prevRune)
 		if keymaps != nil {
-			r.bottomBox.Box.DrawMultiLineText(terminal.StyleDefault, GetRelKeysMsgByRune(r.prevRune))
+			r.bottomBox.Box.DrawMultiLineText(
+				terminal.StyleDefault, cli.GetRelKeysMsgByRune(r.prevRune))
 		}
 	}
 	return nil
@@ -276,7 +283,7 @@ func (r *BdpanCommand) MoveRight() {
 		r.InitScreen(r.GetSelectInfo())
 	} else {
 		r.fromFile = r.GetSelectInfo()
-		r.prevAction = KeymapActionDownloadFile
+		r.prevAction = cli.KeymapActionDownloadFile
 		r.mode = ModeConfirm
 		r.RefreshScreen()
 	}
@@ -312,40 +319,45 @@ func (r *BdpanCommand) CopyInModeNormal(msg string) error {
 	return nil
 }
 
-func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
-	var err error
+func (r *BdpanCommand) ListenEventKeyInModeHelp(ev *tcell.EventKey) error {
 	// 处理退出的快捷键
 	if ev.Rune() == 'q' || ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
 		r.mode = ModeNormal
-		return ErrQuit
+		r.RefreshScreen()
+		return nil
 	}
+	return nil
+}
+
+func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
+	var err error
 	keyString := fmt.Sprintf("%s%s", string(r.prevRune), string(ev.Rune()))
 	r.DrawBottomRight(keyString)
-	keyAction, ok := KeyActionMap[keyString]
+	keyAction, ok := cli.KeyActionMap[keyString]
 	if ok {
 		switch keyAction {
-		case KeymapActionCopyPath:
+		case cli.KeymapActionCopyPath:
 			path := r.GetSelectInfo().Path
 			r.CopyInModeNormal(path)
-		case KeymapActionCopyName:
+		case cli.KeymapActionCopyName:
 			name := r.GetSelectInfo().GetFilename()
 			r.CopyInModeNormal(name)
-		case KeymapActionCopyDir:
+		case cli.KeymapActionCopyDir:
 			path := r.GetSelectInfo().Path
 			r.CopyInModeNormal(filepath.Dir(path))
-		case KeymapActionCopyFile:
+		case cli.KeymapActionCopyFile:
 			r.fromFile = r.GetSelectInfo()
 			msg := fmt.Sprintf("%s 已经复制", r.fromFile.Path)
 			r.mode = ModeNormal
 			r.RefreshScreen()
 			r.DrawBottomLeft(msg)
-		case KeymapActionPasteFile:
+		case cli.KeymapActionPasteFile:
 			if r.fromFile == nil {
 				return ErrNotCopyFile
 			}
 			dir := filepath.Dir(r.GetSelectInfo().Path)
 			toFile := filepath.Join(dir, r.fromFile.GetFilename())
-			if r.prevAction == KeymapActionCutFile {
+			if r.prevAction == cli.KeymapActionCutFile {
 				err = bdpan.MoveFile(r.fromFile.Path, toFile)
 			} else {
 				err = bdpan.CopyFile(r.fromFile.Path, toFile)
@@ -402,7 +414,7 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	r.prevAction = 0
 	r.mode = ModeNormal
 	switch action {
-	case KeymapActionDeleteFile:
+	case cli.KeymapActionDeleteFile:
 		r.DrawBottomLeft("开始删除...")
 		err = bdpan.DeleteFile(r.GetSelectInfo().Path)
 		if err != nil {
@@ -411,7 +423,7 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 			r.ReloadScreen()
 			r.DrawBottomLeft("删除成功!")
 		}
-	case KeymapActionDownloadFile:
+	case cli.KeymapActionDownloadFile:
 		r.DrawBottomLeft("开始下载...")
 		cmd := &DownloadCommand{
 			isRecursion: true,
@@ -434,6 +446,9 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 		return ErrQuit
 	}
 	switch ev.Rune() {
+	case '?':
+		r.mode = ModeHelp
+		r.RefreshScreen()
 	case 'j':
 		r.MoveDown(1)
 	case 'k':
@@ -455,19 +470,19 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 	case 'x':
 		r.fromFile = r.GetSelectInfo()
 		r.DrawBottomLeft(fmt.Sprintf("%s 已经剪切", r.fromFile.Path))
-		r.prevAction = KeymapActionCutFile
+		r.prevAction = cli.KeymapActionCutFile
 	case 'D':
 		r.fromFile = r.GetSelectInfo()
-		r.prevAction = KeymapActionDeleteFile
+		r.prevAction = cli.KeymapActionDeleteFile
 		r.mode = ModeConfirm
 		r.RefreshScreen()
 	case 'd':
 		r.fromFile = r.GetSelectInfo()
-		r.prevAction = KeymapActionDownloadFile
+		r.prevAction = cli.KeymapActionDownloadFile
 		r.mode = ModeConfirm
 		r.RefreshScreen()
 	default:
-		if IsKeymap(ev.Rune()) {
+		if cli.IsKeymap(ev.Rune()) {
 			r.prevRune = ev.Rune()
 			r.mode = ModeKeymap
 			r.RefreshScreen()
@@ -552,6 +567,8 @@ func (r *BdpanCommand) Exec(args []string) error {
 				err = r.ListenEventKeyInModeConfirm(ev)
 			case ModeKeymap:
 				err = r.ListenEventKeyInModeKeymap(ev)
+			case ModeHelp:
+				err = r.ListenEventKeyInModeHelp(ev)
 			}
 			if err != nil {
 				if IsInErrors(err, BottomErrs) {
