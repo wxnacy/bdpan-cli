@@ -19,6 +19,7 @@ const (
 	ModeNormal Mode = iota
 	ModeConfirm
 	ModeKeymap
+	ModeHelp
 )
 
 var (
@@ -39,6 +40,7 @@ type BdpanCommand struct {
 	rightBox  *Box
 	bottomBox *Box
 	confirm   *terminal.Confirm
+	helpBox   *Box
 
 	// 按键
 	prevRune   rune
@@ -139,17 +141,6 @@ func (r *BdpanCommand) DrawLayout() error {
 	case ModeKeymap:
 		// bottom box
 		r.bottomBox = NewBox(r.T, 0, bottomBoxStartY, w-1, bottomBoxEndY).DrawBox()
-		// case ModeConfirm:
-		// var msg string
-		// var name = "ss" // r.GetSelectInfo().GetFilename()
-		// switch r.prevAction {
-		// case KeymapActionDeleteFile:
-		// msg = fmt.Sprintf("确定删除 %s?(y/N)", name)
-		// case KeymapActionDownloadFile:
-		// msg = fmt.Sprintf("确定下载 %s?(y/N)", name)
-		// }
-		// // confirm box
-		// r.confirm = terminal.NewConfirm(r.T, msg).Draw()
 	}
 	return nil
 }
@@ -228,7 +219,9 @@ func (r *BdpanCommand) DrawMidSelect(aIndex int) {
 		r.rightBox.Box.DrawMultiLineText(
 			r.T.StyleDefault, strings.Split(info.GetPretty(), "\n"))
 	})
-	r.DrawBottomLeft(r.GetSelectInfo().Path)
+	if r.GetSelectInfo() != nil {
+		r.DrawBottomLeft(r.GetSelectInfo().Path)
+	}
 }
 
 // 左上角输入内容
@@ -239,7 +232,8 @@ func (r *BdpanCommand) DrawTopLeft(text string) error {
 // 左下角输入内容
 func (r *BdpanCommand) DrawBottomLeft(text string) error {
 	w, h := r.T.S.Size()
-	r.T.DrawLineText(0, h-1, w/2, r.T.StyleDefault, text)
+	maxLineW := int(float64(w) * 0.9)
+	r.T.DrawLineText(0, h-1, maxLineW, r.T.StyleDefault, text)
 	r.T.S.Show()
 	return nil
 }
@@ -247,7 +241,8 @@ func (r *BdpanCommand) DrawBottomLeft(text string) error {
 // 右下角输入内容
 func (r *BdpanCommand) DrawBottomRight(text string) error {
 	w, h := r.T.S.Size()
-	drawW := 10
+	// drawW := 10
+	drawW := int(float64(w) * 0.1)
 	return r.T.DrawLineText(w-drawW-1, h-1, drawW, r.T.StyleDefault, text)
 }
 
@@ -264,6 +259,27 @@ func (r *BdpanCommand) getSelectInfo(s *terminal.Select) *bdpan.FileInfoDto {
 	info := item.Info.(*bdpan.FileInfoDto)
 	Log.Infof("GetSelectInfo %s", info.Path)
 	return info
+}
+
+func (r *BdpanCommand) MoveLeft() {
+	leftSelectFile := r.getSelectInfo(r.leftBox.Select)
+	file := &bdpan.FileInfoDto{
+		Path:     filepath.Dir(leftSelectFile.Path),
+		FileType: 1,
+	}
+	r.InitScreen(file)
+}
+
+func (r *BdpanCommand) MoveRight() {
+	selectInfo := r.GetSelectInfo()
+	if selectInfo.IsDir() {
+		r.InitScreen(r.GetSelectInfo())
+	} else {
+		r.fromFile = r.GetSelectInfo()
+		r.prevAction = KeymapActionDownloadFile
+		r.mode = ModeConfirm
+		r.RefreshScreen()
+	}
 }
 
 func (r *BdpanCommand) MoveUp(step int) {
@@ -423,14 +439,9 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 	case 'k':
 		r.MoveUp(1)
 	case 'l':
-		r.InitScreen(r.GetSelectInfo())
+		r.MoveRight()
 	case 'h':
-		leftSelectFile := r.getSelectInfo(r.leftBox.Select)
-		file := &bdpan.FileInfoDto{
-			Path:     filepath.Dir(leftSelectFile.Path),
-			FileType: 1,
-		}
-		r.InitScreen(file)
+		r.MoveLeft()
 	case 'G':
 		r.MovePageEnd()
 	case 'g':
@@ -462,6 +473,14 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 			r.RefreshScreen()
 		} else {
 			switch ev.Key() {
+			case tcell.KeyDown:
+				r.MoveDown(1)
+			case tcell.KeyUp:
+				r.MoveUp(1)
+			case tcell.KeyLeft:
+				r.MoveLeft()
+			case tcell.KeyRight:
+				r.MoveRight()
 			case tcell.KeyCtrlL:
 				r.RefreshScreen()
 			case tcell.KeyCtrlD:
