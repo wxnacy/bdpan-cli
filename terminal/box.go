@@ -15,6 +15,11 @@ type Box struct {
 
 // 可以绘制的返回
 func (b Box) DrawRange() (StartX, StartY, EndX, EndY int) {
+	return b.GetDrawRange()
+}
+
+// 可以绘制的返回
+func (b Box) GetDrawRange() (StartX, StartY, EndX, EndY int) {
 	return b.StartX + 1, b.StartY + 1, b.EndX - 1, b.EndY - 1
 }
 
@@ -58,6 +63,11 @@ func (b *Box) DrawMultiLineText(style tcell.Style, text []string) {
 
 // 绘制当行数据
 func (b *Box) DrawOneLineText(StartY int, style tcell.Style, text string) {
+	b.DrawLineText(StartY, style, text)
+}
+
+// 绘制当行数据
+func (b *Box) DrawLineText(StartY int, style tcell.Style, text string) {
 	sx, sy, _, _ := b.DrawRange()
 	text = b.FillOneLineText(b.OmitOneLineText(text))
 	DrawLine(b.S, sx, sy+StartY, style, text)
@@ -70,4 +80,39 @@ func (b *Box) DrawText(StartX, StartY int, style tcell.Style, text string) {
 	sy += StartY
 	Log.Infof("Box: %v DrawText StartX: %d StartY: %d Text: %s", b, sx, sy, text)
 	b.S.SetCell(sx, sy, style, []rune(text)...)
+}
+
+func (b *Box) Draw() {
+	x1, y1, x2, y2, style := b.StartX, b.StartY, b.EndX, b.EndY, b.Style
+	if y2 < y1 {
+		y1, y2 = y2, y1
+	}
+	if x2 < x1 {
+		x1, x2 = x2, x1
+	}
+
+	// Fill background
+	for row := y1; row <= y2; row++ {
+		for col := x1; col <= x2; col++ {
+			b.S.SetContent(col, row, ' ', nil, style)
+		}
+	}
+
+	// Draw borders
+	for col := x1; col <= x2; col++ {
+		b.S.SetContent(col, y1, tcell.RuneHLine, nil, style)
+		b.S.SetContent(col, y2, tcell.RuneHLine, nil, style)
+	}
+	for row := y1 + 1; row < y2; row++ {
+		b.S.SetContent(x1, row, tcell.RuneVLine, nil, style)
+		b.S.SetContent(x2, row, tcell.RuneVLine, nil, style)
+	}
+
+	// Only draw corners if necessary
+	if y1 != y2 && x1 != x2 {
+		b.S.SetContent(x1, y1, tcell.RuneULCorner, nil, style)
+		b.S.SetContent(x2, y1, tcell.RuneURCorner, nil, style)
+		b.S.SetContent(x1, y2, tcell.RuneLLCorner, nil, style)
+		b.S.SetContent(x2, y2, tcell.RuneLRCorner, nil, style)
+	}
 }

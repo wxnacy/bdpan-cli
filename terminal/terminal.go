@@ -86,40 +86,10 @@ func (t *Terminal) DrawText(StartX, StartY, EndX, EndY int, style tcell.Style, t
 	return nil
 }
 
+// 该方法会删除
+// 建议使用 Box.Draw()
 func (t *Terminal) DrawBox(b Box) error {
-	x1, y1, x2, y2, style := b.StartX, b.StartY, b.EndX, b.EndY, b.Style
-	if y2 < y1 {
-		y1, y2 = y2, y1
-	}
-	if x2 < x1 {
-		x1, x2 = x2, x1
-	}
-
-	// Fill background
-	for row := y1; row <= y2; row++ {
-		for col := x1; col <= x2; col++ {
-			t.S.SetContent(col, row, ' ', nil, style)
-		}
-	}
-
-	// Draw borders
-	for col := x1; col <= x2; col++ {
-		t.S.SetContent(col, y1, tcell.RuneHLine, nil, style)
-		t.S.SetContent(col, y2, tcell.RuneHLine, nil, style)
-	}
-	for row := y1 + 1; row < y2; row++ {
-		t.S.SetContent(x1, row, tcell.RuneVLine, nil, style)
-		t.S.SetContent(x2, row, tcell.RuneVLine, nil, style)
-	}
-
-	// Only draw corners if necessary
-	if y1 != y2 && x1 != x2 {
-		t.S.SetContent(x1, y1, tcell.RuneULCorner, nil, style)
-		t.S.SetContent(x2, y1, tcell.RuneURCorner, nil, style)
-		t.S.SetContent(x1, y2, tcell.RuneLLCorner, nil, style)
-		t.S.SetContent(x2, y2, tcell.RuneLRCorner, nil, style)
-	}
-	// return t.DrawText(x1+1, y1+1, x2-1, y2-1, style, text)
+	b.Draw()
 	return nil
 }
 
