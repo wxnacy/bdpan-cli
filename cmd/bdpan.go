@@ -269,6 +269,12 @@ func (r *BdpanCommand) getSelectInfo(s *terminal.Select) *bdpan.FileInfoDto {
 }
 
 func (r *BdpanCommand) MoveLeft() {
+	// 判定是否还有上一层
+	currSelectFile := r.GetSelectInfo()
+	if filepath.Dir(currSelectFile.Path) == "/" {
+		r.DrawBottomLeft("没有上一层了!!")
+		return
+	}
 	leftSelectFile := r.getSelectInfo(r.leftBox.Select)
 	file := &bdpan.FileInfoDto{
 		Path:     filepath.Dir(leftSelectFile.Path),
@@ -510,11 +516,8 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 			case tcell.KeyCtrlB:
 				_, h := r.T.S.Size()
 				r.MoveUp(h)
-				// case tcell.KeyEnter:
-				// r.fromFile = r.GetSelectInfo()
-				// r.prevAction = KeymapActionDownloadFile
-				// r.mode = ModeConfirm
-				// r.RefreshScreen()
+			case tcell.KeyEnter:
+				r.MoveRight()
 			}
 		}
 	}
