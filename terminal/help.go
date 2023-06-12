@@ -74,7 +74,6 @@ type Help struct {
 
 func (h *Help) Draw() *Help {
 	h.t.DrawBox(*h.Box)
-	h.Box.Clean()
 	for i, item := range h.Items {
 		h.Box.DrawOneLineText(i, StyleDefault, "  "+item.String())
 	}
