@@ -36,12 +36,16 @@ type BdpanCommand struct {
 	T    *terminal.Terminal
 	mode Mode
 
-	leftBox   *Box
-	midBox    *Box
-	rightBox  *Box
-	bottomBox *Box
-	confirm   *terminal.Confirm
-	help      *terminal.Help
+	leftBox  *Box
+	midBox   *Box
+	rightBox *Box
+	// bottomBox *Box
+	// 快捷键界面
+	keymapTerm *terminal.List
+	// 确认页面
+	confirmTerm *terminal.Confirm
+	// 帮助界面
+	helpTerm *terminal.Help
 
 	// 按键
 	prevRune   rune
@@ -77,7 +81,7 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 	r.T.S.Clear()
 	r.T.S.Sync()
 	if r.mode == ModeHelp {
-		r.help = terminal.NewHelp(r.T, cli.GetHelpItems()).Draw()
+		r.helpTerm = terminal.NewHelp(r.T, cli.GetHelpItems()).Draw()
 		return nil
 	}
 	var err error
@@ -95,6 +99,16 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 		return err
 	}
 	switch r.mode {
+	case ModeKeymap:
+		// keymapTerm
+		var data []string
+		var keymaps = cli.GetRelKeysByRune(r.prevRune)
+		if keymaps != nil {
+			data = cli.GetRelKeysMsgByRune(r.prevRune)
+		}
+		_, h := r.T.S.Size()
+		startY := h - 2 - len(data)
+		r.keymapTerm = terminal.NewList(r.T, 0, startY, data).SetMaxWidth().Draw()
 	case ModeConfirm:
 		var msg string
 		var name = r.GetSelectInfo().GetFilename()
@@ -105,7 +119,7 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 			msg = fmt.Sprintf("确定下载 %s?", name)
 		}
 		// confirm box
-		r.confirm = terminal.NewConfirm(r.T, msg).Draw()
+		r.confirmTerm = terminal.NewConfirm(r.T, msg).Draw()
 	}
 	return nil
 }
@@ -122,14 +136,13 @@ func (r *BdpanCommand) DrawLayout() error {
 	var endX = startX + boxWidth
 	var endY = h - 2
 	var bottomBoxH = 1
+	// 获取快捷键关联长度
 	var keymaps = cli.GetRelKeysByRune(r.prevRune)
 	if keymaps != nil {
 		bottomBoxH = len(keymaps) + 1
 	}
-	var bottomBoxEndY = endY
-	var bottomBoxStartY = endY - bottomBoxH
 	if r.mode == ModeKeymap {
-		endY = endY - bottomBoxH - 1
+		endY = endY - bottomBoxH
 	}
 	r.leftBox = NewBox(r.T, startX, startY, endX, endY).SetUseCache(r.useCache).DrawBox()
 	// mid box
@@ -142,11 +155,6 @@ func (r *BdpanCommand) DrawLayout() error {
 	startX = endX
 	endX = startX + int(float64(w)*0.4)
 	r.rightBox = NewBox(r.T, startX, startY, endX, endY).DrawBox()
-	switch r.mode {
-	case ModeKeymap:
-		// bottom box
-		r.bottomBox = NewBox(r.T, 0, bottomBoxStartY, w-1, bottomBoxEndY).DrawBox()
-	}
 	return nil
 }
 
@@ -168,14 +176,6 @@ func (r *BdpanCommand) DrawSelect() error {
 	}
 	r.leftBox.DrawSelect(5, nil)
 
-	switch r.mode {
-	case ModeKeymap:
-		var keymaps = cli.GetRelKeysByRune(r.prevRune)
-		if keymaps != nil {
-			r.bottomBox.Box.DrawMultiLineText(
-				terminal.StyleDefault, cli.GetRelKeysMsgByRune(r.prevRune))
-		}
-	}
 	return nil
 }
 
@@ -391,24 +391,24 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 	var err error
 	switch ev.Rune() {
 	case 'h':
-		r.confirm.EnableEnsure().Draw()
+		r.confirmTerm.EnableEnsure().Draw()
 		return nil
 	case 'l':
-		r.confirm.EnableCancel().Draw()
+		r.confirmTerm.EnableCancel().Draw()
 		return nil
 	case 'y':
-		r.confirm.EnableEnsure().Draw()
+		r.confirmTerm.EnableEnsure().Draw()
 	default:
 		switch ev.Key() {
 		case tcell.KeyLeft:
-			r.confirm.EnableEnsure().Draw()
+			r.confirmTerm.EnableEnsure().Draw()
 			return nil
 		case tcell.KeyRight:
-			r.confirm.EnableCancel().Draw()
+			r.confirmTerm.EnableCancel().Draw()
 			return nil
 		}
-		if ev.Key() == tcell.KeyEnter && r.confirm.IsEnsure() {
-			r.confirm.EnableEnsure().Draw()
+		if ev.Key() == tcell.KeyEnter && r.confirmTerm.IsEnsure() {
+			r.confirmTerm.EnableEnsure().Draw()
 		} else {
 			r.mode = ModeNormal
 			r.RefreshScreen()
