@@ -60,7 +60,7 @@ func (b *Box) DrawMultiLineText(style tcell.Style, text []string) {
 func (b *Box) DrawOneLineText(StartY int, style tcell.Style, text string) {
 	sx, sy, _, _ := b.DrawRange()
 	text = b.FillOneLineText(b.OmitOneLineText(text))
-	b.S.SetCell(sx, sy+StartY, style, []rune(text)...)
+	DrawLine(b.S, sx, sy+StartY, style, text)
 }
 
 // 绘制多行数据

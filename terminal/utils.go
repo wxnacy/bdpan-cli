@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -19,4 +20,11 @@ func FillString(text string, width int) string {
 	text = runewidth.FillRight(text, width)
 	// text = strings.ReplaceAll(text, " ", "-")
 	return text
+}
+
+// 绘制当行
+func DrawLine(s tcell.Screen, StartX, StartY int, style tcell.Style, text string) {
+	runes := []rune(text)
+	Log.Debugf("DrawLine StartX: %d StartY: %d Text: %s", StartX, StartY, text)
+	s.SetContent(StartX, StartY, runes[0], runes[1:], style)
 }

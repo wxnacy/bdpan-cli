@@ -49,7 +49,7 @@ type Box struct {
 
 func (b *Box) DrawBox() *Box {
 	b.t.DrawBox(*b.Box)
-	b.Box.Clean()
+	// b.Box.Clean()
 	return b
 }
 
