@@ -23,7 +23,7 @@ type SyncExecCommand struct {
 func (s SyncExecCommand) Run() error {
 	fmt.Println("开始进行同步操作")
 	for {
-		for _, m := range bdpan.GetModels() {
+		for _, m := range bdpan.GetSyncModels() {
 			if s.id != "" && s.id != m.ID {
 				continue
 			}
@@ -44,7 +44,7 @@ var syncExecCmd = &cobra.Command{
 	Use:   "exec",
 	Short: "执行同步操作",
 	Run: func(cmd *cobra.Command, args []string) {
-		_, ok := bdpan.GetModels()[syncExecCommand.id]
+		_, ok := bdpan.GetSyncModels()[syncExecCommand.id]
 		if !ok {
 			handleCmdErr(fmt.Errorf("ID: %s 不存在", syncExecCommand.id))
 			return

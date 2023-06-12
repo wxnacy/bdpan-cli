@@ -146,14 +146,14 @@ func (r *BdpanCommand) DrawLayout() error {
 	}
 	r.leftBox = NewBox(r.T, startX, startY, endX, endY).SetUseCache(r.useCache).DrawBox()
 	// mid box
-	startX = endX
+	startX = endX + 1
 	boxWidth = int(float64(w) * 0.4)
 	endX = startX + boxWidth
 	r.midBox = NewBox(r.T, startX, startY, endX, endY).
 		SetUseCache(r.useCache).SetEmptySelectFillText("没有内容").DrawBox()
 	// right box
-	startX = endX
-	endX = startX + int(float64(w)*0.4)
+	startX = endX + 1
+	endX = w - 1
 	r.rightBox = NewBox(r.T, startX, startY, endX, endY).DrawBox()
 	return nil
 }

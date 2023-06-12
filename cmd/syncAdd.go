@@ -31,7 +31,7 @@ func (s SyncAddCommand) Run() error {
 	Log.Debugf("add model: %#v", model)
 
 	key := model.ID
-	models := bdpan.GetModels()
+	models := bdpan.GetSyncModels()
 	_, exits := models[key]
 	if exits {
 		return fmt.Errorf("已存在该记录")

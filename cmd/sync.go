@@ -28,7 +28,7 @@ type SyncCommand struct {
 }
 
 func (s SyncCommand) getModelSlice() []*bdpan.SyncModel {
-	models := bdpan.GetModels()
+	models := bdpan.GetSyncModels()
 	modelSlice := make([]*bdpan.SyncModel, 0)
 	for _, f := range models {
 		modelSlice = append(modelSlice, f)

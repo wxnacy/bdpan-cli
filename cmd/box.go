@@ -161,6 +161,12 @@ func (b *Box) DrawSelect(anchorIndex int, selectFn func(*bdpan.FileInfoDto)) *Bo
 		if i+offset == b.Select.SelectIndex {
 			style = b.Select.StyleSelect
 		}
+		syncModels := bdpan.GetSyncModelsByRemote(info.Path)
+		if len(syncModels) > 0 {
+			text = terminal.OmitString(text, b.Box.Width())
+			text = terminal.FillString(text, b.Box.Width())
+			text = text[0:len(text)-2] + ""
+		}
 		b.Box.DrawOneLineText(i, style, text)
 	}
 	// 绘制选中状态的额外操作
