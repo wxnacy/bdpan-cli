@@ -115,4 +115,5 @@ func (b *Box) Draw() {
 		b.S.SetContent(x1, y2, tcell.RuneLLCorner, nil, style)
 		b.S.SetContent(x2, y2, tcell.RuneLRCorner, nil, style)
 	}
+	b.S.Show()
 }

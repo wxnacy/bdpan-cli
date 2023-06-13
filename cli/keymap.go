@@ -15,6 +15,8 @@ var (
 			AddRelKey(NewKeymap('y', "复制文件")),
 		NewKeymap('p', "").
 			AddRelKey(NewKeymap('p', "粘贴文件")),
+		NewKeymap('s', "").
+			AddRelKey(NewKeymap('e', "执行同步")),
 	}
 
 	KeyActionMap = map[string]KeymapAction{
@@ -24,6 +26,9 @@ var (
 		"yy": KeymapActionCopyFile,
 
 		"pp": KeymapActionPasteFile,
+
+		// 同步操作
+		"se": KeymapActionSyncExec,
 	}
 )
 
@@ -42,6 +47,8 @@ const (
 	KeymapActionPasteFile
 
 	KeymapActionDownloadFile
+
+	KeymapActionSyncExec // 执行同步
 )
 
 func IsKeymap(r rune) bool {

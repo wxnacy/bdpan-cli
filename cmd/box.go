@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/wxnacy/bdpan"
+	"github.com/wxnacy/bdpan-cli/cli"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
 
@@ -20,13 +21,18 @@ func NewBox(t *terminal.Terminal, StartX, StartY, EndX, EndY int) *Box {
 		EndY,
 		t.StyleDefault,
 	)
-	Select := &terminal.Select{
-		StartX:      StartX + 1,
-		StartY:      StartY + 1,
-		MaxWidth:    box.Width(),
-		MaxHeight:   box.Height(),
-		StyleSelect: terminal.StyleSelect,
-	}
+
+	// Select := &terminal.Select{
+	// StartX: StartX + 1,
+	// StartY: StartY + 1,
+	// // MaxWidth:    box.Width(),
+	// // MaxHeight:   box.Height(),
+	// StyleSelect: terminal.StyleSelect,
+	// }
+
+	Select := terminal.NewEmptySelect(
+		t, StartX, StartY, EndX, EndY,
+	)
 
 	return &Box{
 		t:      t,
@@ -41,7 +47,7 @@ type Box struct {
 	EmptySelectFillText string // select 为空时需要填充的内容
 	Dir                 string
 	SelectPath          string // 中间需要选中的地址
-	File                *bdpan.FileInfoDto
+	File                *cli.FileInfo
 	UseCache            bool
 
 	t *terminal.Terminal
@@ -67,7 +73,7 @@ func (b *Box) SetUseCache(flag bool) *Box {
 	return b
 }
 
-func (b *Box) SetFile(file *bdpan.FileInfoDto) *Box {
+func (b *Box) SetFile(file *cli.FileInfo) *Box {
 	b.File = file
 	if file.IsDir() {
 		b.Dir = file.Path
@@ -112,23 +118,18 @@ func (b *Box) FillSelect() error {
 		if err != nil {
 			return err
 		}
-		var items = make([]*terminal.SelectItem, 0)
 		for i, f := range files {
-			item := &terminal.SelectItem{
-				Info: f,
-			}
-			items = append(items, item)
 			if f.Path == b.SelectPath {
 				s.SelectIndex = i
 			}
 		}
-		s.Items = items
+		s.Items = cli.ConverFilesToSelectItems(files)
 		b.SaveCache()
 	}
 	return nil
 }
 
-func (b *Box) DrawSelect(anchorIndex int, selectFn func(*bdpan.FileInfoDto)) *Box {
+func (b *Box) DrawSelect(anchorIndex int, selectFn func(*cli.FileInfo)) *Box {
 	// 没有数据时直接返回
 	b.Box.Clean()
 	s := b.Select
@@ -136,7 +137,7 @@ func (b *Box) DrawSelect(anchorIndex int, selectFn func(*bdpan.FileInfoDto)) *Bo
 	// TODO: 需要重构
 	var offset int = 0
 	selectItemLen := len(b.Select.Items)
-	selectMaxH := b.Select.MaxHeight
+	selectMaxH := b.Box.Height()
 	if selectItemLen > selectMaxH {
 		selectI := b.Select.SelectIndex
 		selectOffset := selectMaxH - anchorIndex
@@ -155,7 +156,7 @@ func (b *Box) DrawSelect(anchorIndex int, selectFn func(*bdpan.FileInfoDto)) *Bo
 	}
 	// 填充 select 信息
 	for i, item := range drawItems {
-		info := item.Info.(*bdpan.FileInfoDto)
+		info := item.Info.(*cli.FileInfo)
 		text := fmt.Sprintf(" %s %s", info.GetFileTypeIcon(), info.GetFilename())
 		style := b.t.StyleDefault
 		if i+offset == b.Select.SelectIndex {
@@ -172,7 +173,7 @@ func (b *Box) DrawSelect(anchorIndex int, selectFn func(*bdpan.FileInfoDto)) *Bo
 	// 绘制选中状态的额外操作
 	selectItem := s.GetSeleteItem()
 	if selectItem != nil {
-		info := selectItem.Info.(*bdpan.FileInfoDto)
+		info := selectItem.Info.(*cli.FileInfo)
 		if selectFn != nil {
 			selectFn(info)
 		}

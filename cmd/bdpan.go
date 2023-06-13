@@ -14,13 +14,11 @@ import (
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
 
-type Mode int
-
 const (
-	ModeNormal Mode = iota
-	ModeConfirm
-	ModeKeymap
-	ModeHelp
+	ModeNormal  = cli.ModeNormal
+	ModeConfirm = cli.ModeConfirm
+	ModeKeymap  = cli.ModeKeymap
+	ModeHelp    = cli.ModeHelp
 )
 
 var (
@@ -34,7 +32,7 @@ type BdpanCommand struct {
 	Path string
 
 	T    *terminal.Terminal
-	mode Mode
+	mode cli.Mode
 
 	leftBox  *Box
 	midBox   *Box
@@ -52,10 +50,12 @@ type BdpanCommand struct {
 	prevAction cli.KeymapAction
 	useCache   bool
 
-	fromFile *bdpan.FileInfoDto
+	fromFile *cli.FileInfo
+
+	client *cli.Client
 }
 
-func (r *BdpanCommand) initViewDir(file *bdpan.FileInfoDto) error {
+func (r *BdpanCommand) initViewDir(file *cli.FileInfo) error {
 	path := file.Path
 	r.midBox.SetFile(file)
 	if path != "/" {
@@ -76,12 +76,12 @@ func (r *BdpanCommand) ReloadScreen() error {
 	return r.InitScreen(r.GetSelectInfo())
 }
 
-func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
+func (r *BdpanCommand) InitScreen(file *cli.FileInfo) error {
 	Log.Infof("InitScreen UseCache: %v", r.useCache)
 	r.T.S.Clear()
 	r.T.S.Sync()
 	if r.mode == ModeHelp {
-		r.helpTerm = terminal.NewHelp(r.T, cli.GetHelpItems()).Draw()
+		r.client.DrawHelp()
 		return nil
 	}
 	var err error
@@ -101,14 +101,7 @@ func (r *BdpanCommand) InitScreen(file *bdpan.FileInfoDto) error {
 	switch r.mode {
 	case ModeKeymap:
 		// keymapTerm
-		var data []string
-		var keymaps = cli.GetRelKeysByRune(r.prevRune)
-		if keymaps != nil {
-			data = cli.GetRelKeysMsgByRune(r.prevRune)
-		}
-		_, h := r.T.S.Size()
-		startY := h - 2 - len(data)
-		r.keymapTerm = terminal.NewList(r.T, 0, startY, data).SetMaxWidth().Draw()
+		r.client.DrawKeymap()
 	case ModeConfirm:
 		var msg string
 		var name = r.GetSelectInfo().GetFilename()
@@ -142,7 +135,7 @@ func (r *BdpanCommand) DrawLayout() error {
 		bottomBoxH = len(keymaps) + 1
 	}
 	if r.mode == ModeKeymap {
-		endY = endY - bottomBoxH
+		endY = endY - bottomBoxH - 1
 	}
 	r.leftBox = NewBox(r.T, startX, startY, endX, endY).SetUseCache(r.useCache).DrawBox()
 	// mid box
@@ -176,6 +169,8 @@ func (r *BdpanCommand) DrawSelect() error {
 	}
 	r.leftBox.DrawSelect(5, nil)
 
+	// r.client.DrawLeft()
+
 	return nil
 }
 
@@ -185,16 +180,9 @@ func (r *BdpanCommand) initSelect(s *terminal.Select, dir string) error {
 		if err != nil {
 			return err
 		}
-		var items = make([]*terminal.SelectItem, 0)
-		for _, f := range files {
-			item := &terminal.SelectItem{
-				Info: f,
-			}
-			items = append(items, item)
-		}
 		// items[0].IsSelect = true
 		s.SelectIndex = 0
-		s.Items = items
+		s.Items = cli.ConverFilesToSelectItems(files)
 	}
 	return nil
 }
@@ -222,7 +210,7 @@ func (r *BdpanCommand) DrawEventKey(ev *tcell.EventKey) error {
 
 // 绘制中间的 select
 func (r *BdpanCommand) DrawMidSelect(aIndex int) {
-	r.midBox.DrawSelect(aIndex, func(info *bdpan.FileInfoDto) {
+	r.midBox.DrawSelect(aIndex, func(info *cli.FileInfo) {
 		r.rightBox.Box.DrawMultiLineText(
 			r.T.StyleDefault, strings.Split(info.GetPretty(), "\n"))
 	})
@@ -233,15 +221,13 @@ func (r *BdpanCommand) DrawMidSelect(aIndex int) {
 
 // 左上角输入内容
 func (r *BdpanCommand) DrawTopLeft(text string) error {
-	return r.T.DrawOneLineText(0, r.T.StyleDefault, text)
+	r.client.DrawTitle(text)
+	return nil
 }
 
 // 左下角输入内容
 func (r *BdpanCommand) DrawBottomLeft(text string) error {
-	w, h := r.T.S.Size()
-	maxLineW := int(float64(w) * 0.9)
-	r.T.DrawLineText(0, h-1, maxLineW, r.T.StyleDefault, text)
-	r.T.S.Show()
+	r.client.DrawMessage(text)
 	return nil
 }
 
@@ -254,16 +240,16 @@ func (r *BdpanCommand) DrawBottomRight(text string) error {
 }
 
 // 获取被选中的文件对象
-func (r *BdpanCommand) GetSelectInfo() *bdpan.FileInfoDto {
+func (r *BdpanCommand) GetSelectInfo() *cli.FileInfo {
 	return r.getSelectInfo(r.midBox.Select)
 }
 
-func (r *BdpanCommand) getSelectInfo(s *terminal.Select) *bdpan.FileInfoDto {
+func (r *BdpanCommand) getSelectInfo(s *terminal.Select) *cli.FileInfo {
 	item := s.GetSeleteItem()
 	if item == nil {
 		return nil
 	}
-	info := item.Info.(*bdpan.FileInfoDto)
+	info := item.Info.(*cli.FileInfo)
 	Log.Infof("GetSelectInfo %s", info.Path)
 	return info
 }
@@ -280,7 +266,7 @@ func (r *BdpanCommand) MoveLeft() {
 		Path:     filepath.Dir(leftSelectFile.Path),
 		FileType: 1,
 	}
-	r.InitScreen(file)
+	r.InitScreen(&cli.FileInfo{FileInfoDto: file})
 }
 
 func (r *BdpanCommand) MoveRight() {
@@ -338,7 +324,6 @@ func (r *BdpanCommand) ListenEventKeyInModeHelp(ev *tcell.EventKey) error {
 func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
 	var err error
 	keyString := fmt.Sprintf("%s%s", string(r.prevRune), string(ev.Rune()))
-	r.DrawBottomRight(keyString)
 	keyAction, ok := cli.KeyActionMap[keyString]
 	if ok {
 		switch keyAction {
@@ -378,12 +363,18 @@ func (r *BdpanCommand) ListenEventKeyInModeKeymap(ev *tcell.EventKey) error {
 			r.DrawBottomLeft(msg)
 			r.fromFile = nil
 			r.prevAction = 0
+		case cli.KeymapActionSyncExec:
+			r.prevAction = 0
+			r.mode = ModeNormal
+			r.RefreshScreen()
 		}
+		r.DrawBottomRight(keyString)
 	} else {
 		r.mode = ModeNormal
 		r.RefreshScreen()
 	}
 	r.prevRune = 0
+	r.client.ClearPrevRune()
 	return nil
 }
 
@@ -434,7 +425,7 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 		cmd := &DownloadCommand{
 			isRecursion: true,
 		}
-		err = cmd.Download(r.fromFile)
+		err = cmd.Download(r.fromFile.FileInfoDto)
 		if err != nil {
 			r.DrawBottomLeft(fmt.Sprintf("下载失败: %v", err))
 		} else {
@@ -490,7 +481,9 @@ func (r *BdpanCommand) ListenEventKeyInModeNormal(ev *tcell.EventKey) error {
 	default:
 		if cli.IsKeymap(ev.Rune()) {
 			r.prevRune = ev.Rune()
+			r.client.SetPrevRune(ev.Rune())
 			r.mode = ModeKeymap
+			r.client.SetMode(ModeKeymap)
 			r.RefreshScreen()
 		} else {
 			switch ev.Key() {
@@ -544,8 +537,9 @@ func (r *BdpanCommand) Exec(args []string) error {
 		return err
 	}
 	defer t.Quit()
+	r.client = cli.NewClient(t)
 	r.T = t
-	r.InitScreen(file)
+	r.InitScreen(&cli.FileInfo{FileInfoDto: file})
 	for {
 		// Update screen
 		t.S.Show()
