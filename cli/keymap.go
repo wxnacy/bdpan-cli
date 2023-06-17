@@ -17,9 +17,34 @@ var (
 			AddRelKey(NewKeymap('p', "粘贴文件")),
 		NewKeymap('s', "").
 			AddRelKey(NewKeymap('e', "执行同步")),
+		NewKeymap('g', "").
+			AddRelKey(NewKeymap('g', "跳转页面首行")),
 	}
 
 	KeyActionMap = map[string]KeymapAction{
+		// 帮助
+		"?": KeymapActionHelp,
+		// 光标操作
+		"j":  KeymapActionMoveDown,
+		"k":  KeymapActionMoveUp,
+		"h":  KeymapActionMoveLeft,
+		"l":  KeymapActionEnter,
+		"gg": KeymapActionMovePageHome,
+		"G":  KeymapActionMovePageEnd,
+
+		tcell.KeyNames[tcell.KeyCtrlD]: KeymapActionMoveDownHalfPage,
+		tcell.KeyNames[tcell.KeyCtrlU]: KeymapActionMoveUpHalfPage,
+		tcell.KeyNames[tcell.KeyCtrlF]: KeymapActionMoveDownPage,
+		tcell.KeyNames[tcell.KeyCtrlB]: KeymapActionMoveUpPage,
+		tcell.KeyNames[tcell.KeyUp]:    KeymapActionMoveUp,
+		tcell.KeyNames[tcell.KeyDown]:  KeymapActionMoveDown,
+		tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
+		tcell.KeyNames[tcell.KeyRight]: KeymapActionEnter,
+		// 文件操作
+		"x": KeymapActionCutFile,
+
+		"D": KeymapActionDeleteFile,
+
 		"yp": KeymapActionCopyPath,
 		"yn": KeymapActionCopyName,
 		"yd": KeymapActionCopyDir,
@@ -49,7 +74,39 @@ const (
 	KeymapActionDownloadFile
 
 	KeymapActionSyncExec // 执行同步
+
+	KeymapActionMoveDown
+	KeymapActionMoveUp
+	KeymapActionMoveLeft
+	KeymapActionMovePageHome
+	KeymapActionMovePageEnd
+	KeymapActionMoveDownHalfPage
+	KeymapActionMoveUpHalfPage
+	KeymapActionMoveDownPage
+	KeymapActionMoveUpPage
+
+	KeymapActionEnter
+
+	KeymapActionHelp
 )
+
+func GetKeymapActionByEventKey(ev *tcell.EventKey) (a *KeymapAction, ok bool) {
+	key := string(ev.Rune())
+	action, ok := KeyActionMap[key]
+	if ok {
+		a = &action
+		Log.Infof("GetKeymapActionByKey EventKey %v Key %s Action %v", ev, key, *a)
+		return
+	}
+	key = tcell.KeyNames[ev.Key()]
+	action, ok = KeyActionMap[key]
+	if ok {
+		a = &action
+		Log.Infof("GetKeymapActionByKey EventKey %v Key %s Action %v", ev, key, *a)
+		return
+	}
+	return
+}
 
 func IsKeymap(r rune) bool {
 	for _, k := range Keymaps {

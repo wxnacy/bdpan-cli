@@ -69,10 +69,7 @@ type Select struct {
 }
 
 func (s *Select) init() *Select {
-	// if &s.StyleSelect == nil {
 	s.StyleSelect = StyleSelect
-	// }
-	// s.SelectIndex = 0
 	return s
 }
 
@@ -81,8 +78,18 @@ func (s *Select) SetItems(items []*SelectItem) *Select {
 	return s
 }
 
+func (s *Select) SetSelectIndex(i int) *Select {
+	s.SelectIndex = i
+	return s
+}
+
 func (s *Select) SetEmptyFillText(t string) *Select {
 	s.EmptyFillText = t
+	return s
+}
+
+func (s *Select) SetSelectFn(fn func(*SelectItem)) *Select {
+	s.SelectFn = fn
 	return s
 }
 
@@ -96,6 +103,10 @@ func (s Select) GetSeleteItem() *SelectItem {
 		return nil
 	}
 	return s.Items[s.SelectIndex]
+}
+
+func (s Select) Length() int {
+	return len(s.Items)
 }
 
 func (s *Select) GetDrawItems(offset int) []*SelectItem {
@@ -122,7 +133,7 @@ func (s *Select) MoveDownSelect(step int) (isChange bool) {
 		s.SelectIndex = minH - 1
 		isChange = true
 	}
-	Log.Debugf("MoveDownSelect step: %d index %d isChange %v", step, s.SelectIndex, isChange)
+	Log.Infof("MoveDownSelect step: %d index %d isChange %v", step, s.SelectIndex, isChange)
 	return
 }
 
@@ -134,7 +145,7 @@ func (s *Select) MoveUpSelect(step int) (isChange bool) {
 		}
 		isChange = true
 	}
-	Log.Debugf("MoveUpSelect step: %d index %d", step, s.SelectIndex)
+	Log.Infof("MoveUpSelect step: %d index %d isChange %v", step, s.SelectIndex, isChange)
 	return
 }
 

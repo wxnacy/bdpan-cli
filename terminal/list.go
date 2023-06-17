@@ -2,6 +2,20 @@ package terminal
 
 import "github.com/mattn/go-runewidth"
 
+func NewEmptyList(t *Terminal, StartX, StartY, EndX, EndY int) *List {
+	l := &List{
+		t: t,
+		Box: t.NewBox(
+			StartX,
+			StartY,
+			EndX,
+			EndY,
+			StyleDefault,
+		),
+	}
+	return l
+}
+
 func NewList(t *Terminal, StartX, StartY int, data []string) *List {
 	l := &List{
 		t: t,
@@ -42,6 +56,11 @@ func (l *List) SetWidth(w int) *List {
 func (l *List) SetMaxWidth() *List {
 	w, _ := l.Box.S.Size()
 	return l.SetWidth(w)
+}
+
+func (l *List) SetData(data []string) *List {
+	l.Data = data
+	return l
 }
 
 func (l *List) Draw() *List {
