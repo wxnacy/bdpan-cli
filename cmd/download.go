@@ -6,82 +6,30 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/wxnacy/bdpan"
+	"github.com/wxnacy/bdpan-cli/cli"
 )
 
 var (
-	downloadCommand *DownloadCommand
+	downloadCommand *cli.DownloadCommand
 )
 
-func NewDownloadCommand(c *cobra.Command) *DownloadCommand {
-	cmd := &DownloadCommand{}
+func NewDownloadCommand(c *cobra.Command) *cli.DownloadCommand {
+	cmd := &cli.DownloadCommand{}
 
-	c.Flags().StringVarP(&cmd.outputDir, "output-dir", "d", "", "保存目录。默认为当前目录")
-	c.Flags().StringVarP(&cmd.outputPath, "output-path", "o", "", "保存地址。覆盖已存在文件，优先级比 --output-dir 高")
+	c.Flags().StringVarP(&cmd.OutputDir, "output-dir", "d", "", "保存目录。默认为当前目录")
+	c.Flags().StringVarP(&cmd.OutputPath, "output-path", "o", "", "保存地址。覆盖已存在文件，优先级比 --output-dir 高")
 
 	c.Flags().BoolVar(&cmd.IsSync, "sync", false, "是否同步进行")
-	c.Flags().BoolVarP(&cmd.isRecursion, "recursion", "r", false, "是否递归下载")
+	c.Flags().BoolVarP(&cmd.IsRecursion, "recursion", "r", false, "是否递归下载")
 
 	return cmd
-}
-
-type DownloadCommand struct {
-	From        string
-	outputDir   string
-	outputPath  string
-	IsSync      bool
-	isRecursion bool
-}
-
-func (d DownloadCommand) Download(file *bdpan.FileInfoDto) error {
-	var err error
-	Log.Debugf("是否同步: %v", d.IsSync)
-	Log.Info("开始下载")
-	if file.IsDir() {
-		dlTasker := bdpan.NewDownloadTasker(file)
-		dlTasker.Path = d.outputPath
-		if d.outputDir != "" {
-			dlTasker.Dir = d.outputDir
-		}
-		dlTasker.IsRecursion = d.isRecursion
-		err = dlTasker.Exec()
-		if err == nil {
-			total := len(dlTasker.GetTasks())
-			succ := total - len(dlTasker.GetErrorTasks())
-			Log.Infof("下载完成: %d/%d", succ, total)
-		}
-	} else {
-		dler := bdpan.NewDownloader()
-		dler.UseProgressBar = true
-		dler.Path = d.outputPath
-		if d.outputDir != "" {
-			dler.Dir = d.outputDir
-		}
-		if globalArg.IsVerbose {
-			dler.EnableVerbose()
-		}
-		err = dler.DownloadFile(file)
-	}
-	if err != nil {
-		Log.Error(err)
-		return nil
-	}
-	return err
-}
-
-func (d DownloadCommand) Run() error {
-	from := d.From
-	file, err := bdpan.GetFileByPath(from)
-	if err != nil {
-		return err
-	}
-	return d.Download(file)
 }
 
 func runDownload(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		downloadCommand.From = args[0]
 	}
+	downloadCommand.IsVerbose = globalArg.IsVerbose
 	return downloadCommand.Run()
 }
 

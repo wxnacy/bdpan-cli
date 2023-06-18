@@ -55,7 +55,7 @@ func (t *Terminal) Exec() error {
 }
 
 func (t *Terminal) DrawLineText(StartX, StartY, MaxLineW int, style tcell.Style, text string) error {
-	Log.Infof("Terminal DrawLineText StartX: %d StartY: %d MaxLineW: %d Text: %s", StartX, StartY, MaxLineW, text)
+	Log.Debugf("Terminal DrawLineText StartX: %d StartY: %d MaxLineW: %d Text: %s", StartX, StartY, MaxLineW, text)
 	text = OmitString(text, MaxLineW)
 	text = FillString(text, MaxLineW)
 	t.S.SetCell(StartX, StartY, style, []rune(text)...)

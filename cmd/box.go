@@ -123,7 +123,7 @@ func (b *Box) FillSelect() error {
 				s.SelectIndex = i
 			}
 		}
-		s.Items = cli.ConverFilesToSelectItems(files)
+		// s.Items = cli.ConverFilesToSelectItems(files)
 		b.SaveCache()
 	}
 	return nil

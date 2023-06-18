@@ -7,4 +7,5 @@ const (
 	ModeConfirm      = "confirm"
 	ModeKeymap       = "keymap"
 	ModeHelp         = "help"
+	ModeSync         = "sync"
 )

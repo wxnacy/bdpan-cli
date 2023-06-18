@@ -8,7 +8,6 @@ import (
 
 	"github.com/atotto/clipboard"
 	"github.com/gdamore/tcell/v2"
-	"github.com/sirupsen/logrus"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/cli"
 	"github.com/wxnacy/bdpan-cli/terminal"
@@ -176,13 +175,13 @@ func (r *BdpanCommand) DrawSelect() error {
 
 func (r *BdpanCommand) initSelect(s *terminal.Select, dir string) error {
 	if len(s.Items) == 0 {
-		files, err := bdpan.GetDirAllFiles(dir)
-		if err != nil {
-			return err
-		}
+		// files, err := bdpan.GetDirAllFiles(dir)
+		// if err != nil {
+		// return err
+		// }
 		// items[0].IsSelect = true
 		s.SelectIndex = 0
-		s.Items = cli.ConverFilesToSelectItems(files)
+		// s.Items = cli.ConverFilesToSelectItems(files)
 	}
 	return nil
 }
@@ -422,8 +421,8 @@ func (r *BdpanCommand) ListenEventKeyInModeConfirm(ev *tcell.EventKey) error {
 		}
 	case cli.KeymapActionDownloadFile:
 		r.DrawBottomLeft("开始下载...")
-		cmd := &DownloadCommand{
-			isRecursion: true,
+		cmd := &cli.DownloadCommand{
+			IsRecursion: true,
 		}
 		err = cmd.Download(r.fromFile.FileInfoDto)
 		if err != nil {
@@ -531,49 +530,50 @@ func (r *BdpanCommand) Exec(args []string) error {
 		}
 	}
 	bdpan.SetOutputFile()
-	bdpan.SetLogLevel(logrus.DebugLevel)
+	// bdpan.SetLogLevel(logrus.DebugLevel)
 	t, err := terminal.NewTerminal()
 	if err != nil {
 		return err
 	}
 	defer t.Quit()
-	r.client = cli.NewClient(t)
-	r.T = t
-	r.InitScreen(&cli.FileInfo{FileInfoDto: file})
-	for {
-		// Update screen
-		t.S.Show()
-		// Poll event
-		ev := t.S.PollEvent()
-		// Process event
-		switch ev := ev.(type) {
-		case *tcell.EventResize:
-			r.RefreshScreen()
-		case *tcell.EventKey:
-			Log.Infof("ListenEventKey Mode: %v Rune: %v(%s) prevRune: %v(%s) Key: %v",
-				r.mode, ev.Rune(), strconv.QuoteRune(ev.Rune()),
-				r.prevRune, strconv.QuoteRune(r.prevRune), ev.Key())
-			err := r.DrawEventKey(ev)
-			if err != nil {
-				return err
-			}
-			switch r.mode {
-			case ModeNormal:
-				err = r.ListenEventKeyInModeNormal(ev)
-			case ModeConfirm:
-				err = r.ListenEventKeyInModeConfirm(ev)
-			case ModeKeymap:
-				err = r.ListenEventKeyInModeKeymap(ev)
-			case ModeHelp:
-				err = r.ListenEventKeyInModeHelp(ev)
-			}
-			if err != nil {
-				if IsInErrors(err, BottomErrs) {
-					r.DrawBottomLeft(err.Error())
-				} else {
-					return err
-				}
-			}
-		}
-	}
+	r.client = cli.NewClient(t).SetMidFile(file)
+	return r.client.Exec()
+	// r.T = t
+	// r.InitScreen(&cli.FileInfo{FileInfoDto: file})
+	// for {
+	// // Update screen
+	// t.S.Show()
+	// // Poll event
+	// ev := t.S.PollEvent()
+	// // Process event
+	// switch ev := ev.(type) {
+	// case *tcell.EventResize:
+	// r.RefreshScreen()
+	// case *tcell.EventKey:
+	// Log.Infof("ListenEventKey Mode: %v Rune: %v(%s) prevRune: %v(%s) Key: %v",
+	// r.mode, ev.Rune(), strconv.QuoteRune(ev.Rune()),
+	// r.prevRune, strconv.QuoteRune(r.prevRune), ev.Key())
+	// err := r.DrawEventKey(ev)
+	// if err != nil {
+	// return err
+	// }
+	// switch r.mode {
+	// case ModeNormal:
+	// err = r.ListenEventKeyInModeNormal(ev)
+	// case ModeConfirm:
+	// err = r.ListenEventKeyInModeConfirm(ev)
+	// case ModeKeymap:
+	// err = r.ListenEventKeyInModeKeymap(ev)
+	// case ModeHelp:
+	// err = r.ListenEventKeyInModeHelp(ev)
+	// }
+	// if err != nil {
+	// if IsInErrors(err, BottomErrs) {
+	// r.DrawBottomLeft(err.Error())
+	// } else {
+	// return err
+	// }
+	// }
+	// }
+	// }
 }

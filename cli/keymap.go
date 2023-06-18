@@ -15,22 +15,23 @@ var (
 			AddRelKey(NewKeymap('y', "复制文件")),
 		NewKeymap('p', "").
 			AddRelKey(NewKeymap('p', "粘贴文件")),
-		NewKeymap('s', "").
-			AddRelKey(NewKeymap('e', "执行同步")),
+		// NewKeymap('s', "").
+		// AddRelKey(NewKeymap('e', "执行同步")),
 		NewKeymap('g', "").
 			AddRelKey(NewKeymap('g', "跳转页面首行")),
 	}
 
-	KeyActionMap = map[string]KeymapAction{
+	ActionNormalMap = map[string]KeymapAction{
 		// 帮助
 		"?": KeymapActionHelp,
+		// 同步页面
+		"s": KeymapActionSync,
 		// 光标操作
-		"j":  KeymapActionMoveDown,
-		"k":  KeymapActionMoveUp,
-		"h":  KeymapActionMoveLeft,
-		"l":  KeymapActionEnter,
-		"gg": KeymapActionMovePageHome,
-		"G":  KeymapActionMovePageEnd,
+		"j": KeymapActionMoveDown,
+		"k": KeymapActionMoveUp,
+		"h": KeymapActionMoveLeft,
+		"l": KeymapActionEnter,
+		"G": KeymapActionMovePageEnd,
 
 		tcell.KeyNames[tcell.KeyCtrlD]: KeymapActionMoveDownHalfPage,
 		tcell.KeyNames[tcell.KeyCtrlU]: KeymapActionMoveUpHalfPage,
@@ -44,6 +45,71 @@ var (
 		"x": KeymapActionCutFile,
 
 		"D": KeymapActionDeleteFile,
+
+		"d": KeymapActionDownloadFile,
+
+		"R": KeymapActionReload,
+
+		// 退出
+		"q":                             KeymapActionQuit,
+		tcell.KeyNames[tcell.KeyEscape]: KeymapActionQuit,
+		tcell.KeyNames[tcell.KeyCtrlC]:  KeymapActionQuit,
+	}
+
+	ActionConfirmMap = map[string]KeymapAction{
+		// 光标操作
+		"h":                            KeymapActionMoveLeft,
+		"l":                            KeymapActionMoveRight,
+		"y":                            KeymapActionEnsure,
+		tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
+		tcell.KeyNames[tcell.KeyRight]: KeymapActionMoveRight,
+		tcell.KeyNames[tcell.KeyEnter]: KeymapActionEnter,
+	}
+
+	ActionKeymapMap = map[string]KeymapAction{
+		"gg": KeymapActionMovePageHome,
+
+		"yp": KeymapActionCopyPath,
+		"yn": KeymapActionCopyName,
+		"yd": KeymapActionCopyDir,
+		"yy": KeymapActionCopyFile,
+
+		"pp": KeymapActionPasteFile,
+
+		// 同步操作
+		// "se": KeymapActionSyncExec,
+	}
+
+	ActionSyncMap = map[string]KeymapAction{
+		"e": KeymapActionSyncExec,
+	}
+
+	KeyActionMap = map[string]KeymapAction{
+		// 帮助
+		"?": KeymapActionHelp,
+		// 光标操作
+		"j":  KeymapActionMoveDown,
+		"k":  KeymapActionMoveUp,
+		"h":  KeymapActionMoveLeft,
+		"l":  KeymapActionMoveRight,
+		"gg": KeymapActionMovePageHome,
+		"G":  KeymapActionMovePageEnd,
+
+		tcell.KeyNames[tcell.KeyCtrlD]: KeymapActionMoveDownHalfPage,
+		tcell.KeyNames[tcell.KeyCtrlU]: KeymapActionMoveUpHalfPage,
+		tcell.KeyNames[tcell.KeyCtrlF]: KeymapActionMoveDownPage,
+		tcell.KeyNames[tcell.KeyCtrlB]: KeymapActionMoveUpPage,
+		tcell.KeyNames[tcell.KeyUp]:    KeymapActionMoveUp,
+		tcell.KeyNames[tcell.KeyDown]:  KeymapActionMoveDown,
+		tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
+		tcell.KeyNames[tcell.KeyRight]: KeymapActionMoveRight,
+		tcell.KeyNames[tcell.KeyEnter]: KeymapActionEnter,
+		// 文件操作
+		"x": KeymapActionCutFile,
+
+		"D": KeymapActionDeleteFile,
+
+		"d": KeymapActionDownloadFile,
 
 		"yp": KeymapActionCopyPath,
 		"yn": KeymapActionCopyName,
@@ -78,6 +144,7 @@ const (
 	KeymapActionMoveDown
 	KeymapActionMoveUp
 	KeymapActionMoveLeft
+	KeymapActionMoveRight
 	KeymapActionMovePageHome
 	KeymapActionMovePageEnd
 	KeymapActionMoveDownHalfPage
@@ -85,24 +152,31 @@ const (
 	KeymapActionMoveDownPage
 	KeymapActionMoveUpPage
 
-	KeymapActionEnter
+	KeymapActionEnter  //回车
+	KeymapActionEnsure //确认
 
+	// 进入模式
 	KeymapActionHelp
+	KeymapActionKeymap
+	KeymapActionNormal
+	KeymapActionSync
+
+	KeymapActionReload
+
+	KeymapActionQuit
 )
 
-func GetKeymapActionByEventKey(ev *tcell.EventKey) (a *KeymapAction, ok bool) {
+func GetKeymapActionByEventKey(ev *tcell.EventKey, actionMap map[string]KeymapAction) (a KeymapAction, ok bool) {
 	key := string(ev.Rune())
-	action, ok := KeyActionMap[key]
+	a, ok = actionMap[key]
 	if ok {
-		a = &action
-		Log.Infof("GetKeymapActionByKey EventKey %v Key %s Action %v", ev, key, *a)
+		Log.Infof("GetKeymapActionByKey EventKey %v Key %s Action %v", ev, key, a)
 		return
 	}
 	key = tcell.KeyNames[ev.Key()]
-	action, ok = KeyActionMap[key]
+	a, ok = actionMap[key]
 	if ok {
-		a = &action
-		Log.Infof("GetKeymapActionByKey EventKey %v Key %s Action %v", ev, key, *a)
+		Log.Infof("GetKeymapActionByKey EventKey %v Key %s Action %v", ev, key, a)
 		return
 	}
 	return
