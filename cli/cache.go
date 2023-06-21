@@ -7,14 +7,34 @@ import (
 
 var (
 	// key: fileDirPath
-	CacheSelectMap = make(map[string]*terminal.Select, 0)
-	// key: fileDirPath
-	CacheFilesMap     = make(map[string][]*bdpan.FileInfoDto, 0)
-	CacheSyncModelMap = make(map[string]*bdpan.SyncModel, 0)
+	cacheFileSelectMap = make(map[string]*FileSelectCache, 0)
+	CacheSyncModelMap  = make(map[string]*bdpan.SyncModel, 0)
 )
 
 func init() {
 	RefreshSyncModelCache()
+}
+
+func NewFileSelectCache(dir string, s *terminal.Select, files []*bdpan.FileInfoDto) *FileSelectCache {
+	return &FileSelectCache{
+		Dir:         dir,
+		Files:       files,
+		SelectIndex: s.SelectIndex,
+	}
+}
+
+func GetFileSelectCache(dir string) *FileSelectCache {
+	return cacheFileSelectMap[dir]
+}
+
+type FileSelectCache struct {
+	Dir         string
+	Files       []*bdpan.FileInfoDto
+	SelectIndex int
+}
+
+func (f *FileSelectCache) Save() {
+	cacheFileSelectMap[f.Dir] = f
 }
 
 func RefreshSyncModelCache() {

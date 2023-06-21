@@ -355,14 +355,14 @@ func (c *Client) DrawInputKey() {
 
 func (c *Client) MoveUp(step int) {
 	if c.midTerm.MoveUpSelect(step) {
-		CacheSelectMap[c.GetMidDir()] = c.midTerm
+		GetFileSelectCache(c.GetMidDir()).SelectIndex = c.midTerm.SelectIndex
 		c.DrawMidData()
 	}
 }
 
 func (c *Client) MoveDown(step int) {
 	if c.midTerm.MoveDownSelect(step) {
-		CacheSelectMap[c.GetMidDir()] = c.midTerm
+		GetFileSelectCache(c.GetMidDir()).SelectIndex = c.midTerm.SelectIndex
 		c.DrawMidData()
 	}
 }
@@ -395,24 +395,28 @@ func (c *Client) HandleNormalAction(action KeymapAction) error {
 		c.SetMode(ModeSync).DrawCache()
 	case KeymapActionReload:
 		c.DrawNormal()
+	// 向下移动
 	case KeymapActionMoveDown:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
 		c.MoveDown(1)
-	case KeymapActionMoveUp:
-		c.MoveUp(1)
+	case KeymapActionMoveDownHalfPage:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
+		c.MoveDown(c.midTerm.Box.Height() / 2)
+	case KeymapActionMoveDownPage:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 1)
+		c.MoveDown(c.midTerm.Box.Height())
 	case KeymapActionMovePageEnd:
 		c.MoveDown(c.midTerm.Length())
-	case KeymapActionMoveDownHalfPage:
-		_, h := c.Size()
-		c.MoveDown(h / 2)
+		// 向上移动
+	case KeymapActionMoveUp:
+		c.midTerm.SetAnchorIndex(5)
+		c.MoveUp(1)
 	case KeymapActionMoveUpHalfPage:
-		_, h := c.Size()
-		c.MoveUp(h / 2)
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
+		c.MoveUp(c.midTerm.Box.Height() / 2)
 	case KeymapActionMoveUpPage:
-		_, h := c.Size()
-		c.MoveUp(h)
-	case KeymapActionMoveDownPage:
-		_, h := c.Size()
-		c.MoveDown(h)
+		c.midTerm.SetAnchorIndex(0)
+		c.MoveUp(c.midTerm.Box.Height())
 	case KeymapActionMoveLeft:
 		c.MoveLeft()
 	case KeymapActionEnter, KeymapActionMoveRight:
@@ -533,6 +537,14 @@ func (c *Client) HandleSyncAction(action KeymapAction) error {
 		}
 		c.DrawCacheNormal()
 		c.DrawMessage(fmt.Sprintf("%s 同步成功", c.GetMidSelectFile().Path))
+	case KeymapActionMoveDown:
+		if c.syncTerm.MoveDownSelect(1) {
+			c.syncTerm.Draw()
+		}
+	case KeymapActionMoveUp:
+		if c.syncTerm.MoveUpSelect(1) {
+			c.syncTerm.Draw()
+		}
 	}
 	return nil
 }

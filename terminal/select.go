@@ -98,6 +98,11 @@ func (s *Select) SetLoadingText(t string) *Select {
 	return s
 }
 
+func (s *Select) SetAnchorIndex(i int) *Select {
+	s.AnchorIndex = i
+	return s
+}
+
 func (s Select) GetSeleteItem() *SelectItem {
 	if s.Items == nil || len(s.Items) <= s.SelectIndex {
 		return nil
@@ -147,6 +152,13 @@ func (s *Select) MoveUpSelect(step int) (isChange bool) {
 	}
 	Log.Infof("MoveUpSelect step: %d index %d isChange %v", step, s.SelectIndex, isChange)
 	return
+}
+
+func (s *Select) IsMoveEnd() bool {
+	if s.SelectIndex == len(s.Items)-1 {
+		return true
+	}
+	return false
 }
 
 func (s *Select) DrawLoading() {

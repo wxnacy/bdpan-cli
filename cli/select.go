@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
@@ -11,14 +12,33 @@ type FileInfo struct {
 	*bdpan.FileInfoDto
 	MaxTextWidth int
 	IsSync       bool
+	Count        int
 }
 
 func (i FileInfo) String() string {
 	text := fmt.Sprintf(" %s %s", i.GetFileTypeIcon(), i.GetFilename())
+	endSpaceCount := 0
 	if i.IsSync {
-		text = terminal.OmitString(text, i.MaxTextWidth-2)
-		text = terminal.FillString(text, i.MaxTextWidth-2)
-		text += ""
+		endSpaceCount += 2
+	}
+	if i.Count > 0 {
+		endSpaceCount += len(strconv.Itoa(i.Count)) + 1
+	}
+	// 为最后空格留的位置
+	if endSpaceCount > 0 {
+		endSpaceCount += 1
+	}
+	wholeWidth := i.MaxTextWidth - endSpaceCount
+	text = terminal.OmitString(text, wholeWidth)
+	text = terminal.FillString(text, wholeWidth)
+	if i.Count > 0 {
+		text = fmt.Sprintf("%s %d", text, i.Count)
+	}
+	if i.IsSync {
+		text += " "
+	}
+	if endSpaceCount > 0 {
+		text += " "
 	}
 	return text
 }
@@ -27,11 +47,19 @@ func ConverFilesToSelectItems(s *terminal.Select, files []*bdpan.FileInfoDto) []
 	var items = make([]*terminal.SelectItem, 0)
 	boxWidth := s.Box.Width()
 	for _, f := range files {
+		count := 0
+		if f.IsDir() {
+			cache := GetFileSelectCache(f.Path)
+			if cache != nil {
+				count = len(cache.Files)
+			}
+		}
 		item := &terminal.SelectItem{
 			Info: &FileInfo{
 				FileInfoDto:  f,
 				IsSync:       IsSync(f),
 				MaxTextWidth: boxWidth,
+				Count:        count,
 			},
 		}
 		items = append(items, item)
@@ -54,19 +82,17 @@ func FillFileToSelect(s *terminal.Select, dir, selectPath string) error {
 			}
 		}
 	}
-	CacheSelectMap[dir] = s
-	CacheFilesMap[dir] = files
+	NewFileSelectCache(dir, s, files).Save()
 	return nil
 }
 
 // 填充文件数据到 select 组件
 func FillCacheToSelect(s *terminal.Select, dir, selectPath string) error {
-	cacheSelect, ok := CacheSelectMap[dir]
-	if ok {
+	cache := GetFileSelectCache(dir)
+	if cache != nil {
 		Log.Infof("FillCacheToSelect Dir %s SelectPath %s", dir, selectPath)
-		// s.SetItems(cacheSelect.Items)
-		s.SetItems(ConverFilesToSelectItems(s, CacheFilesMap[dir]))
-		s.SelectIndex = cacheSelect.SelectIndex
+		s.SetItems(ConverFilesToSelectItems(s, cache.Files))
+		s.SelectIndex = cache.SelectIndex
 		return nil
 	}
 	return FillFileToSelect(s, dir, selectPath)

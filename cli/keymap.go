@@ -82,6 +82,9 @@ var (
 
 	ActionSyncMap = map[string]KeymapAction{
 		"e": KeymapActionSyncExec,
+		// 光标操作
+		"j": KeymapActionMoveDown,
+		"k": KeymapActionMoveUp,
 	}
 
 	KeyActionMap = map[string]KeymapAction{
