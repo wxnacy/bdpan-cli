@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/wxnacy/bdpan"
+	"github.com/wxnacy/bdpan-cli/cli"
 )
 
 var (
@@ -38,7 +39,7 @@ func handleCmdErr(err error) {
 	if err != nil {
 		if err.Error() == "^D" ||
 			err.Error() == "^C" ||
-			err == ErrQuit {
+			err == cli.ErrQuit {
 			fmt.Println("GoodBye")
 			return
 		}

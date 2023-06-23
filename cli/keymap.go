@@ -100,44 +100,6 @@ var (
 		tcell.KeyNames[tcell.KeyEscape]: KeymapActionQuit,
 		tcell.KeyNames[tcell.KeyCtrlC]:  KeymapActionQuit,
 	}
-
-	KeyActionMap = map[string]KeymapAction{
-		// 帮助
-		// "?": KeymapActionHelp,
-		// // 光标操作
-		// "j":  KeymapActionMoveDown,
-		// "k":  KeymapActionMoveUp,
-		// "h":  KeymapActionMoveLeft,
-		// "l":  KeymapActionMoveRight,
-		// "gg": KeymapActionMovePageHome,
-		// "G":  KeymapActionMovePageEnd,
-
-		// tcell.KeyNames[tcell.KeyCtrlD]: KeymapActionMoveDownHalfPage,
-		// tcell.KeyNames[tcell.KeyCtrlU]: KeymapActionMoveUpHalfPage,
-		// tcell.KeyNames[tcell.KeyCtrlF]: KeymapActionMoveDownPage,
-		// tcell.KeyNames[tcell.KeyCtrlB]: KeymapActionMoveUpPage,
-		// tcell.KeyNames[tcell.KeyUp]:    KeymapActionMoveUp,
-		// tcell.KeyNames[tcell.KeyDown]:  KeymapActionMoveDown,
-		// tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
-		// tcell.KeyNames[tcell.KeyRight]: KeymapActionMoveRight,
-		// tcell.KeyNames[tcell.KeyEnter]: KeymapActionEnter,
-		// // 文件操作
-		// "x": KeymapActionCutFile,
-
-		// "D": KeymapActionDeleteFile,
-
-		// "d": KeymapActionDownloadFile,
-
-		// "yp": KeymapActionCopyPath,
-		// "yn": KeymapActionCopyName,
-		// "yd": KeymapActionCopyDir,
-		// "yy": KeymapActionCopyFile,
-
-		// "pp": KeymapActionPasteFile,
-
-		// // 同步操作
-		// "se": KeymapActionSyncExec,
-	}
 )
 
 type KeymapAction int
