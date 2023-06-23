@@ -24,12 +24,15 @@ var (
 	ActionNormalMap = map[string]KeymapAction{
 		// 帮助
 		"?": KeymapActionHelp,
+		// 搜索
+		"/": KeymapActionFilter,
 		// 同步页面
 		"s": KeymapActionSync,
 		// 光标操作
 		"j": KeymapActionMoveDown,
 		"k": KeymapActionMoveUp,
 		"h": KeymapActionMoveLeft,
+		"H": KeymapActionMoveLeftHome,
 		"l": KeymapActionEnter,
 		"G": KeymapActionMovePageEnd,
 
@@ -50,6 +53,8 @@ var (
 
 		"R": KeymapActionReload,
 
+		// 设置
+		",": KeymapActionSystem,
 		// 退出
 		"q":                             KeymapActionQuit,
 		tcell.KeyNames[tcell.KeyEscape]: KeymapActionQuit,
@@ -87,42 +92,51 @@ var (
 		"k": KeymapActionMoveUp,
 	}
 
+	ActionFilterMap = map[string]KeymapAction{
+		"j": KeymapActionMoveDown,
+		"k": KeymapActionMoveUp,
+		// 退出
+		"q":                             KeymapActionQuit,
+		tcell.KeyNames[tcell.KeyEscape]: KeymapActionQuit,
+		tcell.KeyNames[tcell.KeyCtrlC]:  KeymapActionQuit,
+	}
+
 	KeyActionMap = map[string]KeymapAction{
 		// 帮助
-		"?": KeymapActionHelp,
-		// 光标操作
-		"j":  KeymapActionMoveDown,
-		"k":  KeymapActionMoveUp,
-		"h":  KeymapActionMoveLeft,
-		"l":  KeymapActionMoveRight,
-		"gg": KeymapActionMovePageHome,
-		"G":  KeymapActionMovePageEnd,
+		// "?": KeymapActionHelp,
+		// // 光标操作
+		// "j":  KeymapActionMoveDown,
+		// "k":  KeymapActionMoveUp,
+		// "h":  KeymapActionMoveLeft,
+		// "l":  KeymapActionMoveRight,
+		// "gg": KeymapActionMovePageHome,
+		// "G":  KeymapActionMovePageEnd,
 
-		tcell.KeyNames[tcell.KeyCtrlD]: KeymapActionMoveDownHalfPage,
-		tcell.KeyNames[tcell.KeyCtrlU]: KeymapActionMoveUpHalfPage,
-		tcell.KeyNames[tcell.KeyCtrlF]: KeymapActionMoveDownPage,
-		tcell.KeyNames[tcell.KeyCtrlB]: KeymapActionMoveUpPage,
-		tcell.KeyNames[tcell.KeyUp]:    KeymapActionMoveUp,
-		tcell.KeyNames[tcell.KeyDown]:  KeymapActionMoveDown,
-		tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
-		tcell.KeyNames[tcell.KeyRight]: KeymapActionMoveRight,
-		tcell.KeyNames[tcell.KeyEnter]: KeymapActionEnter,
-		// 文件操作
-		"x": KeymapActionCutFile,
+		// tcell.KeyNames[tcell.KeyCtrlD]: KeymapActionMoveDownHalfPage,
+		// tcell.KeyNames[tcell.KeyCtrlU]: KeymapActionMoveUpHalfPage,
+		// tcell.KeyNames[tcell.KeyCtrlF]: KeymapActionMoveDownPage,
+		// tcell.KeyNames[tcell.KeyCtrlB]: KeymapActionMoveUpPage,
+		// tcell.KeyNames[tcell.KeyUp]:    KeymapActionMoveUp,
+		// tcell.KeyNames[tcell.KeyDown]:  KeymapActionMoveDown,
+		// tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
+		// tcell.KeyNames[tcell.KeyRight]: KeymapActionMoveRight,
+		// tcell.KeyNames[tcell.KeyEnter]: KeymapActionEnter,
+		// // 文件操作
+		// "x": KeymapActionCutFile,
 
-		"D": KeymapActionDeleteFile,
+		// "D": KeymapActionDeleteFile,
 
-		"d": KeymapActionDownloadFile,
+		// "d": KeymapActionDownloadFile,
 
-		"yp": KeymapActionCopyPath,
-		"yn": KeymapActionCopyName,
-		"yd": KeymapActionCopyDir,
-		"yy": KeymapActionCopyFile,
+		// "yp": KeymapActionCopyPath,
+		// "yn": KeymapActionCopyName,
+		// "yd": KeymapActionCopyDir,
+		// "yy": KeymapActionCopyFile,
 
-		"pp": KeymapActionPasteFile,
+		// "pp": KeymapActionPasteFile,
 
-		// 同步操作
-		"se": KeymapActionSyncExec,
+		// // 同步操作
+		// "se": KeymapActionSyncExec,
 	}
 )
 
@@ -147,6 +161,7 @@ const (
 	KeymapActionMoveDown
 	KeymapActionMoveUp
 	KeymapActionMoveLeft
+	KeymapActionMoveLeftHome
 	KeymapActionMoveRight
 	KeymapActionMovePageHome
 	KeymapActionMovePageEnd
@@ -163,9 +178,14 @@ const (
 	KeymapActionKeymap
 	KeymapActionNormal
 	KeymapActionSync
+	KeymapActionFilter
 
 	KeymapActionReload
 
+	KeymapActionInput
+	KeymapActionBackspace
+
+	KeymapActionSystem
 	KeymapActionQuit
 )
 

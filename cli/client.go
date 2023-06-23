@@ -3,12 +3,14 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/atotto/clipboard"
 	"github.com/gdamore/tcell/v2"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
+	"github.com/wxnacy/go-tools"
 )
 
 var (
@@ -17,8 +19,9 @@ var (
 
 func NewClient(t *terminal.Terminal) *Client {
 	return &Client{
-		t:    t,
-		mode: ModeNormal,
+		t:            t,
+		mode:         ModeNormal,
+		normalAction: ActionFile,
 	}
 }
 
@@ -26,6 +29,10 @@ type Client struct {
 	t *terminal.Terminal
 	// 模式
 	mode Mode
+	m    ModeInterface
+	// 动作
+	normalPrevAction SystemAction
+	normalAction     SystemAction
 	// 上层文件界面
 	leftTerm *terminal.Select
 	// 当前文件界面
@@ -78,6 +85,12 @@ func (c *Client) ClearPrevRune() *Client {
 	return c.SetPrevRune(0)
 }
 
+func (c *Client) SetNormalAction(a SystemAction) *Client {
+	c.normalPrevAction = c.normalAction
+	c.normalAction = a
+	return c
+}
+
 func (c *Client) SetPrevAction(a KeymapAction) *Client {
 	c.prevAction = a
 	return c
@@ -105,6 +118,13 @@ func (c *Client) ClearSelectFiles() *Client {
 func (c *Client) SetMode(m Mode) *Client {
 	c.mode = m
 	return c
+}
+
+func (c *Client) GetMode() Mode {
+	if c.m != nil {
+		return c.m.GetMode()
+	}
+	return c.mode
 }
 
 func (c *Client) SetMidFile(file *bdpan.FileInfoDto) *Client {
@@ -147,8 +167,8 @@ func (c *Client) GetLeftDir() string {
 	return filepath.Dir(c.GetMidDir())
 }
 
-func (c *Client) GetMidSelect() *FileInfo {
-	return c.midTerm.GetSeleteItem().Info.(*FileInfo)
+func (c *Client) GetMidSelectSystem() *SystemInfo {
+	return c.midTerm.GetSeleteItem().Info.(*SystemInfo)
 }
 
 func (c *Client) GetMidSelectFile() *bdpan.FileInfoDto {
@@ -156,6 +176,7 @@ func (c *Client) GetMidSelectFile() *bdpan.FileInfoDto {
 }
 
 func (c *Client) EnableModeNormal() *Client {
+	c.m = nil
 	return c.ClearPrevRune().ClearPrevAction().SetMode(ModeNormal)
 }
 
@@ -200,9 +221,13 @@ func (c *Client) Draw() error {
 		return err
 	}
 	// draw after
-	switch c.mode {
+	switch c.GetMode() {
 	case ModeConfirm:
 		c.DrawConfirm()
+	case ModeFilter:
+		c.DrawFilter()
+	case ModeCommand:
+		c.DrawCommand()
 	}
 	return nil
 }
@@ -215,16 +240,24 @@ func (c *Client) DrawLeft() error {
 		NewEmptySelect(c.t, sx, sy, int(float64(w)*0.2), c.GetModeNormalEndY()).
 		SetLoadingText("Load files...")
 	c.leftTerm.DrawLoading()
-	// 只有非根目录时才会展示左侧目录
-	if c.GetMidDir() != "/" {
-		if c.useCache {
-			err = FillCacheToSelect(c.leftTerm, c.GetLeftDir(), c.GetMidDir())
+	switch c.normalAction {
+	case ActionFile:
+		// 只有非根目录时才会展示左侧目录
+		if c.GetMidDir() != "/" {
+			if c.useCache {
+				err = FillCacheToSelect(c.leftTerm, c.GetLeftDir(), c.GetMidDir())
+			} else {
+				err = FillFileToSelect(c.leftTerm, c.GetLeftDir(), c.GetMidDir())
+			}
+			if err != nil {
+				return err
+			}
 		} else {
-			err = FillFileToSelect(c.leftTerm, c.GetLeftDir(), c.GetMidDir())
+			FillSystemToSelect(c.leftTerm, c.normalAction)
 		}
-		if err != nil {
-			return err
-		}
+	case ActionSystem:
+	default:
+		FillSystemToSelect(c.leftTerm, c.normalAction)
 	}
 	c.leftTerm.Draw()
 	return nil
@@ -238,15 +271,35 @@ func (c *Client) DrawMid() error {
 	endX := startX + int(float64(w)*0.4)
 	c.midTerm = terminal.
 		NewEmptySelect(c.t, startX, sy, endX, c.GetModeNormalEndY()).
-		SetLoadingText("Load files...").SetEmptyFillText("没有文件")
+		SetLoadingText("Load files...")
 	c.midTerm.DrawLoading()
-	if c.useCache {
-		err = FillCacheToSelect(c.midTerm, c.GetMidDir(), c.midFile.Path)
-	} else {
-		err = FillFileToSelect(c.midTerm, c.GetMidDir(), c.midFile.Path)
+	switch c.normalAction {
+	case ActionFile:
+		c.midTerm.SetEmptyFillText("没有文件")
+		if c.useCache {
+			err = FillCacheToSelect(c.midTerm, c.GetMidDir(), c.midFile.Path)
+		} else {
+			err = FillFileToSelect(c.midTerm, c.GetMidDir(), c.midFile.Path)
+		}
+	case ActionSystem:
+		FillSystemToSelect(c.midTerm, ActionFile)
+	case ActionBigFile:
+		files, err := GetAllLocalFiles()
+		if err != nil {
+			return err
+		}
+		files = FilterFileFiles(files)
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Size > files[j].Size
+		})
+
+		c.midTerm.SetItems(ConverFilesToSelectItems(c.midTerm, files))
 	}
 	if err != nil {
 		return err
+	}
+	if c.GetMode() == ModeFilter {
+		c.midTerm.Filter(c.m.(*FilterMode).Filter)
 	}
 	c.DrawMidData()
 	return nil
@@ -254,8 +307,11 @@ func (c *Client) DrawMid() error {
 
 func (c *Client) DrawMidData() error {
 	c.midTerm.SetSelectFn(func(item *terminal.SelectItem) {
-		c.DrawDetail()
-		c.DrawMessage(item.Info.(*FileInfo).Path)
+		switch c.normalAction {
+		case ActionFile, ActionBigFile:
+			c.DrawDetail()
+			c.DrawMessage(item.Info.(*FileInfo).Path)
+		}
 	}).Draw()
 	return nil
 }
@@ -264,7 +320,7 @@ func (c *Client) DrawDetail() {
 	_, sy, ex, _ := c.GetModeDrawRange()
 	startX := c.midTerm.Box.EndX + 1
 	c.detailTerm = terminal.NewEmptyList(c.t, startX, sy, ex, c.GetModeNormalEndY())
-	info := c.GetMidSelect()
+	info := c.GetMidSelectFile()
 	Log.Debugf("DrawDetail Info %s", info.GetPretty())
 	c.detailTerm.SetData(strings.Split(info.GetPretty(), "\n"))
 	c.detailTerm.Draw()
@@ -319,11 +375,28 @@ func (c *Client) DrawSync() {
 	c.syncTerm.Draw()
 }
 
+// 绘制命令界面
+func (c *Client) DrawCommand() {
+	m := c.m.(*CommandMode)
+	c.DrawInput(m.Prefix, m.Input)
+}
+
+// 绘制过滤界面
+func (c *Client) DrawFilter() {
+	// m := c.m.(*FilterMode)
+	// c.DrawInput("/", m.Input)
+}
+
+// 绘制输入界面
+func (c *Client) DrawInput(prefix, text string) {
+	c.DrawMessage(fmt.Sprintf("%s%s|", prefix, text))
+}
+
 // 绘制消息
 func (c *Client) DrawMessage(text string) {
 	w, h := c.t.S.Size()
 	maxLineW := int(float64(w) * 0.9)
-	text = fmt.Sprintf("[%s] %s", strings.ToUpper(string(c.mode)), text)
+	text = fmt.Sprintf("[%s] %s", strings.ToUpper(string(c.GetMode())), text)
 	c.t.DrawLineText(0, h-1, maxLineW, terminal.StyleDefault, text)
 	c.t.S.Show()
 }
@@ -348,7 +421,6 @@ func (c *Client) DrawInputKey() {
 		inputRune := c.eventKey.Rune()
 		text = string(inputRune)
 	}
-	// }
 	c.t.DrawLineText(w-maxLineW, h-1, maxLineW, terminal.StyleDefault, text)
 	c.t.S.Show()
 }
@@ -368,22 +440,45 @@ func (c *Client) MoveDown(step int) {
 }
 
 func (c *Client) MoveLeft() {
-	c.midFile = &bdpan.FileInfoDto{
-		Path:     c.GetLeftDir(),
-		FileType: 1,
+	switch c.normalAction {
+	case ActionFile:
+		if c.GetMidDir() != "/" {
+			c.midFile = &bdpan.FileInfoDto{
+				Path:     c.GetLeftDir(),
+				FileType: 1,
+			}
+			c.DrawCache()
+		} else {
+			c.ShowSystem()
+		}
+	default:
+		c.ShowSystem()
 	}
-	c.DrawCache()
 }
 
 func (c *Client) Enter() {
-	c.midFile = c.GetMidSelectFile()
-	if c.midFile.IsDir() {
-		c.DrawCache()
-	} else {
-		c.SetMode(ModeConfirm).
-			SetPrevAction(KeymapActionDownloadFile).
-			SetCurrSelectFiles().DrawCache()
+	switch c.normalAction {
+	case ActionFile:
+		c.midFile = c.GetMidSelectFile()
+		if c.midFile.IsDir() {
+			c.DrawCache()
+		} else {
+			c.SetMode(ModeConfirm).
+				SetPrevAction(KeymapActionDownloadFile).
+				SetCurrSelectFiles().DrawCache()
+		}
+	case ActionSystem:
+		systemInfo := c.GetMidSelectSystem()
+		switch systemInfo.Action {
+		case ActionFile:
+			c.midFile = GetRootFile()
+		}
+		c.SetNormalAction(systemInfo.Action).DrawCacheNormal()
 	}
+}
+
+func (c *Client) ShowSystem() {
+	c.SetNormalAction(ActionSystem).DrawCache()
 }
 
 func (c *Client) HandleNormalAction(action KeymapAction) error {
@@ -391,6 +486,13 @@ func (c *Client) HandleNormalAction(action KeymapAction) error {
 	switch action {
 	case KeymapActionHelp:
 		c.SetMode(ModeHelp).DrawCache()
+	case KeymapActionFilter:
+		fm := NewFilterMode("")
+		fm.SetActionFn(c.HandleFilterAction)
+		m := NewCommandMode("/").SetNextMode(fm)
+		m.SetActionFn(c.HandleCommandAction)
+		c.m = m
+		c.SetMode(ModeCommand).DrawCache()
 	case KeymapActionSync:
 		c.SetMode(ModeSync).DrawCache()
 	case KeymapActionReload:
@@ -419,6 +521,9 @@ func (c *Client) HandleNormalAction(action KeymapAction) error {
 		c.MoveUp(c.midTerm.Box.Height())
 	case KeymapActionMoveLeft:
 		c.MoveLeft()
+	case KeymapActionMoveLeftHome:
+		c.midFile = GetRootFile()
+		c.DrawCache()
 	case KeymapActionEnter, KeymapActionMoveRight:
 		c.Enter()
 	case KeymapActionCutFile:
@@ -430,6 +535,8 @@ func (c *Client) HandleNormalAction(action KeymapAction) error {
 	case KeymapActionKeymap:
 		return c.SetPrevRune(c.eventKey.Rune()).
 			SetMode(ModeKeymap).DrawCache()
+	case KeymapActionSystem:
+		c.ShowSystem()
 	case KeymapActionQuit:
 		return ErrQuit
 	}
@@ -549,6 +656,49 @@ func (c *Client) HandleSyncAction(action KeymapAction) error {
 	return nil
 }
 
+func (c *Client) HandleCommandAction(action KeymapAction) error {
+	switch action {
+	case KeymapActionEnter:
+		m := c.m.(*CommandMode)
+		switch m.NextMode.(type) {
+		case *FilterMode:
+			nm := m.NextMode.(*FilterMode)
+			nm.SetFilter(m.Input)
+			c.m = nm
+			c.SetMode(ModeFilter)
+			c.DrawCache()
+		}
+	case KeymapActionQuit:
+		c.DrawCacheNormal()
+	case KeymapActionInput:
+		m := c.m.(*CommandMode)
+		m.SetInput(m.Input + string(c.eventKey.Rune()))
+		c.DrawCommand()
+	case KeymapActionBackspace:
+		m := c.m.(*CommandMode)
+		if m.Input == "" {
+			return nil
+		}
+		m.SetInput(tools.StringBackspace(m.Input))
+		c.DrawCommand()
+	}
+	return nil
+}
+
+func (c *Client) HandleFilterAction(action KeymapAction) error {
+	switch action {
+	case KeymapActionQuit:
+		c.DrawCacheNormal()
+	case KeymapActionMoveUp:
+		c.midTerm.SetAnchorIndex(5)
+		c.MoveUp(1)
+	case KeymapActionMoveDown:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
+		c.MoveDown(1)
+	}
+	return nil
+}
+
 // 操作复制信息
 func (c *Client) ActionCopyMsg(msg string) error {
 	err := clipboard.WriteAll(msg)
@@ -574,10 +724,22 @@ func (c *Client) GetAction() (KeymapAction, bool) {
 		actionMap = ActionConfirmMap
 	case ModeSync:
 		actionMap = ActionSyncMap
+	case ModeFilter:
+		actionMap = ActionFilterMap
 	case ModeKeymap:
 		key := string(c.prevRune) + string(c.eventKey.Rune())
 		a, ok := ActionKeymapMap[key]
 		return a, ok
+	case ModeCommand:
+		switch c.eventKey.Key() {
+		case tcell.KeyEnter:
+			return KeymapActionEnter, true
+		case tcell.KeyEsc, tcell.KeyCtrlC:
+			return KeymapActionQuit, true
+		case tcell.KeyBackspace2, tcell.KeyBackspace:
+			return KeymapActionBackspace, true
+		}
+		return KeymapActionInput, true
 	default:
 		return 0, false
 	}
@@ -601,7 +763,7 @@ func (c *Client) Exec() error {
 			Log.Infof("PollEvent EventKey %v", ev)
 			action, ok := c.GetAction()
 			var actionFunc func(KeymapAction) error
-			switch c.mode {
+			switch c.GetMode() {
 			case ModeNormal:
 				actionFunc = c.HandleNormalAction
 			case ModeKeymap:
@@ -610,6 +772,10 @@ func (c *Client) Exec() error {
 				actionFunc = c.HandleConfirmAction
 			case ModeSync:
 				actionFunc = c.HandleSyncAction
+			default:
+				if c.m != nil {
+					actionFunc = c.m.GetActionFn()
+				}
 			}
 			if actionFunc != nil && ok {
 				err = actionFunc(action)

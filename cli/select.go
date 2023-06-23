@@ -16,17 +16,13 @@ type FileInfo struct {
 }
 
 func (i FileInfo) String() string {
-	text := fmt.Sprintf(" %s %s", i.GetFileTypeIcon(), i.GetFilename())
-	endSpaceCount := 0
+	text := fmt.Sprintf("%s %s", i.GetFileTypeIcon(), i.GetFilename())
+	endSpaceCount := 2
 	if i.IsSync {
 		endSpaceCount += 2
 	}
 	if i.Count > 0 {
 		endSpaceCount += len(strconv.Itoa(i.Count)) + 1
-	}
-	// 为最后空格留的位置
-	if endSpaceCount > 0 {
-		endSpaceCount += 1
 	}
 	wholeWidth := i.MaxTextWidth - endSpaceCount
 	text = terminal.OmitString(text, wholeWidth)
@@ -37,11 +33,37 @@ func (i FileInfo) String() string {
 	if i.IsSync {
 		text += " "
 	}
-	if endSpaceCount > 0 {
-		text += " "
-	}
+	text = fmt.Sprintf(" %s ", text)
 	return text
 }
+
+// func (i FileInfo) String() string {
+// text := fmt.Sprintf(" %s %s", i.GetFileTypeIcon(), i.GetFilename())
+// endSpaceCount := 0
+// if i.IsSync {
+// endSpaceCount += 2
+// }
+// if i.Count > 0 {
+// endSpaceCount += len(strconv.Itoa(i.Count)) + 1
+// }
+// // 为最后空格留的位置
+// if endSpaceCount > 0 {
+// endSpaceCount += 1
+// }
+// wholeWidth := i.MaxTextWidth - endSpaceCount
+// text = terminal.OmitString(text, wholeWidth)
+// text = terminal.FillString(text, wholeWidth)
+// if i.Count > 0 {
+// text = fmt.Sprintf("%s %d", text, i.Count)
+// }
+// if i.IsSync {
+// text += " "
+// }
+// if endSpaceCount > 0 {
+// text += " "
+// }
+// return text
+// }
 
 func ConverFilesToSelectItems(s *terminal.Select, files []*bdpan.FileInfoDto) []*terminal.SelectItem {
 	var items = make([]*terminal.SelectItem, 0)
@@ -122,4 +144,39 @@ func FillSyncToSelect(s *terminal.Select, file *bdpan.FileInfoDto) error {
 	}
 	s.SetItems(items)
 	return nil
+}
+
+type SystemAction int
+
+const (
+	ActionSystem SystemAction = iota
+	ActionFile
+	ActionBigFile
+)
+
+func NewSystemSelectItem(icon, name string, action SystemAction) *terminal.SelectItem {
+	return &terminal.SelectItem{
+		Info: &SystemInfo{
+			Icon:   icon,
+			Name:   name,
+			Action: action,
+		},
+	}
+}
+
+func FillSystemToSelect(s *terminal.Select, action SystemAction) error {
+	s.Items = append(s.Items, NewSystemSelectItem("", "网盘文件", ActionFile))
+	s.Items = append(s.Items, NewSystemSelectItem("", "查看大文件", ActionBigFile))
+	s.SelectIndex = int(action) - 1
+	return nil
+}
+
+type SystemInfo struct {
+	Name   string
+	Icon   string
+	Action SystemAction
+}
+
+func (i SystemInfo) String() string {
+	return fmt.Sprintf(" %s %s", i.Icon, i.Name)
 }

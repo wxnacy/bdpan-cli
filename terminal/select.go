@@ -1,6 +1,8 @@
 package terminal
 
 import (
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -26,6 +28,7 @@ func NewEmptySelect(t *Terminal, StartX, StartY, EndX, EndY int) *Select {
 		t:           t,
 		Box:         box,
 		AnchorIndex: 0,
+		Items:       make([]*SelectItem, 0),
 	}
 	return s.init()
 }
@@ -75,6 +78,19 @@ func (s *Select) init() *Select {
 
 func (s *Select) SetItems(items []*SelectItem) *Select {
 	s.Items = items
+	return s
+}
+
+func (s *Select) Filter(filter string) *Select {
+	filterItems := make([]*SelectItem, 0)
+	items := s.Items
+	for _, item := range items {
+		if strings.Contains(item.Info.String(), filter) {
+			filterItems = append(filterItems, item)
+		}
+	}
+	s.SetItems(filterItems)
+	s.SelectIndex = 0
 	return s
 }
 
@@ -166,6 +182,7 @@ func (s *Select) DrawLoading() {
 	s.Box.DrawLineText(0, StyleDefault, s.LoadingText)
 	s.t.S.Show()
 }
+
 func (s *Select) Draw() {
 	s.Box.Draw()
 

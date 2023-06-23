@@ -78,7 +78,7 @@ func (c *Confirm) Draw() *Confirm {
 	// ensure text
 	c.Box.DrawText(c.minPaddingLeft, 3, c.Ensure.Style(), c.Ensure.Text)
 	// cancel text
-	boxStartX, _, boxEndX, _ := c.Box.DrawRange()
+	boxStartX, _, boxEndX, _ := c.Box.GetDrawRange()
 	cancelStartX := boxEndX - c.cancelTextLen - c.minPaddingLeft - boxStartX
 	c.Box.DrawText(cancelStartX, 3, c.Cancel.Style(), c.Cancel.Text)
 	return c

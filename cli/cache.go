@@ -1,18 +1,24 @@
 package cli
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
+	"github.com/wxnacy/go-tools"
 )
 
 var (
 	// key: fileDirPath
 	cacheFileSelectMap = make(map[string]*FileSelectCache, 0)
 	CacheSyncModelMap  = make(map[string]*bdpan.SyncModel, 0)
+	cacheFilesDir      = bdpan.JoinCache("files")
 )
 
 func init() {
 	RefreshSyncModelCache()
+	tools.DirExistsOrCreate(cacheFilesDir)
 }
 
 func NewFileSelectCache(dir string, s *terminal.Select, files []*bdpan.FileInfoDto) *FileSelectCache {
@@ -27,6 +33,29 @@ func GetFileSelectCache(dir string) *FileSelectCache {
 	return cacheFileSelectMap[dir]
 }
 
+func GetAllCacheFiles() []*bdpan.FileInfoDto {
+	var files = make([]*bdpan.FileInfoDto, 0)
+	for _, s := range cacheFileSelectMap {
+		files = append(s.Files, files...)
+	}
+	return files
+}
+
+func GetAllLocalFiles() (files []*bdpan.FileInfoDto, err error) {
+	err = tools.NewFileFilter(cacheFilesDir, func(paths []string) error {
+		for _, path := range paths {
+			var subFiles []*bdpan.FileInfoDto
+			err = tools.FileReadForInterface(path, &subFiles)
+			if err != nil {
+				return err
+			}
+			files = append(files, subFiles...)
+		}
+		return nil
+	}).Run()
+	return
+}
+
 type FileSelectCache struct {
 	Dir         string
 	Files       []*bdpan.FileInfoDto
@@ -35,6 +64,9 @@ type FileSelectCache struct {
 
 func (f *FileSelectCache) Save() {
 	cacheFileSelectMap[f.Dir] = f
+	name := strings.ReplaceAll(f.Dir, "/", "")
+	path := filepath.Join(cacheFilesDir, name)
+	tools.FileWriteWithInterface(path, f.Files)
 }
 
 func RefreshSyncModelCache() {

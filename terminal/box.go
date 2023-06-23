@@ -4,23 +4,36 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-type Box struct {
-	S      tcell.Screen
-	StartX int
-	StartY int
-	EndX   int
-	EndY   int
-	Style  tcell.Style
+func NewBox(s tcell.Screen, StartX, StartY, EndX, EndY int) *Box {
+	return &Box{
+		S:      s,
+		StartX: StartX,
+		StartY: StartY,
+		EndX:   EndX,
+		EndY:   EndY,
+		Style:  StyleDefault,
+	}
 }
 
-// 可以绘制的返回
-func (b Box) DrawRange() (StartX, StartY, EndX, EndY int) {
-	return b.GetDrawRange()
+type Box struct {
+	S            tcell.Screen
+	StartX       int
+	StartY       int
+	EndX         int
+	EndY         int
+	Style        tcell.Style
+	PaddingLeft  int
+	PaddingRight int
+}
+
+func (b *Box) SetPaddingLeft(p int) *Box {
+	b.PaddingLeft = p
+	return b
 }
 
 // 可以绘制的返回
 func (b Box) GetDrawRange() (StartX, StartY, EndX, EndY int) {
-	return b.StartX + 1, b.StartY + 1, b.EndX - 1, b.EndY - 1
+	return b.StartX + 1 + b.PaddingLeft, b.StartY + 1, b.EndX - 1, b.EndY - 1
 }
 
 // 清除内容
@@ -34,13 +47,13 @@ func (b *Box) Clean() *Box {
 
 // 宽度
 func (b Box) Width() int {
-	sx, _, ex, _ := b.DrawRange()
+	sx, _, ex, _ := b.GetDrawRange()
 	return ex - sx + 1
 }
 
 // 高度
 func (b Box) Height() int {
-	_, sy, _, ey := b.DrawRange()
+	_, sy, _, ey := b.GetDrawRange()
 	return ey - sy + 1
 }
 
@@ -68,14 +81,14 @@ func (b *Box) DrawOneLineText(StartY int, style tcell.Style, text string) {
 
 // 绘制当行数据
 func (b *Box) DrawLineText(StartY int, style tcell.Style, text string) {
-	sx, sy, _, _ := b.DrawRange()
+	sx, sy, _, _ := b.GetDrawRange()
 	text = b.FillOneLineText(b.OmitOneLineText(text))
 	DrawLine(b.S, sx, sy+StartY, style, text)
 }
 
 // 绘制多行数据
 func (b *Box) DrawText(StartX, StartY int, style tcell.Style, text string) {
-	sx, sy, _, _ := b.DrawRange()
+	sx, sy, _, _ := b.GetDrawRange()
 	sx += StartX
 	sy += StartY
 	Log.Infof("Box: %v DrawText StartX: %d StartY: %d Text: %s", b, sx, sy, text)
