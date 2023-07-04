@@ -18,11 +18,12 @@ var (
 )
 
 func NewClient(t *terminal.Terminal) *Client {
-	return &Client{
+	c := &Client{
 		t:            t,
 		mode:         ModeNormal,
 		normalAction: ActionFile,
 	}
+	return c
 }
 
 type Client struct {
@@ -46,7 +47,7 @@ type Client struct {
 	// 帮助界面
 	helpTerm *terminal.Help
 	// 确认界面
-	confirmTerm *terminal.Confirm
+	// confirmTerm *terminal.Confirm
 	// 同步界面
 	syncTerm *terminal.Select
 	// 上个键位
@@ -140,7 +141,7 @@ func (c *Client) GetModeDrawRange() (StartX, StartY, EndX, EndY int) {
 // 获取 normal 模式下模型 EndY
 func (c *Client) GetModeNormalEndY() int {
 	endY := func() int {
-		switch c.mode {
+		switch c.GetMode() {
 		case ModeKeymap:
 			return c.keymapTerm.Box.StartY - 1
 		case ModeHelp:
@@ -202,7 +203,7 @@ func (c *Client) Draw() error {
 	// draw before
 	c.DrawTitle(c.GetMidDir())
 	c.DrawInputKey()
-	switch c.mode {
+	switch c.GetMode() {
 	case ModeHelp:
 		c.DrawHelp()
 		return nil
@@ -294,10 +295,29 @@ func (c *Client) DrawMid() error {
 		})
 
 		c.midTerm.SetItems(ConverFilesToSelectItems(c.midTerm, files))
+	case ActionSync:
+		var items = make([]*terminal.SelectItem, 0)
+		boxWidth := c.midTerm.Box.Width()
+		for _, m := range bdpan.GetSyncModelSlice() {
+			item := &terminal.SelectItem{
+				Info: &SyncInfo{
+					SyncModel:    m,
+					MaxTextWidth: boxWidth,
+				},
+			}
+			items = append(items, item)
+		}
+		c.midTerm.SetItems(items)
 	}
 	if err != nil {
 		return err
 	}
+	// 设置缓存的索引位置
+	cacheindex, ok := GetCacheSelectIndex(c.normalAction)
+	if c.useCache && ok {
+		c.midTerm.SetSelectIndex(cacheindex)
+	}
+	// 过滤模式数据过滤
 	if c.GetMode() == ModeFilter {
 		c.midTerm.Filter(c.m.(*FilterMode).Filter)
 	}
@@ -307,9 +327,9 @@ func (c *Client) DrawMid() error {
 
 func (c *Client) DrawMidData() error {
 	c.midTerm.SetSelectFn(func(item *terminal.SelectItem) {
+		c.DrawDetail()
 		switch c.normalAction {
 		case ActionFile, ActionBigFile:
-			c.DrawDetail()
 			c.DrawMessage(item.Info.(*FileInfo).Path)
 		}
 	}).Draw()
@@ -320,9 +340,17 @@ func (c *Client) DrawDetail() {
 	_, sy, ex, _ := c.GetModeDrawRange()
 	startX := c.midTerm.Box.EndX + 1
 	c.detailTerm = terminal.NewEmptyList(c.t, startX, sy, ex, c.GetModeNormalEndY())
-	info := c.GetMidSelectFile()
-	Log.Debugf("DrawDetail Info %s", info.GetPretty())
-	c.detailTerm.SetData(strings.Split(info.GetPretty(), "\n"))
+	var detail string
+	switch c.normalAction {
+	case ActionFile, ActionBigFile:
+		info := c.GetMidSelectFile()
+		detail = info.GetPretty()
+	case ActionSync:
+		info := c.midTerm.GetSeleteItem().Info.(*SyncInfo)
+		detail = info.Desc()
+	}
+	Log.Debugf("DrawDetail Info %s", detail)
+	c.detailTerm.SetData(strings.Split(detail, "\n"))
 	c.detailTerm.Draw()
 
 }
@@ -348,15 +376,7 @@ func (c *Client) DrawKeymap() {
 }
 
 func (c *Client) DrawConfirm() {
-	var msg string
-	var name = c.GetMidSelectFile().GetFilename()
-	switch c.prevAction {
-	case KeymapActionDeleteFile:
-		msg = fmt.Sprintf("确定删除 %s?", name)
-	case KeymapActionDownloadFile:
-		msg = fmt.Sprintf("确定下载 %s?", name)
-	}
-	c.confirmTerm = terminal.NewConfirm(c.t, msg).Draw()
+	c.m.(*ConfirmMode).Term.Draw()
 }
 
 // 绘制同步界面
@@ -456,17 +476,28 @@ func (c *Client) MoveLeft() {
 	}
 }
 
-func (c *Client) Enter() {
+func (c *Client) Download() error {
+	SetCacheSelectIndex(c.normalAction, c.midTerm.SelectIndex)
+	var name = c.midTerm.GetSeleteItem().Info.Name()
+	msg := fmt.Sprintf("确定下载 %s?", name)
+	c.SetConfirmMode(msg).
+		SetPrevAction(KeymapActionDownloadFile).
+		SetCurrSelectFiles().DrawCache()
+	return nil
+}
+
+func (c *Client) Enter() error {
+	SetCacheSelectIndex(c.normalAction, c.midTerm.SelectIndex)
 	switch c.normalAction {
 	case ActionFile:
 		c.midFile = c.GetMidSelectFile()
 		if c.midFile.IsDir() {
 			c.DrawCache()
 		} else {
-			c.SetMode(ModeConfirm).
-				SetPrevAction(KeymapActionDownloadFile).
-				SetCurrSelectFiles().DrawCache()
+			c.Download()
 		}
+	case ActionBigFile:
+		c.Download()
 	case ActionSystem:
 		systemInfo := c.GetMidSelectSystem()
 		switch systemInfo.Action {
@@ -474,7 +505,12 @@ func (c *Client) Enter() {
 			c.midFile = GetRootFile()
 		}
 		c.SetNormalAction(systemInfo.Action).DrawCacheNormal()
+	case ActionSync:
+		info := c.midTerm.GetSeleteItem().Info.(*SyncInfo)
+		msg := fmt.Sprintf("确定执行 %s?", info.ID)
+		c.SetConfirmMode(msg).SetPrevAction(KeymapActionSyncExec).DrawCache()
 	}
+	return nil
 }
 
 func (c *Client) ShowSystem() {
@@ -482,6 +518,7 @@ func (c *Client) ShowSystem() {
 }
 
 func (c *Client) HandleNormalAction(action KeymapAction) error {
+	var err error
 	Log.Infof("HandleKeymapAction %v", action)
 	switch action {
 	case KeymapActionHelp:
@@ -525,13 +562,18 @@ func (c *Client) HandleNormalAction(action KeymapAction) error {
 		c.midFile = GetRootFile()
 		c.DrawCache()
 	case KeymapActionEnter, KeymapActionMoveRight:
-		c.Enter()
+		err = c.Enter()
 	case KeymapActionCutFile:
 		c.SetCurrSelectFiles().SetPrevAction(action).DrawCacheNormal()
 		fromFile := c.selectFiles[0]
 		c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
-	case KeymapActionDeleteFile, KeymapActionDownloadFile:
-		c.SetMode(ModeConfirm).SetCurrSelectFiles().SetPrevAction(action).DrawCache()
+	case KeymapActionDownloadFile:
+		c.Download()
+	case KeymapActionDeleteFile:
+		var msg string
+		var name = c.midTerm.GetSeleteItem().Info.Name()
+		msg = fmt.Sprintf("确定删除 %s?", name)
+		c.SetConfirmMode(msg).SetCurrSelectFiles().SetPrevAction(action).DrawCache()
 	case KeymapActionKeymap:
 		return c.SetPrevRune(c.eventKey.Rune()).
 			SetMode(ModeKeymap).DrawCache()
@@ -540,7 +582,7 @@ func (c *Client) HandleNormalAction(action KeymapAction) error {
 	case KeymapActionQuit:
 		return ErrQuit
 	}
-	return nil
+	return err
 }
 
 func (c *Client) HandleKeymapAction(action KeymapAction) error {
@@ -577,58 +619,6 @@ func (c *Client) HandleKeymapAction(action KeymapAction) error {
 		}
 		c.ClearSelectFiles().DrawNormal()
 		c.DrawMessage(fmt.Sprintf("%s 已经粘贴", toFile))
-	}
-	return nil
-}
-
-func (c *Client) HandleConfirmAction(action KeymapAction) error {
-	var err error
-	Log.Infof("HandleKeymapAction %v", action)
-	ensureFunc := func() {
-		var action = c.prevAction
-		switch action {
-		case KeymapActionDeleteFile:
-			c.DrawMessage("开始删除...")
-			err = bdpan.DeleteFile(c.GetMidSelectFile().Path)
-			c.ClearSelectFiles()
-			if err != nil {
-				c.DrawMessage(fmt.Sprintf("删除失败: %v", err))
-				c.DrawCacheNormal()
-			} else {
-				c.DrawNormal()
-				c.DrawMessage("删除成功!")
-			}
-		case KeymapActionDownloadFile:
-			c.DrawMessage("开始下载...")
-			cmd := &DownloadCommand{
-				IsRecursion: true,
-			}
-			err = cmd.Download(c.selectFiles[0])
-			if err != nil {
-				c.DrawMessage(fmt.Sprintf("下载失败: %v", err))
-			} else {
-				c.DrawCacheNormal()
-				c.DrawMessage("下载成功!")
-			}
-			bdpan.SetOutputFile()
-		}
-	}
-
-	switch action {
-	case KeymapActionMoveLeft:
-		c.confirmTerm.EnableEnsure().Draw()
-	case KeymapActionMoveRight:
-		c.confirmTerm.EnableCancel().Draw()
-	case KeymapActionEnter:
-		if c.confirmTerm.IsEnsure() {
-			ensureFunc()
-		} else {
-			c.DrawCacheNormal()
-			c.DrawMessage("操作取消!")
-		}
-	case KeymapActionEnsure:
-		c.confirmTerm.EnableEnsure().Draw()
-		ensureFunc()
 	}
 	return nil
 }
@@ -713,7 +703,7 @@ func (c *Client) ActionCopyMsg(msg string) error {
 
 func (c *Client) GetAction() (KeymapAction, bool) {
 	var actionMap map[string]KeymapAction
-	switch c.mode {
+	switch c.GetMode() {
 	case ModeNormal:
 		if IsKeymap(c.eventKey.Rune()) {
 			return KeymapActionKeymap, true
@@ -760,7 +750,7 @@ func (c *Client) Exec() error {
 			c.DrawCache()
 		case *tcell.EventKey:
 			c.eventKey = ev
-			Log.Infof("PollEvent EventKey %v", ev)
+			Log.Infof("PollEvent Mode %v EventKey %v", c.GetMode(), ev)
 			action, ok := c.GetAction()
 			var actionFunc func(KeymapAction) error
 			switch c.GetMode() {
@@ -768,8 +758,6 @@ func (c *Client) Exec() error {
 				actionFunc = c.HandleNormalAction
 			case ModeKeymap:
 				actionFunc = c.HandleKeymapAction
-			case ModeConfirm:
-				actionFunc = c.HandleConfirmAction
 			case ModeSync:
 				actionFunc = c.HandleSyncAction
 			default:

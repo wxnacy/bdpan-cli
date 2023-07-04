@@ -2,6 +2,7 @@ package cli
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/wxnacy/bdpan"
@@ -11,14 +12,24 @@ import (
 
 var (
 	// key: fileDirPath
-	cacheFileSelectMap = make(map[string]*FileSelectCache, 0)
-	CacheSyncModelMap  = make(map[string]*bdpan.SyncModel, 0)
-	cacheFilesDir      = bdpan.JoinCache("files")
+	cacheFileSelectMap  = make(map[string]*FileSelectCache, 0)
+	CacheSyncModelMap   = make(map[string]*bdpan.SyncModel, 0)
+	cacheFilesDir       = bdpan.JoinCache("files")
+	cacheSelectIndexMap = make(map[string]int, 0)
 )
 
 func init() {
 	RefreshSyncModelCache()
 	tools.DirExistsOrCreate(cacheFilesDir)
+}
+
+func SetCacheSelectIndex(a SystemAction, i int) {
+	cacheSelectIndexMap[strconv.Itoa(int(a))] = i
+}
+
+func GetCacheSelectIndex(a SystemAction) (i int, f bool) {
+	i, f = cacheSelectIndexMap[strconv.Itoa(int(a))]
+	return
 }
 
 func NewFileSelectCache(dir string, s *terminal.Select, files []*bdpan.FileInfoDto) *FileSelectCache {

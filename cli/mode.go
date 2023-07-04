@@ -1,5 +1,7 @@
 package cli
 
+import "github.com/wxnacy/bdpan-cli/terminal"
+
 type Mode string
 
 const (
@@ -53,6 +55,10 @@ func (f *FilterMode) SetFilter(t string) *FilterMode {
 	return f
 }
 
+//------------------------------
+//  CommandMode
+//------------------------------
+
 func NewCommandMode(prefix string) *CommandMode {
 	return &CommandMode{
 		BaseMode: &BaseMode{},
@@ -79,4 +85,44 @@ func (m *CommandMode) SetInput(t string) *CommandMode {
 func (m *CommandMode) SetNextMode(mi ModeInterface) *CommandMode {
 	m.NextMode = mi
 	return m
+}
+
+//------------------------------
+//  NormalMode
+//------------------------------
+
+func NewNormalMode(prefix string) *NormalMode {
+	return &NormalMode{
+		BaseMode: &BaseMode{},
+	}
+}
+
+type NormalMode struct {
+	*BaseMode
+}
+
+func (NormalMode) GetMode() Mode {
+	return ModeNormal
+}
+
+//------------------------------
+//  ConfirmMode
+//------------------------------
+
+func NewConfirmMode(t *terminal.Terminal, msg string) *ConfirmMode {
+	return &ConfirmMode{
+		BaseMode: &BaseMode{},
+		Msg:      msg,
+		Term:     terminal.NewConfirm(t, msg),
+	}
+}
+
+type ConfirmMode struct {
+	*BaseMode
+	Msg  string
+	Term *terminal.Confirm
+}
+
+func (ConfirmMode) GetMode() Mode {
+	return ModeConfirm
 }

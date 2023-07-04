@@ -15,6 +15,10 @@ type FileInfo struct {
 	Count        int
 }
 
+func (i FileInfo) Name() string {
+	return i.GetFilename()
+}
+
 func (i FileInfo) String() string {
 	text := fmt.Sprintf("%s %s", i.GetFileTypeIcon(), i.GetFilename())
 	endSpaceCount := 2
@@ -36,34 +40,6 @@ func (i FileInfo) String() string {
 	text = fmt.Sprintf(" %s ", text)
 	return text
 }
-
-// func (i FileInfo) String() string {
-// text := fmt.Sprintf(" %s %s", i.GetFileTypeIcon(), i.GetFilename())
-// endSpaceCount := 0
-// if i.IsSync {
-// endSpaceCount += 2
-// }
-// if i.Count > 0 {
-// endSpaceCount += len(strconv.Itoa(i.Count)) + 1
-// }
-// // 为最后空格留的位置
-// if endSpaceCount > 0 {
-// endSpaceCount += 1
-// }
-// wholeWidth := i.MaxTextWidth - endSpaceCount
-// text = terminal.OmitString(text, wholeWidth)
-// text = terminal.FillString(text, wholeWidth)
-// if i.Count > 0 {
-// text = fmt.Sprintf("%s %d", text, i.Count)
-// }
-// if i.IsSync {
-// text += " "
-// }
-// if endSpaceCount > 0 {
-// text += " "
-// }
-// return text
-// }
 
 func ConverFilesToSelectItems(s *terminal.Select, files []*bdpan.FileInfoDto) []*terminal.SelectItem {
 	var items = make([]*terminal.SelectItem, 0)
@@ -125,8 +101,13 @@ type SyncInfo struct {
 	MaxTextWidth int
 }
 
+func (i SyncInfo) Name() string {
+	return i.Local
+}
+
 func (i SyncInfo) String() string {
 	return fmt.Sprintf("%s    %s", i.ID, i.Local)
+	// return i.Local
 }
 
 func FillSyncToSelect(s *terminal.Select, file *bdpan.FileInfoDto) error {
@@ -152,13 +133,14 @@ const (
 	ActionSystem SystemAction = iota
 	ActionFile
 	ActionBigFile
+	ActionSync
 )
 
 func NewSystemSelectItem(icon, name string, action SystemAction) *terminal.SelectItem {
 	return &terminal.SelectItem{
 		Info: &SystemInfo{
 			Icon:   icon,
-			Name:   name,
+			name:   name,
 			Action: action,
 		},
 	}
@@ -167,16 +149,21 @@ func NewSystemSelectItem(icon, name string, action SystemAction) *terminal.Selec
 func FillSystemToSelect(s *terminal.Select, action SystemAction) error {
 	s.Items = append(s.Items, NewSystemSelectItem("", "网盘文件", ActionFile))
 	s.Items = append(s.Items, NewSystemSelectItem("", "查看大文件", ActionBigFile))
+	s.Items = append(s.Items, NewSystemSelectItem("", "同步", ActionSync))
 	s.SelectIndex = int(action) - 1
 	return nil
 }
 
 type SystemInfo struct {
-	Name   string
+	name   string
 	Icon   string
 	Action SystemAction
 }
 
+func (i SystemInfo) Name() string {
+	return i.name
+}
+
 func (i SystemInfo) String() string {
-	return fmt.Sprintf(" %s %s", i.Icon, i.Name)
+	return fmt.Sprintf(" %s %s", i.Icon, i.Name())
 }

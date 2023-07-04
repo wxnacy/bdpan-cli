@@ -44,6 +44,7 @@ var (
 		tcell.KeyNames[tcell.KeyDown]:  KeymapActionMoveDown,
 		tcell.KeyNames[tcell.KeyLeft]:  KeymapActionMoveLeft,
 		tcell.KeyNames[tcell.KeyRight]: KeymapActionEnter,
+		tcell.KeyNames[tcell.KeyEnter]: KeymapActionEnter,
 		// 文件操作
 		"x": KeymapActionCutFile,
 

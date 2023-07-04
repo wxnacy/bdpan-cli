@@ -9,6 +9,7 @@ import (
 
 type SelectItemInfo interface {
 	String() string
+	Name() string
 }
 
 type SelectItem struct {
