@@ -197,13 +197,10 @@ func (c *Client) Draw() error {
 	c.DrawInputKey()
 	switch c.GetMode() {
 	case ModeHelp:
-		// c.DrawHelp()
 		c.m.Draw()
 		return nil
 	case ModeKeymap, ModeSync:
 		c.m.Draw()
-		// case ModeSync:
-		// c.DrawSync()
 	}
 	// draw common
 	err = c.DrawLeft()
@@ -218,8 +215,6 @@ func (c *Client) Draw() error {
 	switch c.GetMode() {
 	case ModeConfirm:
 		c.DrawConfirm()
-	// case ModeFilter:
-	// c.DrawFilter()
 	case ModeCommand:
 		c.DrawCommand()
 	}
@@ -349,15 +344,15 @@ func (c *Client) DrawDetail() {
 	c.detailTerm.Draw()
 }
 
-func (c *Client) DrawHelp() {
-	c.helpTerm = terminal.NewHelp(c.t, GetHelpItems())
-	sx, sy, ex, ey := c.GetModeDrawRange()
-	c.helpTerm.Box.StartX = sx
-	c.helpTerm.Box.StartY = sy
-	c.helpTerm.Box.EndX = ex
-	c.helpTerm.Box.EndY = ey
-	c.helpTerm.Draw()
-}
+// func (c *Client) DrawHelp() {
+// c.helpTerm = terminal.NewHelp(c.t, GetHelpItems())
+// sx, sy, ex, ey := c.GetModeDrawRange()
+// c.helpTerm.Box.StartX = sx
+// c.helpTerm.Box.StartY = sy
+// c.helpTerm.Box.EndX = ex
+// c.helpTerm.Box.EndY = ey
+// c.helpTerm.Draw()
+// }
 
 func (c *Client) DrawConfirm() {
 	c.m.(*ConfirmMode).Term.Draw()
@@ -623,13 +618,11 @@ func (c *Client) Exec() error {
 			switch c.GetMode() {
 			case ModeNormal:
 				actionFunc = c.HandleNormalAction
-			// case ModeKeymap, ModeFilter, ModeCommand, ModeConfirm, ModeSync:
 			default:
 				if c.m != nil {
 					c.m.SetEventKey(ev)
 					keymapFunc = c.m.GetKeymapFn()
 					err = c.HandleEventKey()
-					// actionFunc = c.m.GetActionFn()
 				}
 			}
 			if actionFunc != nil && ok {

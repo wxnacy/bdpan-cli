@@ -75,7 +75,7 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 	case CommandCursorMoveLeft:
 		term.EnableEnsure().Draw()
 	case CommandCursorMoveRight:
-		term.EnableEnsure().Draw()
+		term.EnableCancel().Draw()
 	case CommandEnter:
 		if term.IsEnsure() {
 			err = ensureFunc()
@@ -333,8 +333,8 @@ func (c *Client) HandleSyncKeymap(k Keymap) error {
 		}
 	case CommandEnter:
 		c.SetNormalMode().SetNormalAction(ActionSync).DrawCache()
-	case CommandQuit:
-		c.DrawCacheNormal()
+	// case CommandQuit:
+	// c.DrawCacheNormal()
 	default:
 		return c.HandleCommonKeymap(k)
 	}

@@ -164,9 +164,9 @@ var (
 		KeymapCursorMoveDown2,
 		KeymapCursorMoveUp1,
 		KeymapCursorMoveUp2,
-		KeymapQuit1,
-		KeymapQuit2,
-		KeymapQuit3,
+		// KeymapQuit1,
+		// KeymapQuit2,
+		// KeymapQuit3,
 	}
 
 	ConfirmKeymaps = []Keymap{
@@ -188,6 +188,8 @@ var (
 	}
 
 	CommonKeymaps = []Keymap{
+		NewKeymapN([]string{"?"}, CommandHelp).
+			SetDesc("帮助"),
 		KeymapQuit1,
 		KeymapQuit2,
 		KeymapQuit3,
