@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
@@ -31,6 +33,16 @@ func GetHelpItems() []terminal.HelpItem {
 				items = append(items, terminal.NewHelpItem(0, k.Msg).SetKeyString(string(r)+string(k.R)))
 			}
 		}
+	}
+	return items
+}
+
+func NewHelpItems(m Mode) []terminal.HelpItem {
+	var items = make([]terminal.HelpItem, 0)
+	keymaps := ModeKeymapsMap[m]
+	for _, k := range keymaps {
+		items = append(items, terminal.NewHelpItem(0, k.Desc).
+			SetKeyString(strings.Join(k.Keys, "")))
 	}
 	return items
 }
