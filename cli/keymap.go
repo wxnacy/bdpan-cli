@@ -215,6 +215,8 @@ var (
 		ModeConfirm: ConfirmKeymaps,
 		ModeNormal:  NormalKeymaps,
 		ModeSync:    SyncKeymaps,
+		ModeKeymap:  KeymapKeymaps,
+		ModeFilter:  FilterKeymaps,
 	}
 )
 

@@ -42,14 +42,8 @@ type Client struct {
 	midFile *bdpan.FileInfoDto
 	// 详情界面
 	detailTerm *terminal.List
-	// 快捷键界面
-	keymapTerm *terminal.List
 	// 帮助界面
 	helpTerm *terminal.Help
-	// 确认界面
-	// confirmTerm *terminal.Confirm
-	// 同步界面
-	syncTerm *terminal.Select
 	// 上个键位
 	prevRune rune
 	// 上个动作
@@ -143,12 +137,8 @@ func (c *Client) GetModeNormalEndY() int {
 	endY := func() int {
 		switch c.GetMode() {
 		case ModeKeymap:
-			// return c.keymapTerm.Box.StartY - 1
 			return c.m.(*KeymapMode).Term.Box.StartY - 1
-		case ModeHelp:
-			return c.helpTerm.Box.StartY - 1
 		case ModeSync:
-			// return c.syncTerm.Box.StartY - 1
 			return c.m.(*SyncMode).Term.Box.StartY - 1
 		default:
 			_, _, _, ey := c.GetModeDrawRange()
@@ -207,7 +197,8 @@ func (c *Client) Draw() error {
 	c.DrawInputKey()
 	switch c.GetMode() {
 	case ModeHelp:
-		c.DrawHelp()
+		// c.DrawHelp()
+		c.m.Draw()
 		return nil
 	case ModeKeymap, ModeSync:
 		c.m.Draw()
@@ -368,30 +359,9 @@ func (c *Client) DrawHelp() {
 	c.helpTerm.Draw()
 }
 
-// func (c *Client) DrawKeymap() {
-// c.m.(*KeymapMode).Draw()
-// }
-
 func (c *Client) DrawConfirm() {
 	c.m.(*ConfirmMode).Term.Draw()
 }
-
-// 绘制同步界面
-// func (c *Client) DrawSync() {
-// // syncTermH := len(bdpan.GetSyncModelsByRemote(c.GetMidSelectFile().Path))
-// // if syncTermH == 0 {
-// // c.EnableModeNormal()
-// // return
-// // }
-// // sx, _, ex, ey := c.GetModeDrawRange()
-// // startY := ey - syncTermH - 1
-// // c.syncTerm = terminal.
-// // NewEmptySelect(c.t, sx, startY, ex, ey)
-// // // 填充内容
-// // FillSyncToSelect(c.syncTerm, c.GetMidSelectFile())
-// // c.syncTerm.Draw()
-// c.m.Draw()
-// }
 
 // 绘制命令界面
 func (c *Client) DrawCommand() {

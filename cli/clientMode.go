@@ -312,9 +312,10 @@ func (c *Client) SetSyncMode() *Client {
 }
 
 func (c *Client) HandleSyncKeymap(k Keymap) error {
+	Term := c.m.(*SyncMode).Term
 	switch k.Command {
 	case CommandSyncExec:
-		info := c.syncTerm.GetSeleteItem().Info.(*SyncInfo)
+		info := Term.GetSeleteItem().Info.(*SyncInfo)
 		err := info.Exec()
 		if err != nil {
 			Log.Errorf("SyncModel %s Exec Error: %v", info.ID, err)
@@ -323,12 +324,12 @@ func (c *Client) HandleSyncKeymap(k Keymap) error {
 		c.DrawCacheNormal()
 		c.DrawMessage(fmt.Sprintf("%s 同步成功", c.GetMidSelectFile().Path))
 	case CommandCursorMoveDown:
-		if c.syncTerm.MoveDownSelect(1) {
-			c.syncTerm.Draw()
+		if Term.MoveDownSelect(1) {
+			Term.Draw()
 		}
 	case CommandCursorMoveUp:
-		if c.syncTerm.MoveUpSelect(1) {
-			c.syncTerm.Draw()
+		if Term.MoveUpSelect(1) {
+			Term.Draw()
 		}
 	case CommandEnter:
 		c.SetNormalMode().SetNormalAction(ActionSync).DrawCache()
