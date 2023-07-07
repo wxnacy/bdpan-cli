@@ -43,6 +43,7 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 			} else {
 				c.DrawNormal()
 				c.DrawMessage("删除成功!")
+				return c.RefreshUsed()
 			}
 		case CommandDownloadFile:
 			c.DrawMessage("开始下载...")
@@ -67,6 +68,7 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 			}
 			c.DrawCacheNormal()
 			c.DrawMessage(fmt.Sprintf("%s 同步成功", info.Remote))
+			return c.RefreshUsed()
 		}
 		return nil
 	}
@@ -152,6 +154,7 @@ func (c *Client) HandleKeymapKeymap(k Keymap) error {
 		}
 		c.DrawNormal()
 		c.DrawMessage(fmt.Sprintf("%s 已经粘贴", toFile))
+		return c.RefreshUsed()
 	default:
 		c.HandleCommonKeymap(k)
 	}

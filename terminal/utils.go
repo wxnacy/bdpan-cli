@@ -25,6 +25,6 @@ func FillString(text string, width int) string {
 // 绘制当行
 func DrawLine(s tcell.Screen, StartX, StartY int, style tcell.Style, text string) {
 	runes := []rune(text)
-	Log.Debugf("DrawLine StartX: %d StartY: %d Text: %s", StartX, StartY, text)
+	// Log.Debugf("DrawLine StartX: %d StartY: %d Text: %s", StartX, StartY, text)
 	s.SetContent(StartX, StartY, runes[0], runes[1:], style)
 }

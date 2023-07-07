@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/cli"
 	"github.com/wxnacy/bdpan-cli/terminal"
@@ -31,12 +32,16 @@ func (r *BdpanCommand) Exec(args []string) error {
 		}
 	}
 	bdpan.SetOutputFile()
-	// bdpan.SetLogLevel(logrus.DebugLevel)
+	bdpan.SetLogLevel(logrus.DebugLevel)
 	t, err := terminal.NewTerminal()
 	if err != nil {
 		return err
 	}
 	defer t.Quit()
-	r.client = cli.NewClient(t).SetMidFile(file)
+	user, err := bdpan.UserInfo()
+	if err != nil {
+		return err
+	}
+	r.client = cli.NewClient(t).SetMidFile(file).SetUser(user)
 	return r.client.Exec()
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
+	"github.com/wxnacy/go-tools"
 )
 
 var (
@@ -27,7 +28,10 @@ func NewClient(t *terminal.Terminal) *Client {
 }
 
 type Client struct {
-	t *terminal.Terminal
+	t          *terminal.Terminal
+	user       *bdpan.UserInfoDto
+	bdpanUsed  int64
+	bdpanTotal int64
 	// 模式
 	mode Mode
 	m    ModeInterface
@@ -64,6 +68,11 @@ func (c Client) Size() (w, h int) {
 	return
 }
 
+func (c *Client) SetUser(u *bdpan.UserInfoDto) *Client {
+	c.user = u
+	return c
+}
+
 func (c *Client) EnableCache() *Client {
 	c.useCache = true
 	return c
@@ -80,10 +89,16 @@ func (c *Client) DisableFilter() *Client {
 	return c
 }
 
-// func (c *Client) SetMidFile(f *bdpan.FileInfoDto) *Client {
-// c.midFile = f
-// return c
-// }
+func (c *Client) RefreshUsed() error {
+	pan, err := bdpan.PanInfo()
+	if err != nil {
+		return err
+	}
+	c.bdpanUsed = pan.GetUsed()
+	c.bdpanTotal = pan.GetTotal()
+	Log.Infof("PanUsed %d / %d", c.bdpanUsed, c.bdpanTotal)
+	return nil
+}
 
 // func (c *Client) ClearPrevRune() *Client {
 // return c.SetPrevRune(0)
@@ -403,6 +418,12 @@ func (c *Client) DrawMessage(text string) {
 
 // 绘制标题
 func (c *Client) DrawTitle(text string) {
+	text = fmt.Sprintf(
+		"%s[%s] (%s/%s) %s",
+		c.user.GetNetdiskName(),
+		c.user.GetVipName(),
+		tools.FormatSize(c.bdpanUsed),
+		tools.FormatSize(c.bdpanTotal), text)
 	c.t.DrawOneLineText(0, terminal.StyleDefault, text)
 }
 
@@ -618,6 +639,7 @@ func (c *Client) HandleEventKey() error {
 func (c *Client) Exec() error {
 	var err error
 	defer c.t.Quit()
+	c.RefreshUsed()
 	c.Draw()
 	for {
 		c.t.S.Show()
