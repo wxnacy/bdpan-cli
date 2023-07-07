@@ -80,7 +80,22 @@ func (s SyncCommand) handleAction(item *bdpan.SelectItem) error {
 		return s.selectSync()
 	case bdpan.ActionDelete:
 		m := item.Info.(*bdpan.SyncModel)
+		models := bdpan.GetSyncModels()
+		m, flag := models[m.ID]
+		if !flag {
+			return fmt.Errorf("%s 不存在", m.ID)
+		}
+		fmt.Println(m.Desc())
+		flag = bdpan.PromptConfirm("确定删除")
+		if !flag {
+			return nil
+		}
 		err = bdpan.DeleteSyncModel(m.ID)
+		if err != nil {
+			return err
+		}
+		bdpan.PrintSyncModelList()
+
 		return s.selectSync()
 	}
 	return nil
@@ -127,7 +142,22 @@ func (s SyncCommand) Run() error {
 		if s.ID == "" {
 			return fmt.Errorf("--delete 缺少参数 --id")
 		}
-		return bdpan.DeleteSyncModel(s.ID)
+		models := bdpan.GetSyncModels()
+		m, flag := models[s.ID]
+		if !flag {
+			return fmt.Errorf("%s 不存在", s.ID)
+		}
+		fmt.Println(m.Desc())
+		flag = bdpan.PromptConfirm("确定删除")
+		if !flag {
+			return nil
+		}
+		err := bdpan.DeleteSyncModel(m.ID)
+		if err != nil {
+			return err
+		}
+		bdpan.PrintSyncModelList()
+		return nil
 	} else {
 		return s.selectSync()
 	}

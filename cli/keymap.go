@@ -172,7 +172,7 @@ var (
 			SetDesc("选中文件，进入下一层目录或下载文件"),
 		NewKeymapN([]string{"x"}, CommandCutFile).
 			SetDesc("剪切文件"),
-		NewKeymapN([]string{"D"}, CommandDeleteFile).
+		NewKeymapN([]string{"D"}, CommandDelete).
 			SetDesc("删除文件"),
 		NewKeymapN([]string{"d"}, CommandDownloadFile).
 			SetDesc("下载文件"),
@@ -454,8 +454,6 @@ const (
 
 	CommandDownloadFile = "download_file"
 
-	CommandDeleteFile = "delete_file"
-
 	CommandSyncExec = "sync_exec"
 
 	// 模式切换
@@ -471,6 +469,7 @@ const (
 	CommandEnter     = "enter"
 	CommandEnsure    = "ensure" // 确认
 	CommandReload    = "reload"
+	CommandDelete    = "delete"
 
 	CommandQuit = "quit"
 )

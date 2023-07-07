@@ -23,9 +23,13 @@ func (c *Client) HandleCommonKeymap(k Keymap) error {
 // ConfirmMode
 //---------------------------
 func (c *Client) SetConfirmMode(ensureC Command, msg string) *Client {
+	// 设置缓存
+	SetCacheSelectIndex(c.normalAction, c.midTerm.SelectIndex)
 	m := NewConfirmMode(c.t, ensureC, msg)
 	m.SetKeymapFn(c.HandleConfirmKeymap).SetKeymaps(ConfirmKeymaps)
 	c.m = m
+	// 设置选中条目
+	c.SetSelectItems()
 	return c.SetMode(ModeConfirm)
 }
 
@@ -33,31 +37,45 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 	var err error
 	ensureFunc := func() error {
 		switch c.m.(*ConfirmMode).EnsureCommand {
-		case CommandDeleteFile:
-			c.DrawMessage("开始删除...")
-			err = bdpan.DeleteFile(c.GetMidSelectFile().Path)
-			c.ClearSelectFiles()
-			if err != nil {
-				c.DrawMessage(fmt.Sprintf("删除失败: %v", err))
-				c.DrawCacheNormal()
-			} else {
-				c.DrawNormal()
-				c.DrawMessage("删除成功!")
-				return c.RefreshUsed()
-			}
 		case CommandDownloadFile:
 			c.DrawMessage("开始下载...")
 			cmd := &DownloadCommand{
 				IsRecursion: true,
 			}
-			err = cmd.Download(c.selectFiles[0])
+			err = cmd.Download(c.GetMidSelectFile())
+			c.DrawCacheNormal()
 			if err != nil {
 				c.DrawMessage(fmt.Sprintf("下载失败: %v", err))
 			} else {
-				c.DrawCacheNormal()
 				c.DrawMessage("下载成功!")
 			}
 			bdpan.SetOutputFile()
+		case CommandDelete:
+			c.DrawMessage("开始删除...")
+			switch c.normalAction {
+			case ActionSync:
+				for _, sm := range c.m.GetSelectItems() {
+					id := sm.Info.(*SyncInfo).ID
+					err = bdpan.DeleteSyncModel(id)
+					if err != nil {
+						return err
+					}
+				}
+				c.DrawCacheNormal()
+				c.DrawMessage("删除成功!")
+			default:
+				err = bdpan.DeleteFile(c.GetSelectFile().Path)
+				c.ClearSelectFiles()
+				if err != nil {
+					c.DrawMessage(fmt.Sprintf("删除失败: %v", err))
+					c.DrawCacheNormal()
+				} else {
+					c.DrawNormal()
+					c.DrawMessage("删除成功!")
+					return c.RefreshUsed()
+				}
+
+			}
 		case CommandSyncExec:
 			c.DrawMessage("开始同步...")
 			info := c.midTerm.GetSeleteItem().Info.(*SyncInfo)
@@ -309,12 +327,11 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 		c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
 	case CommandDownloadFile:
 		c.Download()
-	case CommandDeleteFile:
+	case CommandDelete:
 		var msg string
 		var name = c.midTerm.GetSeleteItem().Info.Name()
 		msg = fmt.Sprintf("确定删除 %s?", name)
-		c.SetConfirmMode(CommandDeleteFile, msg).
-			SetCurrSelectFiles().DrawCache()
+		c.SetConfirmMode(k.Command, msg).DrawCache()
 	case CommandKeymap:
 		return c.SetKeymapMode().DrawCache()
 	case CommandSystem:

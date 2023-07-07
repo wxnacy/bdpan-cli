@@ -102,7 +102,7 @@ type SyncInfo struct {
 }
 
 func (i SyncInfo) Name() string {
-	return i.Local
+	return i.ID
 }
 
 func (i SyncInfo) String() string {

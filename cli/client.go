@@ -200,6 +200,19 @@ func (c *Client) GetMidSelectFile() *bdpan.FileInfoDto {
 	return c.midTerm.GetSeleteItem().Info.(*FileInfo).FileInfoDto
 }
 
+func (c *Client) GetMidSelectItems() []*terminal.SelectItem {
+	return []*terminal.SelectItem{c.midTerm.GetSeleteItem()}
+}
+
+func (c *Client) GetSelectFile() *bdpan.FileInfoDto {
+	return c.m.GetSelectItems()[0].Info.(*FileInfo).FileInfoDto
+}
+
+func (c *Client) SetSelectItems() *Client {
+	c.m.SetSelectItems(c.GetMidSelectItems())
+	return c
+}
+
 func (c *Client) EnableModeNormal() *Client {
 	// c.m = nil
 	return c.SetNormalMode() //.SetMode(ModeNormal)
@@ -481,7 +494,6 @@ func (c *Client) MoveLeft() {
 }
 
 func (c *Client) Download() error {
-	SetCacheSelectIndex(c.normalAction, c.midTerm.SelectIndex)
 	var name = c.midTerm.GetSeleteItem().Info.Name()
 	msg := fmt.Sprintf("确定下载 %s?", name)
 	c.SetConfirmMode(CommandDownloadFile, msg).
