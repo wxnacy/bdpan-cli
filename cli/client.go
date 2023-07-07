@@ -89,6 +89,7 @@ func (c *Client) DisableFilter() *Client {
 	return c
 }
 
+// 刷新网盘使用情况
 func (c *Client) RefreshUsed() error {
 	pan, err := bdpan.PanInfo()
 	if err != nil {

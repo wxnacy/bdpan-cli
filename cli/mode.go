@@ -20,17 +20,14 @@ const (
 	ModeFilter       = "filter"
 )
 
-type ActionFn func(KeymapAction) error
 type CommandFn func(Command) error
 type KeymapFn func(Keymap) error
 
 type ModeInterface interface {
 	GetMode() Mode
-	GetActionFn() ActionFn
 	GetKeymapFn() KeymapFn
 	GetKeymaps() []Keymap
 	GetKeymap() Keymap
-	GetKeymapActionMap() map[string]KeymapAction
 	SetEventKey(ev *tcell.EventKey)
 	IsKey(Keymap) bool
 	Draw() error
@@ -41,16 +38,14 @@ type ModeInterface interface {
 }
 
 type BaseMode struct {
-	T               *terminal.Terminal
-	Mode            Mode
-	ActionFn        ActionFn
-	KeymapActionMap map[string]KeymapAction
-	KeymapFn        KeymapFn
-	Keymaps         []Keymap
-	PrevEventKey    *tcell.EventKey
-	CurrEventKey    *tcell.EventKey
-	PrevCommand     Command
-	SelectItems     []*terminal.SelectItem
+	T            *terminal.Terminal
+	Mode         Mode
+	KeymapFn     KeymapFn
+	Keymaps      []Keymap
+	PrevEventKey *tcell.EventKey
+	CurrEventKey *tcell.EventKey
+	PrevCommand  Command
+	SelectItems  []*terminal.SelectItem
 }
 
 func (b BaseMode) GetMode() Mode {
@@ -82,15 +77,6 @@ func (b *BaseMode) IsKey(k Keymap) bool {
 	return k.IsKey(b.CurrEventKey, b.PrevEventKey)
 }
 
-func (b *BaseMode) SetActionFn(fn ActionFn) *BaseMode {
-	b.ActionFn = fn
-	return b
-}
-
-func (b *BaseMode) GetActionFn() ActionFn {
-	return b.ActionFn
-}
-
 func (b *BaseMode) SetKeymapFn(fn KeymapFn) *BaseMode {
 	b.KeymapFn = fn
 	return b
@@ -119,15 +105,6 @@ func (b *BaseMode) GetKeymap() Keymap {
 		}
 	}
 	return key
-}
-
-func (b *BaseMode) SetKeymapActionMap(m map[string]KeymapAction) *BaseMode {
-	b.KeymapActionMap = m
-	return b
-}
-
-func (b *BaseMode) GetKeymapActionMap() map[string]KeymapAction {
-	return b.KeymapActionMap
 }
 
 func (b *BaseMode) Draw() error {
