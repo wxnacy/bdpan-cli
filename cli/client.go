@@ -221,8 +221,10 @@ func (c *Client) DrawNormal() error {
 
 func (c *Client) Draw() error {
 	var err error
+	// 先清理屏幕
 	c.t.S.Clear()
 	c.t.S.Sync()
+	c.t.S.Show() // 需要展示才生效
 
 	// draw before
 	c.DrawTitle(c.GetMidDir())
