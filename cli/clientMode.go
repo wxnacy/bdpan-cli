@@ -181,12 +181,12 @@ func (c *Client) HandleCommandKeymap(k Keymap) error {
 	case CommandEnter:
 		m := c.m.(*CommandMode)
 		switch m.NextMode.(type) {
-		case *FilterMode:
-			nm := m.NextMode.(*FilterMode)
-			nm.SetFilter(m.Input)
-			c.m = nm
-			c.SetMode(ModeFilter)
-			c.DrawCache()
+		// case *FilterMode:
+		// nm := m.NextMode.(*FilterMode)
+		// nm.SetFilter(m.Input)
+		// c.m = nm
+		// c.SetMode(ModeFilter)
+		// c.DrawCache()
 		case *NormalMode:
 			nm := m.NextMode.(*NormalMode)
 			if c.useFilter {
@@ -214,12 +214,12 @@ func (c *Client) HandleCommandKeymap(k Keymap) error {
 //---------------------------
 // FilterMode
 //---------------------------
-func (c *Client) NewFilterMode() *FilterMode {
-	fm := NewFilterMode("")
-	// fm.SetActionFn(c.HandleFilterAction).SetKeymapActionMap(ActionFilterMap)
-	fm.SetKeymapFn(c.HandleFilterKeymap).SetKeymaps(FilterKeymaps)
-	return fm
-}
+// func (c *Client) NewFilterMode() *FilterMode {
+// fm := NewFilterMode("")
+// // fm.SetActionFn(c.HandleFilterAction).SetKeymapActionMap(ActionFilterMap)
+// fm.SetKeymapFn(c.HandleFilterKeymap).SetKeymaps(FilterKeymaps)
+// return fm
+// }
 
 // func (c *Client) SetFilterMode() *Client {
 // fm := NewFilterMode("")
@@ -232,19 +232,19 @@ func (c *Client) NewFilterMode() *FilterMode {
 // return c
 // }
 
-func (c *Client) HandleFilterKeymap(k Keymap) error {
-	switch k.Command {
-	case CommandQuit:
-		c.DrawCacheNormal()
-	case CommandCursorMoveUp:
-		// c.midTerm.SetAnchorIndex(5)
-		c.MoveUp(1)
-	case CommandCursorMoveDown:
-		// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
-		c.MoveDown(1)
-	}
-	return nil
-}
+// func (c *Client) HandleFilterKeymap(k Keymap) error {
+// switch k.Command {
+// case CommandQuit:
+// c.DrawCacheNormal()
+// case CommandCursorMoveUp:
+// // c.midTerm.SetAnchorIndex(5)
+// c.MoveUp(1)
+// case CommandCursorMoveDown:
+// // c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
+// c.MoveDown(1)
+// }
+// return nil
+// }
 
 //---------------------------
 // NormalMode

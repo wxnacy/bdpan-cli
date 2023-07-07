@@ -134,26 +134,26 @@ func (b *BaseMode) Draw() error {
 	return nil
 }
 
-func NewFilterMode(filter string) *FilterMode {
-	return &FilterMode{
-		BaseMode: &BaseMode{},
-		Filter:   filter,
-	}
-}
+// func NewFilterMode(filter string) *FilterMode {
+// return &FilterMode{
+// BaseMode: &BaseMode{},
+// Filter:   filter,
+// }
+// }
 
-type FilterMode struct {
-	*BaseMode
-	Filter string
-}
+// type FilterMode struct {
+// *BaseMode
+// Filter string
+// }
 
-func (FilterMode) GetMode() Mode {
-	return ModeFilter
-}
+// func (FilterMode) GetMode() Mode {
+// return ModeFilter
+// }
 
-func (f *FilterMode) SetFilter(t string) *FilterMode {
-	f.Filter = t
-	return f
-}
+// func (f *FilterMode) SetFilter(t string) *FilterMode {
+// f.Filter = t
+// return f
+// }
 
 //------------------------------
 //  CommandMode

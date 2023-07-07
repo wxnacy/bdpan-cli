@@ -180,15 +180,15 @@ var (
 			SetDesc("重新加载目录"),
 	}
 
-	FilterKeymaps = []Keymap{
-		KeymapCursorMoveDown1,
-		KeymapCursorMoveDown2,
-		KeymapCursorMoveUp1,
-		KeymapCursorMoveUp2,
-		KeymapQuit1,
-		KeymapQuit2,
-		KeymapQuit3,
-	}
+	// FilterKeymaps = []Keymap{
+	// KeymapCursorMoveDown1,
+	// KeymapCursorMoveDown2,
+	// KeymapCursorMoveUp1,
+	// KeymapCursorMoveUp2,
+	// KeymapQuit1,
+	// KeymapQuit2,
+	// KeymapQuit3,
+	// }
 
 	CommandKeymaps = []Keymap{
 		KeymapEnter,
@@ -251,7 +251,7 @@ var (
 		ModeNormal:  NormalKeymaps,
 		ModeSync:    SyncKeymaps,
 		ModeKeymap:  KeymapKeymaps,
-		ModeFilter:  FilterKeymaps,
+		// ModeFilter:  FilterKeymaps,
 	}
 )
 
@@ -461,14 +461,15 @@ const (
 	// 模式切换
 	CommandKeymap = "keymap"
 	CommandHelp   = "help"
-	CommandFilter = "filter"
 	CommandSync   = "sync"
 
+	// 功能命令
+	CommandFilter    = "filter" // 过滤
 	CommandSystem    = "system"
-	CommandInput     = "input"
+	CommandInput     = "input" // 输入
 	CommandBackspace = "backspace"
 	CommandEnter     = "enter"
-	CommandEnsure    = "ensure"
+	CommandEnsure    = "ensure" // 确认
 	CommandReload    = "reload"
 
 	CommandQuit = "quit"
