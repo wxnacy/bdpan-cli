@@ -129,12 +129,56 @@ var (
 			SetDesc("退出")
 	KeymapQuit3 = NewKeymapN([]string{"q"}, CommandQuit).
 			SetDesc("退出")
+	KeymapHelp = NewKeymapN([]string{"?"}, CommandHelp).
+			SetDesc("帮助")
 
 	NormalKeymaps = []Keymap{
+		// 模式
+		NewKeymapN([]string{"?"}, CommandHelp).SetDesc("帮助"),
+		NewKeymapN([]string{"/"}, CommandFilter).SetDesc("过滤"),
+		NewKeymapN([]string{"s"}, CommandSync).SetDesc("同步"),
+		// 光标移动
 		KeymapCursorMoveDown1,
 		KeymapCursorMoveDown2,
-		NewKeymapN([]string{"q"}, CommandQuit).
-			SetDesc("退出"),
+		KeymapCursorMoveUp1,
+		KeymapCursorMoveUp2,
+		NewKeymapN([]string{"h"}, CommandGotoPrev).
+			SetDesc("返回上一层目录"),
+		NewKeymapN([]string{"G"}, CommandCursorMoveEnd).
+			SetDesc("光标跳转到最后一行"),
+
+		NewKeymapN(
+			[]string{tcell.KeyNames[tcell.KeyCtrlD]},
+			CommandCursorMoveHalfPageDown,
+		).SetDesc("光标向下移动半页"),
+		NewKeymapN(
+			[]string{tcell.KeyNames[tcell.KeyCtrlU]},
+			CommandCursorMoveHalfPageUp,
+		).SetDesc("光标向上移动半页"),
+		NewKeymapN(
+			[]string{tcell.KeyNames[tcell.KeyCtrlF]},
+			CommandCursorMovePageDown,
+		).SetDesc("光标向下移动一页"),
+		NewKeymapN(
+			[]string{tcell.KeyNames[tcell.KeyCtrlB]},
+			CommandCursorMovePageUp,
+		).SetDesc("光标向上移动一页"),
+
+		// 操作文件
+		NewKeymapN([]string{"l"}, CommandEnter).
+			SetDesc("选中文件，进入下一层目录或下载文件"),
+		NewKeymapN([]string{tcell.KeyNames[tcell.KeyRight]}, CommandEnter).
+			SetDesc("选中文件，进入下一层目录或下载文件"),
+		NewKeymapN([]string{tcell.KeyNames[tcell.KeyEnter]}, CommandEnter).
+			SetDesc("选中文件，进入下一层目录或下载文件"),
+		NewKeymapN([]string{"x"}, CommandCutFile).
+			SetDesc("剪切文件"),
+		NewKeymapN([]string{"D"}, CommandDeleteFile).
+			SetDesc("删除文件"),
+		NewKeymapN([]string{"d"}, CommandDownloadFile).
+			SetDesc("下载文件"),
+		NewKeymapN([]string{"R"}, CommandReload).
+			SetDesc("重新加载目录"),
 	}
 
 	FilterKeymaps = []Keymap{
@@ -164,9 +208,6 @@ var (
 		KeymapCursorMoveDown2,
 		KeymapCursorMoveUp1,
 		KeymapCursorMoveUp2,
-		// KeymapQuit1,
-		// KeymapQuit2,
-		// KeymapQuit3,
 	}
 
 	ConfirmKeymaps = []Keymap{
@@ -176,26 +217,19 @@ var (
 			SetDesc("光标向左移动一个"),
 		NewKeymapN([]string{"l"}, CommandCursorMoveRight).
 			SetDesc("光标向右移动一个"),
-		KeymapQuit1,
-		KeymapQuit2,
-		KeymapQuit3,
 	}
 
-	HelpKeymaps = []Keymap{
-		KeymapQuit1,
-		KeymapQuit2,
-		KeymapQuit3,
-	}
+	HelpKeymaps = []Keymap{}
 
 	CommonKeymaps = []Keymap{
-		NewKeymapN([]string{"?"}, CommandHelp).
-			SetDesc("帮助"),
 		KeymapQuit1,
 		KeymapQuit2,
 		KeymapQuit3,
+		KeymapHelp,
 	}
 
 	KeymapKeymaps = []Keymap{
+		KeymapHelp,
 		NewKeymapN([]string{"y", "d"}, CommandCopyDirpath).
 			SetDesc("复制文件夹路径"),
 		NewKeymapN([]string{"y", "n"}, CommandCopyFilename).
@@ -390,22 +424,28 @@ func (k Keymap) AddRelKey(km Keymap) Keymap {
 type Command string
 
 const (
-	CommandGoto      Command = "goto"
-	CommandGotoLeft          = "goto left"
-	CommandGotoRight         = "goto right"
+	CommandGoto     Command = "goto"
+	CommandGotoPrev         = "goto prev"
+	CommandGotoNext         = "goto next"
+	CommandGotoRoot         = "goto /"
 
-	CommandCursorMoveHome     = "cursor_move_home"
-	CommandCursorMoveUp       = "cursor_move_up"
-	CommandCursorMovePageUp   = "cursor_move_page_up"
-	CommandCursorMoveDown     = "cursor_move_down"
-	CommandCursorMovePageDown = "cursor_move_page_down"
-	CommandCursorMoveLeft     = "cursor_move_left"
-	CommandCursorMoveRight    = "cursor_move_right"
+	CommandCursorMoveHome         = "cursor_move_home"
+	CommandCursorMoveEnd          = "cursor_move_end"
+	CommandCursorMoveUp           = "cursor_move_up"
+	CommandCursorMovePageUp       = "cursor_move_page_up"
+	CommandCursorMoveHalfPageUp   = "cursor_move_half_page_up"
+	CommandCursorMoveDown         = "cursor_move_down"
+	CommandCursorMovePageDown     = "cursor_move_page_down"
+	CommandCursorMoveHalfPageDown = "cursor_move_half_page_down"
+	CommandCursorMoveLeft         = "cursor_move_left"
+	CommandCursorMoveRight        = "cursor_move_right"
 
 	CommandCopyDirpath  = "copy_dirpath"
 	CommandCopyFilename = "copy_filename"
 	CommandCopyFilepath = "copy_filepath"
 	CommandCopyFile     = "copy_file"
+
+	CommandCutFile = "cut_file"
 
 	CommandPasteFile = "copy_file"
 
@@ -418,11 +458,14 @@ const (
 	// 模式切换
 	CommandKeymap = "keymap"
 	CommandHelp   = "help"
+	CommandFilter = "filter"
+	CommandSync   = "sync"
 
 	CommandInput     = "input"
 	CommandBackspace = "backspace"
 	CommandEnter     = "enter"
 	CommandEnsure    = "ensure"
+	CommandReload    = "reload"
 
 	CommandQuit = "quit"
 )

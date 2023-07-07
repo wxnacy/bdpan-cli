@@ -88,6 +88,8 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 		err = ensureFunc()
 	case CommandQuit:
 		c.DrawCacheNormal()
+	default:
+		c.HandleCommonKeymap(k)
 	}
 	if err != nil {
 		return err
@@ -146,6 +148,13 @@ func (c *Client) HandleKeymapKeymap(k Keymap) error {
 		c.HandleCommonKeymap(k)
 	}
 	return err
+}
+
+func (c *Client) IsKeymapK(k Keymap) bool {
+	if len(k.Keys) > 1 {
+		return true
+	}
+	return false
 }
 
 //---------------------------
@@ -239,60 +248,65 @@ func (c *Client) SetNormalMode() *Client {
 func (c *Client) HandleNormalKeymap(k Keymap) error {
 	var err error
 	switch k.Command {
-	// case KeymapActionHelp:
-	// c.SetMode(ModeHelp).DrawCache()
-	// case KeymapActionFilter:
-	// c.SetFilterMode().DrawCache()
-	// case KeymapActionSync:
-	// c.SetMode(ModeSync).DrawCache()
-	// case KeymapActionReload:
-	// c.DrawNormal()
-	// // 向下移动
-	// case KeymapActionMoveDown:
-	// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
-	// c.MoveDown(1)
-	// case KeymapActionMoveDownHalfPage:
-	// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
-	// c.MoveDown(c.midTerm.Box.Height() / 2)
-	// case KeymapActionMoveDownPage:
-	// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 1)
-	// c.MoveDown(c.midTerm.Box.Height())
-	// case KeymapActionMovePageEnd:
-	// c.MoveDown(c.midTerm.Length())
-	// // 向上移动
-	// case KeymapActionMoveUp:
-	// c.midTerm.SetAnchorIndex(5)
-	// c.MoveUp(1)
-	// case KeymapActionMoveUpHalfPage:
-	// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
-	// c.MoveUp(c.midTerm.Box.Height() / 2)
-	// case KeymapActionMoveUpPage:
-	// c.midTerm.SetAnchorIndex(0)
-	// c.MoveUp(c.midTerm.Box.Height())
-	// case KeymapActionMoveLeft:
-	// c.MoveLeft()
-	// case KeymapActionMoveLeftHome:
-	// c.midFile = GetRootFile()
-	// c.DrawCache()
-	// case KeymapActionEnter, KeymapActionMoveRight:
-	// err = c.Enter()
-	// case KeymapActionCutFile:
+	case CommandHelp:
+		c.SetHelpMode().DrawCache()
+	case CommandFilter:
+		c.SetCommandMode(c.NewFilterMode()).DrawCache()
+	case CommandSync:
+		c.SetSyncMode().DrawCache()
+	case CommandReload:
+		c.DrawNormal()
+	// 向下移动
+	case CommandCursorMoveDown:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
+		c.MoveDown(1)
+	case CommandCursorMoveHalfPageDown:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
+		c.MoveDown(c.midTerm.Box.Height() / 2)
+	case CommandCursorMovePageDown:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 1)
+		c.MoveDown(c.midTerm.Box.Height())
+	case CommandCursorMoveEnd:
+		c.MoveDown(c.midTerm.Length())
+		// 向上移动
+	case CommandCursorMoveUp:
+		c.midTerm.SetAnchorIndex(5)
+		c.MoveUp(1)
+	case CommandCursorMoveHalfPageUp:
+		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
+		c.MoveUp(c.midTerm.Box.Height() / 2)
+	case CommandCursorMovePageUp:
+		c.midTerm.SetAnchorIndex(0)
+		c.MoveUp(c.midTerm.Box.Height())
+	case CommandGotoPrev:
+		c.MoveLeft()
+	case CommandGotoRoot:
+		c.midFile = GetRootFile()
+		c.DrawCache()
+	case CommandEnter, CommandGotoNext:
+		err = c.Enter()
+	// case CommandCutFile:
 	// c.SetCurrSelectFiles().SetPrevAction(action).DrawCacheNormal()
 	// fromFile := c.selectFiles[0]
 	// c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
-	// case KeymapActionDownloadFile:
-	// c.Download()
-	// case KeymapActionDeleteFile:
-	// var msg string
-	// var name = c.midTerm.GetSeleteItem().Info.Name()
-	// msg = fmt.Sprintf("确定删除 %s?", name)
-	// c.SetConfirmMode(msg).SetCurrSelectFiles().SetPrevAction(action).DrawCache()
+	case CommandDownloadFile:
+		c.Download()
+	case CommandDeleteFile:
+		var msg string
+		var name = c.midTerm.GetSeleteItem().Info.Name()
+		msg = fmt.Sprintf("确定删除 %s?", name)
+		c.SetConfirmMode(CommandDeleteFile, msg).
+			SetCurrSelectFiles().DrawCache()
 	case CommandKeymap:
 		return c.SetKeymapMode().DrawCache()
-	// case KeymapActionSystem:
+	// case CommandSystem:
 	// c.ShowSystem()
 	case CommandQuit:
 		return ErrQuit
+	default:
+		if c.IsKeymapK(k) {
+			c.SetKeymapMode().DrawCache()
+		}
 	}
 	return err
 }

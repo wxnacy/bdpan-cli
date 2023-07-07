@@ -479,68 +479,68 @@ func (c *Client) ShowSystem() {
 	c.SetNormalAction(ActionSystem).DrawCache()
 }
 
-func (c *Client) HandleNormalAction(action KeymapAction) error {
-	var err error
-	Log.Infof("HandleKeymapAction %v", action)
-	switch action {
-	case KeymapActionHelp:
-		c.SetHelpMode().DrawCache()
-	case KeymapActionFilter:
-		c.SetCommandMode(c.NewFilterMode()).DrawCache()
-	case KeymapActionSync:
-		c.SetSyncMode().DrawCache()
-	case KeymapActionReload:
-		c.DrawNormal()
-	// 向下移动
-	case KeymapActionMoveDown:
-		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
-		c.MoveDown(1)
-	case KeymapActionMoveDownHalfPage:
-		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
-		c.MoveDown(c.midTerm.Box.Height() / 2)
-	case KeymapActionMoveDownPage:
-		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 1)
-		c.MoveDown(c.midTerm.Box.Height())
-	case KeymapActionMovePageEnd:
-		c.MoveDown(c.midTerm.Length())
-		// 向上移动
-	case KeymapActionMoveUp:
-		c.midTerm.SetAnchorIndex(5)
-		c.MoveUp(1)
-	case KeymapActionMoveUpHalfPage:
-		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
-		c.MoveUp(c.midTerm.Box.Height() / 2)
-	case KeymapActionMoveUpPage:
-		c.midTerm.SetAnchorIndex(0)
-		c.MoveUp(c.midTerm.Box.Height())
-	case KeymapActionMoveLeft:
-		c.MoveLeft()
-	case KeymapActionMoveLeftHome:
-		c.midFile = GetRootFile()
-		c.DrawCache()
-	case KeymapActionEnter, KeymapActionMoveRight:
-		err = c.Enter()
-	case KeymapActionCutFile:
-		c.SetCurrSelectFiles().SetPrevAction(action).DrawCacheNormal()
-		fromFile := c.selectFiles[0]
-		c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
-	case KeymapActionDownloadFile:
-		c.Download()
-	case KeymapActionDeleteFile:
-		var msg string
-		var name = c.midTerm.GetSeleteItem().Info.Name()
-		msg = fmt.Sprintf("确定删除 %s?", name)
-		c.SetConfirmMode(CommandDeleteFile, msg).
-			SetCurrSelectFiles().DrawCache()
-	case KeymapActionKeymap:
-		return c.SetKeymapMode().DrawCache()
-	case KeymapActionSystem:
-		c.ShowSystem()
-	case KeymapActionQuit:
-		return ErrQuit
-	}
-	return err
-}
+// func (c *Client) HandleNormalAction(action KeymapAction) error {
+// var err error
+// Log.Infof("HandleKeymapAction %v", action)
+// switch action {
+// case KeymapActionHelp:
+// c.SetHelpMode().DrawCache()
+// case KeymapActionFilter:
+// c.SetCommandMode(c.NewFilterMode()).DrawCache()
+// case KeymapActionSync:
+// c.SetSyncMode().DrawCache()
+// case KeymapActionReload:
+// c.DrawNormal()
+// // 向下移动
+// case KeymapActionMoveDown:
+// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
+// c.MoveDown(1)
+// case KeymapActionMoveDownHalfPage:
+// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
+// c.MoveDown(c.midTerm.Box.Height() / 2)
+// case KeymapActionMoveDownPage:
+// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 1)
+// c.MoveDown(c.midTerm.Box.Height())
+// case KeymapActionMovePageEnd:
+// c.MoveDown(c.midTerm.Length())
+// // 向上移动
+// case KeymapActionMoveUp:
+// c.midTerm.SetAnchorIndex(5)
+// c.MoveUp(1)
+// case KeymapActionMoveUpHalfPage:
+// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
+// c.MoveUp(c.midTerm.Box.Height() / 2)
+// case KeymapActionMoveUpPage:
+// c.midTerm.SetAnchorIndex(0)
+// c.MoveUp(c.midTerm.Box.Height())
+// case KeymapActionMoveLeft:
+// c.MoveLeft()
+// case KeymapActionMoveLeftHome:
+// c.midFile = GetRootFile()
+// c.DrawCache()
+// case KeymapActionEnter, KeymapActionMoveRight:
+// err = c.Enter()
+// case KeymapActionCutFile:
+// c.SetCurrSelectFiles().SetPrevAction(action).DrawCacheNormal()
+// fromFile := c.selectFiles[0]
+// c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
+// case KeymapActionDownloadFile:
+// c.Download()
+// case KeymapActionDeleteFile:
+// var msg string
+// var name = c.midTerm.GetSeleteItem().Info.Name()
+// msg = fmt.Sprintf("确定删除 %s?", name)
+// c.SetConfirmMode(CommandDeleteFile, msg).
+// SetCurrSelectFiles().DrawCache()
+// case KeymapActionKeymap:
+// return c.SetKeymapMode().DrawCache()
+// case KeymapActionSystem:
+// c.ShowSystem()
+// case KeymapActionQuit:
+// return ErrQuit
+// }
+// return err
+// }
 
 // 操作复制信息
 func (c *Client) ActionCopyMsg(msg string) error {
@@ -555,43 +555,44 @@ func (c *Client) ActionCopyMsg(msg string) error {
 	return nil
 }
 
-func (c *Client) GetAction() (KeymapAction, bool) {
-	var actionMap map[string]KeymapAction
-	switch c.GetMode() {
-	case ModeNormal:
-		if IsKeymap(c.eventKey.Rune()) {
-			return KeymapActionKeymap, true
-		} else {
-			actionMap = ActionNormalMap
-		}
-	case ModeConfirm, ModeFilter:
-		actionMap = c.m.GetKeymapActionMap()
-	case ModeSync:
-		actionMap = ActionSyncMap
-	case ModeKeymap:
-		actionMap = c.m.GetKeymapActionMap()
-		key := c.m.(*KeymapMode).
-			SetSecondRune(c.eventKey.Rune()).GetKeyString()
-		a, ok := actionMap[key]
-		return a, ok
-	case ModeCommand:
-		switch c.eventKey.Key() {
-		case tcell.KeyEnter:
-			return KeymapActionEnter, true
-		case tcell.KeyEsc, tcell.KeyCtrlC:
-			return KeymapActionQuit, true
-		case tcell.KeyBackspace2, tcell.KeyBackspace:
-			return KeymapActionBackspace, true
-		}
-		return KeymapActionInput, true
-	default:
-		return 0, false
-	}
-	return GetKeymapActionByEventKey(c.eventKey, actionMap)
-}
+// func (c *Client) GetAction() (KeymapAction, bool) {
+// var actionMap map[string]KeymapAction
+// switch c.GetMode() {
+// case ModeNormal:
+// if IsKeymap(c.eventKey.Rune()) {
+// return KeymapActionKeymap, true
+// } else {
+// actionMap = ActionNormalMap
+// }
+// case ModeConfirm, ModeFilter:
+// actionMap = c.m.GetKeymapActionMap()
+// case ModeSync:
+// actionMap = ActionSyncMap
+// case ModeKeymap:
+// actionMap = c.m.GetKeymapActionMap()
+// key := c.m.(*KeymapMode).
+// SetSecondRune(c.eventKey.Rune()).GetKeyString()
+// a, ok := actionMap[key]
+// return a, ok
+// case ModeCommand:
+// switch c.eventKey.Key() {
+// case tcell.KeyEnter:
+// return KeymapActionEnter, true
+// case tcell.KeyEsc, tcell.KeyCtrlC:
+// return KeymapActionQuit, true
+// case tcell.KeyBackspace2, tcell.KeyBackspace:
+// return KeymapActionBackspace, true
+// }
+// return KeymapActionInput, true
+// default:
+// return 0, false
+// }
+// return GetKeymapActionByEventKey(c.eventKey, actionMap)
+// }
 
 func (c *Client) HandleEventKey() error {
 	keymapFunc := c.m.GetKeymapFn()
+	Log.Info(c.m.GetKeymaps())
 	keymap := c.m.GetKeymap()
 	Log.Infof("Handle %v Keymap %v", c.m.GetMode(), keymap)
 	return keymapFunc(keymap)
@@ -611,27 +612,28 @@ func (c *Client) Exec() error {
 			c.DrawCache()
 		case *tcell.EventKey:
 			c.eventKey = ev
-			Log.Infof("PollEvent Mode %v EventKey %v", c.GetMode(), ev)
-			action, ok := c.GetAction()
-			var actionFunc ActionFn
-			var keymapFunc KeymapFn
-			switch c.GetMode() {
-			case ModeNormal:
-				actionFunc = c.HandleNormalAction
-			default:
-				if c.m != nil {
-					c.m.SetEventKey(ev)
-					keymapFunc = c.m.GetKeymapFn()
-					err = c.HandleEventKey()
-				}
-			}
-			if actionFunc != nil && ok {
-				err = actionFunc(action)
-			} else if keymapFunc != nil {
+			Log.Infof("PollEvent Mode %v Rune %s EventKey %v", c.GetMode(), string(ev.Rune()), ev)
+			c.m.SetEventKey(ev)
+			// keymapFunc = c.m.GetKeymapFn()
+			err = c.HandleEventKey()
+			// action, ok := c.GetAction()
+			// var actionFunc ActionFn
+			// var keymapFunc KeymapFn
+			// switch c.GetMode() {
+			// default:
+			// if c.m != nil {
+			// c.m.SetEventKey(ev)
+			// keymapFunc = c.m.GetKeymapFn()
+			// err = c.HandleEventKey()
+			// }
+			// }
+			// if actionFunc != nil && ok {
+			// err = actionFunc(action)
+			// } else if keymapFunc != nil {
 
-			} else {
-				c.DrawCacheNormal()
-			}
+			// } else {
+			// c.DrawCacheNormal()
+			// }
 		}
 		if err != nil {
 			if CanCacheError(err) {

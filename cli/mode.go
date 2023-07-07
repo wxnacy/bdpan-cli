@@ -89,6 +89,7 @@ func (b *BaseMode) GetKeymaps() []Keymap {
 func (b *BaseMode) GetKeymap() Keymap {
 	var key Keymap
 	for _, k := range b.Keymaps {
+		Log.Info(k)
 		if b.IsKey(k) {
 			key = k
 		}
@@ -152,16 +153,12 @@ type CommandMode struct {
 
 func (c *CommandMode) GetKeymap() Keymap {
 	var key Keymap
-	for _, k := range c.Keymaps {
-		if c.IsKey(k) {
-			key = k
-		}
-	}
-	Log.Infof("Command Key %v", key)
+	key = c.BaseMode.GetKeymap()
+	// Log.Infof("Command Key %v", key)
 	if key.IsNil() {
 		key = KeymapInput
 	}
-	Log.Infof("Command Key %v", key)
+	// Log.Infof("Command Key %v", key)
 	return key
 }
 
@@ -189,6 +186,21 @@ func NewNormalMode() *NormalMode {
 
 type NormalMode struct {
 	*BaseMode
+}
+
+func (n *NormalMode) GetKeymap() Keymap {
+	var key Keymap
+	key = n.BaseMode.GetKeymap()
+	// Log.Infof("Command Key %v", key)
+	if key.IsNil() {
+		for _, k := range KeymapKeymaps {
+			if k.Keys[0] == string(n.CurrEventKey.Rune()) {
+				return k
+			}
+		}
+	}
+	// Log.Infof("Command Key %v", key)
+	return key
 }
 
 //------------------------------
