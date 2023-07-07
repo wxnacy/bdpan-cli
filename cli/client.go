@@ -28,9 +28,12 @@ func NewClient(t *terminal.Terminal) *Client {
 }
 
 type Client struct {
-	t          *terminal.Terminal
-	user       *bdpan.UserInfoDto
-	bdpanUsed  int64
+	t *terminal.Terminal
+	// 用户信息
+	user *bdpan.UserInfoDto
+	// 网盘已用
+	bdpanUsed int64
+	// 网盘总容量
 	bdpanTotal int64
 	// 模式
 	mode Mode
@@ -48,10 +51,6 @@ type Client struct {
 	detailTerm *terminal.List
 	// 帮助界面
 	helpTerm *terminal.Help
-	// 上个键位
-	// prevRune rune
-	// 上个动作
-	// prevAction KeymapAction
 	// 当前输入键位
 	eventKey *tcell.EventKey
 	// 是否需要缓存
@@ -110,20 +109,6 @@ func (c *Client) SetNormalAction(a SystemAction) *Client {
 	c.normalAction = a
 	return c
 }
-
-// func (c *Client) SetPrevAction(a KeymapAction) *Client {
-// c.prevAction = a
-// return c
-// }
-
-// func (c *Client) ClearPrevAction() *Client {
-// return c.SetPrevAction(0)
-// }
-
-// func (c *Client) AppendSelectFile(file *bdpan.FileInfoDto) *Client {
-// c.selectFiles = append(c.selectFiles, file)
-// return c
-// }
 
 func (c *Client) SetCurrSelectFiles() *Client {
 	c.ClearSelectFiles().selectFiles = append(c.selectFiles, c.GetMidSelectFile())
@@ -392,16 +377,6 @@ func (c *Client) DrawDetail() {
 	c.detailTerm.Draw()
 }
 
-// func (c *Client) DrawHelp() {
-// c.helpTerm = terminal.NewHelp(c.t, GetHelpItems())
-// sx, sy, ex, ey := c.GetModeDrawRange()
-// c.helpTerm.Box.StartX = sx
-// c.helpTerm.Box.StartY = sy
-// c.helpTerm.Box.EndX = ex
-// c.helpTerm.Box.EndY = ey
-// c.helpTerm.Draw()
-// }
-
 func (c *Client) DrawConfirm() {
 	c.m.(*ConfirmMode).Term.Draw()
 }
@@ -411,12 +386,6 @@ func (c *Client) DrawCommand() {
 	m := c.m.(*CommandMode)
 	c.DrawInput(m.Prefix, m.Input)
 }
-
-// 绘制过滤界面
-// func (c *Client) DrawFilter() {
-// // m := c.m.(*FilterMode)
-// // c.DrawInput("/", m.Input)
-// }
 
 // 绘制输入界面
 func (c *Client) DrawInput(prefix, text string) {
@@ -532,69 +501,6 @@ func (c *Client) ShowSystem() {
 	c.SetNormalAction(ActionSystem).DrawCache()
 }
 
-// func (c *Client) HandleNormalAction(action KeymapAction) error {
-// var err error
-// Log.Infof("HandleKeymapAction %v", action)
-// switch action {
-// case KeymapActionHelp:
-// c.SetHelpMode().DrawCache()
-// case KeymapActionFilter:
-// c.SetCommandMode(c.NewFilterMode()).DrawCache()
-// case KeymapActionSync:
-// c.SetSyncMode().DrawCache()
-// case KeymapActionReload:
-// c.DrawNormal()
-// // 向下移动
-// case KeymapActionMoveDown:
-// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)
-// c.MoveDown(1)
-// case KeymapActionMoveDownHalfPage:
-// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
-// c.MoveDown(c.midTerm.Box.Height() / 2)
-// case KeymapActionMoveDownPage:
-// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 1)
-// c.MoveDown(c.midTerm.Box.Height())
-// case KeymapActionMovePageEnd:
-// c.MoveDown(c.midTerm.Length())
-// // 向上移动
-// case KeymapActionMoveUp:
-// c.midTerm.SetAnchorIndex(5)
-// c.MoveUp(1)
-// case KeymapActionMoveUpHalfPage:
-// c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() / 2)
-// c.MoveUp(c.midTerm.Box.Height() / 2)
-// case KeymapActionMoveUpPage:
-// c.midTerm.SetAnchorIndex(0)
-// c.MoveUp(c.midTerm.Box.Height())
-// case KeymapActionMoveLeft:
-// c.MoveLeft()
-// case KeymapActionMoveLeftHome:
-// c.midFile = GetRootFile()
-// c.DrawCache()
-// case KeymapActionEnter, KeymapActionMoveRight:
-// err = c.Enter()
-// case KeymapActionCutFile:
-// c.SetCurrSelectFiles().SetPrevAction(action).DrawCacheNormal()
-// fromFile := c.selectFiles[0]
-// c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
-// case KeymapActionDownloadFile:
-// c.Download()
-// case KeymapActionDeleteFile:
-// var msg string
-// var name = c.midTerm.GetSeleteItem().Info.Name()
-// msg = fmt.Sprintf("确定删除 %s?", name)
-// c.SetConfirmMode(CommandDeleteFile, msg).
-// SetCurrSelectFiles().DrawCache()
-// case KeymapActionKeymap:
-// return c.SetKeymapMode().DrawCache()
-// case KeymapActionSystem:
-// c.ShowSystem()
-// case KeymapActionQuit:
-// return ErrQuit
-// }
-// return err
-// }
-
 // 操作复制信息
 func (c *Client) ActionCopyMsg(msg string) error {
 	err := clipboard.WriteAll(msg)
@@ -607,41 +513,6 @@ func (c *Client) ActionCopyMsg(msg string) error {
 	c.DrawMessage(msg)
 	return nil
 }
-
-// func (c *Client) GetAction() (KeymapAction, bool) {
-// var actionMap map[string]KeymapAction
-// switch c.GetMode() {
-// case ModeNormal:
-// if IsKeymap(c.eventKey.Rune()) {
-// return KeymapActionKeymap, true
-// } else {
-// actionMap = ActionNormalMap
-// }
-// case ModeConfirm, ModeFilter:
-// actionMap = c.m.GetKeymapActionMap()
-// case ModeSync:
-// actionMap = ActionSyncMap
-// case ModeKeymap:
-// actionMap = c.m.GetKeymapActionMap()
-// key := c.m.(*KeymapMode).
-// SetSecondRune(c.eventKey.Rune()).GetKeyString()
-// a, ok := actionMap[key]
-// return a, ok
-// case ModeCommand:
-// switch c.eventKey.Key() {
-// case tcell.KeyEnter:
-// return KeymapActionEnter, true
-// case tcell.KeyEsc, tcell.KeyCtrlC:
-// return KeymapActionQuit, true
-// case tcell.KeyBackspace2, tcell.KeyBackspace:
-// return KeymapActionBackspace, true
-// }
-// return KeymapActionInput, true
-// default:
-// return 0, false
-// }
-// return GetKeymapActionByEventKey(c.eventKey, actionMap)
-// }
 
 func (c *Client) HandleEventKey() error {
 	keymapFunc := c.m.GetKeymapFn()
