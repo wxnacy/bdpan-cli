@@ -119,7 +119,7 @@ func (c *Client) HandleKeymapKeymap(k Keymap) error {
 		c.DrawCacheNormal()
 		c.MoveUp(c.midTerm.Length())
 	case CommandGotoRoot:
-		c.midFile = GetRootFile()
+		c.SetMidFile(GetRootFile())
 		c.DrawCacheNormal()
 	case CommandCopyFilepath:
 		return c.ActionCopyMsg(c.GetMidSelectFile().Path)
@@ -187,6 +187,12 @@ func (c *Client) HandleCommandKeymap(k Keymap) error {
 			c.m = nm
 			c.SetMode(ModeFilter)
 			c.DrawCache()
+		case *NormalMode:
+			nm := m.NextMode.(*NormalMode)
+			if c.useFilter {
+				c.filterText = m.Input
+			}
+			c.SetM(nm).DrawCache()
 		}
 	case CommandQuit:
 		c.DrawCacheNormal()
@@ -244,13 +250,15 @@ func (c *Client) HandleFilterKeymap(k Keymap) error {
 // NormalMode
 //---------------------------
 func (c *Client) SetNormalMode() *Client {
+	c.m = c.NewNormalMode()
+	return c.SetMode(ModeNormal)
+}
+
+func (c *Client) NewNormalMode() *NormalMode {
 	m := NewNormalMode()
 	m.SetKeymapFn(c.HandleNormalKeymap).
 		SetKeymaps(NormalKeymaps)
-		// SetEventKey(c.eventKey)
-	c.m = m
-	// c.normalAction = a
-	return c.SetMode(ModeNormal)
+	return m
 }
 
 func (c *Client) HandleNormalKeymap(k Keymap) error {
@@ -259,7 +267,8 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 	case CommandHelp:
 		c.SetHelpMode().DrawCache()
 	case CommandFilter:
-		c.SetCommandMode(c.NewFilterMode()).DrawCache()
+		c.useFilter = true
+		c.SetCommandMode(c.m).DrawCache()
 	case CommandSync:
 		c.SetSyncMode().DrawCache()
 	case CommandReload:
@@ -308,7 +317,11 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 	case CommandSystem:
 		c.ShowSystem()
 	case CommandQuit:
-		return ErrQuit
+		if c.useFilter {
+			c.DisableFilter().DrawCache()
+		} else {
+			return ErrQuit
+		}
 	default:
 		if c.IsKeymapK(k) {
 			c.SetKeymapMode().DrawCache()

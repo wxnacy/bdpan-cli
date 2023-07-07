@@ -215,7 +215,6 @@ type NormalMode struct {
 func (n *NormalMode) GetKeymap() Keymap {
 	var key Keymap
 	key = n.BaseMode.GetKeymap()
-	// Log.Infof("Command Key %v", key)
 	if key.IsNil() {
 		for _, k := range KeymapKeymaps {
 			if k.Keys[0] == string(n.CurrEventKey.Rune()) {
@@ -223,7 +222,6 @@ func (n *NormalMode) GetKeymap() Keymap {
 			}
 		}
 	}
-	// Log.Infof("Command Key %v", key)
 	return key
 }
 

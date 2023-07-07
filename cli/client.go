@@ -52,6 +52,9 @@ type Client struct {
 	eventKey *tcell.EventKey
 	// 是否需要缓存
 	useCache bool
+	// 是否需要过滤
+	useFilter  bool
+	filterText string
 	// 选择文件列表
 	selectFiles []*bdpan.FileInfoDto
 }
@@ -71,8 +74,14 @@ func (c *Client) DisableCache() *Client {
 	return c
 }
 
-// func (c *Client) SetPrevRune(r rune) *Client {
-// c.prevRune = r
+func (c *Client) DisableFilter() *Client {
+	c.useFilter = false
+	c.filterText = ""
+	return c
+}
+
+// func (c *Client) SetMidFile(f *bdpan.FileInfoDto) *Client {
+// c.midFile = f
 // return c
 // }
 
@@ -110,6 +119,12 @@ func (c *Client) ClearSelectFiles() *Client {
 	return c
 }
 
+func (c *Client) SetM(m ModeInterface) *Client {
+	c.m = m
+	c.mode = m.GetMode()
+	return c
+}
+
 func (c *Client) SetMode(m Mode) *Client {
 	c.mode = m
 	return c
@@ -124,6 +139,7 @@ func (c *Client) GetMode() Mode {
 
 func (c *Client) SetMidFile(file *bdpan.FileInfoDto) *Client {
 	c.midFile = file
+	c.DisableFilter()
 	return c
 }
 
@@ -308,8 +324,8 @@ func (c *Client) DrawMid() error {
 		}
 	}
 	// 过滤模式数据过滤
-	if c.GetMode() == ModeFilter {
-		c.midTerm.Filter(c.m.(*FilterMode).Filter)
+	if c.useFilter {
+		c.midTerm.Filter(c.filterText)
 	}
 	c.DrawMidData()
 	return nil
@@ -365,10 +381,10 @@ func (c *Client) DrawCommand() {
 }
 
 // 绘制过滤界面
-func (c *Client) DrawFilter() {
-	// m := c.m.(*FilterMode)
-	// c.DrawInput("/", m.Input)
-}
+// func (c *Client) DrawFilter() {
+// // m := c.m.(*FilterMode)
+// // c.DrawInput("/", m.Input)
+// }
 
 // 绘制输入界面
 func (c *Client) DrawInput(prefix, text string) {
@@ -426,10 +442,10 @@ func (c *Client) MoveLeft() {
 	switch c.normalAction {
 	case ActionFile:
 		if c.GetMidDir() != "/" {
-			c.midFile = &bdpan.FileInfoDto{
+			c.SetMidFile(&bdpan.FileInfoDto{
 				Path:     c.GetLeftDir(),
 				FileType: 1,
-			}
+			})
 			c.DrawCache()
 		} else {
 			c.ShowSystem()
@@ -452,7 +468,7 @@ func (c *Client) Enter() error {
 	SetCacheSelectIndex(c.normalAction, c.midTerm.SelectIndex)
 	switch c.normalAction {
 	case ActionFile:
-		c.midFile = c.GetMidSelectFile()
+		c.SetMidFile(c.GetMidSelectFile())
 		if c.midFile.IsDir() {
 			c.DrawCache()
 		} else {
@@ -464,7 +480,7 @@ func (c *Client) Enter() error {
 		systemInfo := c.GetMidSelectSystem()
 		switch systemInfo.Action {
 		case ActionFile:
-			c.midFile = GetRootFile()
+			c.SetMidFile(GetRootFile())
 		}
 		c.SetNormalAction(systemInfo.Action).DrawCacheNormal()
 	case ActionSync:
@@ -614,26 +630,7 @@ func (c *Client) Exec() error {
 			c.eventKey = ev
 			Log.Infof("PollEvent Mode %v Rune %s EventKey %v", c.GetMode(), string(ev.Rune()), ev)
 			c.m.SetEventKey(ev)
-			// keymapFunc = c.m.GetKeymapFn()
 			err = c.HandleEventKey()
-			// action, ok := c.GetAction()
-			// var actionFunc ActionFn
-			// var keymapFunc KeymapFn
-			// switch c.GetMode() {
-			// default:
-			// if c.m != nil {
-			// c.m.SetEventKey(ev)
-			// keymapFunc = c.m.GetKeymapFn()
-			// err = c.HandleEventKey()
-			// }
-			// }
-			// if actionFunc != nil && ok {
-			// err = actionFunc(action)
-			// } else if keymapFunc != nil {
-
-			// } else {
-			// c.DrawCacheNormal()
-			// }
 		}
 		if err != nil {
 			if CanCacheError(err) {
