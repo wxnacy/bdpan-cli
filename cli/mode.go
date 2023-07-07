@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/terminal"
@@ -32,6 +34,10 @@ type ModeInterface interface {
 	SetEventKey(ev *tcell.EventKey)
 	IsKey(Keymap) bool
 	Draw() error
+	SetPrevCommand(c Command)
+	GetPrevCommand() Command
+	SetSelectItems([]*terminal.SelectItem)
+	GetSelectItems() []*terminal.SelectItem
 }
 
 type BaseMode struct {
@@ -43,6 +49,8 @@ type BaseMode struct {
 	Keymaps         []Keymap
 	PrevEventKey    *tcell.EventKey
 	CurrEventKey    *tcell.EventKey
+	PrevCommand     Command
+	SelectItems     []*terminal.SelectItem
 }
 
 func (b BaseMode) GetMode() Mode {
@@ -52,6 +60,22 @@ func (b BaseMode) GetMode() Mode {
 func (b *BaseMode) SetEventKey(ev *tcell.EventKey) {
 	b.PrevEventKey = b.CurrEventKey
 	b.CurrEventKey = ev
+}
+
+func (b *BaseMode) SetPrevCommand(c Command) {
+	b.PrevCommand = c
+}
+
+func (b *BaseMode) GetPrevCommand() Command {
+	return b.PrevCommand
+}
+
+func (b *BaseMode) SetSelectItems(items []*terminal.SelectItem) {
+	b.SelectItems = items
+}
+
+func (b *BaseMode) GetSelectItems() []*terminal.SelectItem {
+	return b.SelectItems
 }
 
 func (b *BaseMode) IsKey(k Keymap) bool {
@@ -228,34 +252,28 @@ type ConfirmMode struct {
 //------------------------------
 //  KeymapMode
 //------------------------------
-func NewKeymapMode(t *terminal.Terminal, firstRune rune) *KeymapMode {
+func NewKeymapMode(t *terminal.Terminal, currEK *tcell.EventKey) *KeymapMode {
 	return &KeymapMode{
-		BaseMode:  &BaseMode{T: t, Mode: ModeKeymap},
-		FirstRune: firstRune,
+		BaseMode: &BaseMode{T: t, Mode: ModeKeymap, CurrEventKey: currEK},
 	}
 }
 
 type KeymapMode struct {
 	*BaseMode
-	FirstRune  rune
-	SecondRune rune
-	Term       *terminal.List
-}
-
-func (k KeymapMode) GetKeyString() string {
-	return string(k.FirstRune) + string(k.SecondRune)
-}
-
-func (k *KeymapMode) SetSecondRune(r rune) *KeymapMode {
-	k.SecondRune = r
-	return k
+	Term *terminal.List
 }
 
 func (k *KeymapMode) Draw() error {
 	var data []string
-	var keymaps = GetRelKeysByRune(k.FirstRune)
-	if keymaps != nil {
-		data = GetRelKeysMsgByRune(k.FirstRune)
+	for _, kk := range KeymapKeymaps {
+		if IsKeymapK(kk, k.CurrEventKey) {
+			desc := kk.Desc
+			if desc == "" {
+				desc = kk.CommandString
+			}
+			var msg = fmt.Sprintf("  %s\t%s", string(kk.GetKey()), desc)
+			data = append(data, msg)
+		}
 	}
 	_, h := k.T.S.Size()
 	startY := h - 3 - len(data)

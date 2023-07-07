@@ -137,6 +137,8 @@ var (
 		NewKeymapN([]string{"?"}, CommandHelp).SetDesc("帮助"),
 		NewKeymapN([]string{"/"}, CommandFilter).SetDesc("过滤"),
 		NewKeymapN([]string{"s"}, CommandSync).SetDesc("同步"),
+
+		NewKeymapN([]string{","}, CommandSystem).SetDesc("文件源"),
 		// 光标移动
 		KeymapCursorMoveDown1,
 		KeymapCursorMoveDown2,
@@ -241,8 +243,8 @@ var (
 
 		NewKeymapN([]string{"g", "g"}, CommandCursorMoveHome).
 			SetDesc("移动光标到最上层"),
-		NewKeymapN([]string{"g", "r"}, "").
-			SetCommandString("goto /"),
+		NewKeymapN([]string{"g", "r"}, CommandGotoRoot).
+			SetDesc("进入根目录"),
 
 		NewKeymapN([]string{"p", "p"}, CommandPasteFile).SetDesc("粘贴文件"),
 	}
@@ -387,6 +389,10 @@ func (k Keymap) IsNil() bool {
 	return false
 }
 
+func (k Keymap) GetKey() string {
+	return strings.Join(k.Keys, "")
+}
+
 func (k Keymap) IsKey(currEK *tcell.EventKey, prevEK *tcell.EventKey) bool {
 	var key string
 	if len(k.Keys) == 1 {
@@ -447,7 +453,7 @@ const (
 
 	CommandCutFile = "cut_file"
 
-	CommandPasteFile = "copy_file"
+	CommandPasteFile = "paste_file"
 
 	CommandDownloadFile = "download_file"
 
@@ -461,6 +467,7 @@ const (
 	CommandFilter = "filter"
 	CommandSync   = "sync"
 
+	CommandSystem    = "system"
 	CommandInput     = "input"
 	CommandBackspace = "backspace"
 	CommandEnter     = "enter"
@@ -469,3 +476,10 @@ const (
 
 	CommandQuit = "quit"
 )
+
+func IsKeymapK(k Keymap, key *tcell.EventKey) bool {
+	if k.Keys[0] == string(key.Rune()) {
+		return true
+	}
+	return false
+}
