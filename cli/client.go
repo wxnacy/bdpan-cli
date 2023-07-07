@@ -316,16 +316,17 @@ func (c *Client) DrawMid() error {
 	if err != nil {
 		return err
 	}
-	if c.normalAction != ActionFile {
+	// 过滤模式数据过滤
+	if c.useFilter {
+		c.midTerm.Filter(c.filterText)
+	}
+	// 过滤或者非文件状态下使用缓存索引
+	if c.normalAction != ActionFile || c.useFilter {
 		// 设置缓存的索引位置
 		cacheindex, ok := GetCacheSelectIndex(c.normalAction)
 		if c.useCache && ok {
 			c.midTerm.SetSelectIndex(cacheindex)
 		}
-	}
-	// 过滤模式数据过滤
-	if c.useFilter {
-		c.midTerm.Filter(c.filterText)
 	}
 	c.DrawMidData()
 	return nil
