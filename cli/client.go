@@ -45,9 +45,9 @@ type Client struct {
 	// 帮助界面
 	helpTerm *terminal.Help
 	// 上个键位
-	prevRune rune
+	// prevRune rune
 	// 上个动作
-	prevAction KeymapAction
+	// prevAction KeymapAction
 	// 当前输入键位
 	eventKey *tcell.EventKey
 	// 是否需要缓存
@@ -71,14 +71,14 @@ func (c *Client) DisableCache() *Client {
 	return c
 }
 
-func (c *Client) SetPrevRune(r rune) *Client {
-	c.prevRune = r
-	return c
-}
+// func (c *Client) SetPrevRune(r rune) *Client {
+// c.prevRune = r
+// return c
+// }
 
-func (c *Client) ClearPrevRune() *Client {
-	return c.SetPrevRune(0)
-}
+// func (c *Client) ClearPrevRune() *Client {
+// return c.SetPrevRune(0)
+// }
 
 func (c *Client) SetNormalAction(a SystemAction) *Client {
 	c.normalPrevAction = c.normalAction
@@ -86,19 +86,19 @@ func (c *Client) SetNormalAction(a SystemAction) *Client {
 	return c
 }
 
-func (c *Client) SetPrevAction(a KeymapAction) *Client {
-	c.prevAction = a
-	return c
-}
+// func (c *Client) SetPrevAction(a KeymapAction) *Client {
+// c.prevAction = a
+// return c
+// }
 
-func (c *Client) ClearPrevAction() *Client {
-	return c.SetPrevAction(0)
-}
+// func (c *Client) ClearPrevAction() *Client {
+// return c.SetPrevAction(0)
+// }
 
-func (c *Client) AppendSelectFile(file *bdpan.FileInfoDto) *Client {
-	c.selectFiles = append(c.selectFiles, file)
-	return c
-}
+// func (c *Client) AppendSelectFile(file *bdpan.FileInfoDto) *Client {
+// c.selectFiles = append(c.selectFiles, file)
+// return c
+// }
 
 func (c *Client) SetCurrSelectFiles() *Client {
 	c.ClearSelectFiles().selectFiles = append(c.selectFiles, c.GetMidSelectFile())
@@ -170,7 +170,7 @@ func (c *Client) GetMidSelectFile() *bdpan.FileInfoDto {
 
 func (c *Client) EnableModeNormal() *Client {
 	// c.m = nil
-	return c.ClearPrevRune().ClearPrevAction().SetNormalMode() //.SetMode(ModeNormal)
+	return c.SetNormalMode() //.SetMode(ModeNormal)
 }
 
 func (c *Client) DrawCache() error {
