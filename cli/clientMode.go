@@ -155,21 +155,25 @@ func (c *Client) HandleKeymapKeymap(k Keymap) error {
 		fromFile := c.GetMidSelectFile()
 		c.DrawMessage(fmt.Sprintf("%s 已经复制", fromFile.Path))
 	case CommandPasteFile:
-		Log.Info(c.m.GetSelectItems())
 		if len(c.m.GetSelectItems()) == 0 {
-			return ErrNotCopyFile
+			return ErrNoFileSelect
 		}
 		dir := filepath.Dir(c.GetMidSelectFile().Path)
-		fromFile := c.m.GetSelectItems()[0].Info.(*FileInfo).FileInfoDto
+		fromFile := c.GetSelectFile()
 		toFile := filepath.Join(dir, fromFile.GetFilename())
-		if c.m.GetPrevCommand() == CommandCutFile {
+		switch c.m.GetPrevCommand() {
+		case CommandCutFile:
 			err = bdpan.MoveFile(fromFile.Path, toFile)
-		} else {
+		case CommandCopyFile:
 			err = bdpan.CopyFile(fromFile.Path, toFile)
+		default:
+			return ErrNoTypeToPaste
 		}
 		if err != nil {
 			return err
 		}
+		c.m.ClearPrevCommand()
+		c.m.ClearSelectItems()
 		c.DrawNormal()
 		c.DrawMessage(fmt.Sprintf("%s 已经粘贴", toFile))
 		return c.RefreshUsed()
@@ -271,7 +275,14 @@ func (c *Client) HandleCommandKeymap(k Keymap) error {
 // NormalMode
 //---------------------------
 func (c *Client) SetNormalMode() *Client {
-	c.m = c.NewNormalMode()
+	m := c.NewNormalMode()
+	if len(c.m.GetSelectItems()) > 0 {
+		m.SetSelectItems(c.m.GetSelectItems())
+	}
+	if c.m.GetPrevCommand() != "" {
+		m.SetPrevCommand(c.m.GetPrevCommand())
+	}
+	c.m = m
 	return c.SetMode(ModeNormal)
 }
 

@@ -23,7 +23,7 @@ func NewClient(t *terminal.Terminal) *Client {
 		mode:         ModeNormal,
 		normalAction: ActionFile,
 	}
-	c.SetNormalMode()
+	c.m = c.NewNormalMode()
 	return c
 }
 

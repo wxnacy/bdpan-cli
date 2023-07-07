@@ -31,8 +31,10 @@ type ModeInterface interface {
 	SetEventKey(ev *tcell.EventKey)
 	IsKey(Keymap) bool
 	Draw() error
+	ClearPrevCommand()
 	SetPrevCommand(c Command)
 	GetPrevCommand() Command
+	ClearSelectItems()
 	SetSelectItems([]*terminal.SelectItem)
 	GetSelectItems() []*terminal.SelectItem
 }
@@ -57,12 +59,20 @@ func (b *BaseMode) SetEventKey(ev *tcell.EventKey) {
 	b.CurrEventKey = ev
 }
 
+func (b *BaseMode) ClearPrevCommand() {
+	b.PrevCommand = ""
+}
+
 func (b *BaseMode) SetPrevCommand(c Command) {
 	b.PrevCommand = c
 }
 
 func (b *BaseMode) GetPrevCommand() Command {
 	return b.PrevCommand
+}
+
+func (b *BaseMode) ClearSelectItems() {
+	b.SelectItems = make([]*terminal.SelectItem, 0)
 }
 
 func (b *BaseMode) SetSelectItems(items []*terminal.SelectItem) {
