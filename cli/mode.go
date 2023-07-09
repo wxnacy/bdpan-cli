@@ -36,6 +36,7 @@ type ModeInterface interface {
 	GetPrevCommand() Command
 	ClearSelectItems()
 	SetSelectItems([]*terminal.SelectItem)
+	AppendSelectItems(*terminal.SelectItem)
 	GetSelectItems() []*terminal.SelectItem
 }
 
@@ -77,6 +78,10 @@ func (b *BaseMode) ClearSelectItems() {
 
 func (b *BaseMode) SetSelectItems(items []*terminal.SelectItem) {
 	b.SelectItems = items
+}
+
+func (b *BaseMode) AppendSelectItems(item *terminal.SelectItem) {
+	b.SelectItems = append(b.SelectItems, item)
 }
 
 func (b *BaseMode) GetSelectItems() []*terminal.SelectItem {

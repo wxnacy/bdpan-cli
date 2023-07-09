@@ -178,6 +178,8 @@ var (
 			SetDesc("下载文件"),
 		NewKeymapN([]string{"R"}, CommandReload).
 			SetDesc("重新加载目录"),
+		NewKeymapN([]string{" "}, CommandSelect).
+			SetDesc("选中光标所在行"),
 	}
 
 	// FilterKeymaps = []Keymap{
@@ -470,6 +472,7 @@ const (
 	CommandEnsure    = "ensure" // 确认
 	CommandReload    = "reload"
 	CommandDelete    = "delete"
+	CommandSelect    = "select"
 
 	CommandQuit = "quit"
 )

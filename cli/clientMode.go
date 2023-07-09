@@ -42,7 +42,11 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 			cmd := &DownloadCommand{
 				IsRecursion: true,
 			}
-			err = cmd.Download(c.GetMidSelectFile())
+			for _, item := range c.m.GetSelectItems() {
+				file := item.Info.(*FileInfo).FileInfoDto
+				c.DrawMessage("开始下载 " + file.Path)
+				err = cmd.Download(file)
+			}
 			c.DrawCacheNormal()
 			if err != nil {
 				c.DrawMessage(fmt.Sprintf("下载失败: %v", err))
@@ -64,8 +68,11 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 				c.DrawCacheNormal()
 				c.DrawMessage("删除成功!")
 			default:
-				err = bdpan.DeleteFile(c.GetSelectFile().Path)
-				c.ClearSelectFiles()
+				var paths []string
+				for _, item := range c.m.GetSelectItems() {
+					paths = append(paths, item.Info.(*FileInfo).Path)
+				}
+				err = bdpan.DeleteFiles(paths)
 				if err != nil {
 					c.DrawMessage(fmt.Sprintf("删除失败: %v", err))
 					c.DrawCacheNormal()
@@ -342,11 +349,16 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 		var msg string
 		var name = c.midTerm.GetSeleteItem().Info.Name()
 		msg = fmt.Sprintf("确定删除 %s?", name)
-		c.SetConfirmMode(k.Command, msg).DrawCache()
+		c.SetConfirmMode(k.Command, msg).DrawConfirm()
 	case CommandKeymap:
 		return c.SetKeymapMode().DrawCache()
 	case CommandSystem:
 		c.ShowSystem()
+	case CommandSelect:
+		item := c.midTerm.GetSeleteItem()
+		item.IsSelect = !item.IsSelect
+		c.midTerm.Draw()
+		c.MoveDown(1)
 	case CommandQuit:
 		if c.useFilter {
 			c.DisableFilter().DrawCache()

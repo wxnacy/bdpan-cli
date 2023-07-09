@@ -214,6 +214,9 @@ func (s *Select) Draw() {
 	for i, item := range drawItems {
 		text := item.Info.String()
 		style := StyleDefault
+		if item.IsSelect {
+			text = " " + text
+		}
 		if i+offset == s.SelectIndex {
 			style = s.StyleSelect
 		}

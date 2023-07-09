@@ -60,6 +60,8 @@ type Client struct {
 	filterText string
 	// 选择文件列表
 	selectFiles []*bdpan.FileInfoDto
+	// 选择列表
+	// selectItems []*terminal.SelectItem
 }
 
 func (c Client) Size() (w, h int) {
@@ -194,7 +196,15 @@ func (c *Client) GetSelectFile() *bdpan.FileInfoDto {
 }
 
 func (c *Client) SetSelectItems() *Client {
-	c.m.SetSelectItems(c.GetMidSelectItems())
+	c.m.SetSelectItems(make([]*terminal.SelectItem, 0))
+	for _, item := range c.midTerm.Items {
+		if item.IsSelect {
+			c.m.AppendSelectItems(item)
+		}
+	}
+	if len(c.m.GetSelectItems()) == 0 {
+		c.m.SetSelectItems(c.GetMidSelectItems())
+	}
 	return c
 }
 
@@ -344,6 +354,7 @@ func (c *Client) DrawMid() error {
 			c.midTerm.SetSelectIndex(cacheindex)
 		}
 	}
+
 	c.DrawMidData()
 	return nil
 }
@@ -379,6 +390,7 @@ func (c *Client) DrawDetail() {
 
 func (c *Client) DrawConfirm() {
 	c.m.(*ConfirmMode).Term.Draw()
+	c.DrawMessage("")
 }
 
 // 绘制命令界面
@@ -465,8 +477,7 @@ func (c *Client) MoveLeft() {
 func (c *Client) Download() error {
 	var name = c.midTerm.GetSeleteItem().Info.Name()
 	msg := fmt.Sprintf("确定下载 %s?", name)
-	c.SetConfirmMode(CommandDownloadFile, msg).
-		SetCurrSelectFiles().DrawCache()
+	c.SetConfirmMode(CommandDownloadFile, msg).DrawConfirm()
 	return nil
 }
 
@@ -492,7 +503,7 @@ func (c *Client) Enter() error {
 	case ActionSync:
 		info := c.midTerm.GetSeleteItem().Info.(*SyncInfo)
 		msg := fmt.Sprintf("确定执行 %s?", info.ID)
-		c.SetConfirmMode(CommandSyncExec, msg).DrawCache()
+		c.SetConfirmMode(CommandSyncExec, msg).DrawConfirm()
 	}
 	return nil
 }
