@@ -10,6 +10,7 @@ import (
 type SelectItemInfo interface {
 	String() string
 	Name() string
+	Id() string
 }
 
 type SelectItem struct {

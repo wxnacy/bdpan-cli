@@ -15,6 +15,10 @@ type FileInfo struct {
 	Count        int
 }
 
+func (i FileInfo) Id() string {
+	return strconv.Itoa(int(i.FSID))
+}
+
 func (i FileInfo) Name() string {
 	return i.GetFilename()
 }
@@ -101,6 +105,10 @@ type SyncInfo struct {
 	MaxTextWidth int
 }
 
+func (i SyncInfo) Id() string {
+	return i.ID
+}
+
 func (i SyncInfo) Name() string {
 	return i.ID
 }
@@ -158,6 +166,10 @@ type SystemInfo struct {
 	name   string
 	Icon   string
 	Action SystemAction
+}
+
+func (i SystemInfo) Id() string {
+	return i.name
 }
 
 func (i SystemInfo) Name() string {

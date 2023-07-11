@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/wxnacy/bdpan"
-	"github.com/wxnacy/bdpan-cli/terminal"
 	"github.com/wxnacy/go-tools"
 )
 
@@ -25,24 +25,27 @@ func (c *Client) HandleCommonKeymap(k Keymap) error {
 func (c *Client) SetConfirmMode(ensureC Command, msg string) *Client {
 	// 设置缓存
 	SetCacheSelectIndex(c.normalAction, c.midTerm.SelectIndex)
+	c.SetSelectItems()
 	m := NewConfirmMode(c.t, ensureC, msg)
 	m.SetKeymapFn(c.HandleConfirmKeymap).SetKeymaps(ConfirmKeymaps)
+	m.SetSelectItems(c.m.GetSelectItems())
 	c.m = m
 	// 设置选中条目
-	c.SetSelectItems()
 	return c.SetMode(ModeConfirm)
 }
 
 func (c *Client) HandleConfirmKeymap(k Keymap) error {
 	var err error
 	ensureFunc := func() error {
+		items := c.m.GetSelectItems()
+		c.m.ClearSelectItems()
 		switch c.m.(*ConfirmMode).EnsureCommand {
 		case CommandDownloadFile:
 			c.DrawMessage("开始下载...")
 			cmd := &DownloadCommand{
 				IsRecursion: true,
 			}
-			for _, item := range c.m.GetSelectItems() {
+			for _, item := range items {
 				file := item.Info.(*FileInfo).FileInfoDto
 				c.DrawMessage("开始下载 " + file.Path)
 				err = cmd.Download(file)
@@ -58,7 +61,7 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 			c.DrawMessage("开始删除...")
 			switch c.normalAction {
 			case ActionSync:
-				for _, sm := range c.m.GetSelectItems() {
+				for _, sm := range items {
 					id := sm.Info.(*SyncInfo).ID
 					err = bdpan.DeleteSyncModel(id)
 					if err != nil {
@@ -69,7 +72,7 @@ func (c *Client) HandleConfirmKeymap(k Keymap) error {
 				c.DrawMessage("删除成功!")
 			default:
 				var paths []string
-				for _, item := range c.m.GetSelectItems() {
+				for _, item := range items {
 					paths = append(paths, item.Info.(*FileInfo).Path)
 				}
 				err = bdpan.DeleteFiles(paths)
@@ -155,34 +158,37 @@ func (c *Client) HandleKeymapKeymap(k Keymap) error {
 	case CommandCopyDirpath:
 		return c.ActionCopyMsg(filepath.Dir(c.GetMidSelectFile().Path))
 	case CommandCopyFile:
-		Log.Info(c.m.GetSelectItems())
-		c.DrawCacheNormal()
 		c.m.SetPrevCommand(k.Command)
-		c.m.SetSelectItems([]*terminal.SelectItem{c.midTerm.GetSeleteItem()})
-		fromFile := c.GetMidSelectFile()
-		c.DrawMessage(fmt.Sprintf("%s 已经复制", fromFile.Path))
+		c.SetSelectItems()
+		c.DrawCacheNormal()
+		name := strings.Join(c.GetSelectNames(), " ")
+		c.DrawMessage(fmt.Sprintf("%s 已经复制", name))
 	case CommandPasteFile:
 		if len(c.m.GetSelectItems()) == 0 {
 			return ErrNoFileSelect
 		}
-		dir := filepath.Dir(c.GetMidSelectFile().Path)
-		fromFile := c.GetSelectFile()
-		toFile := filepath.Join(dir, fromFile.GetFilename())
-		switch c.m.GetPrevCommand() {
+		dir := c.GetMidDir()
+		paths := c.GetSelectFilePaths()
+		name := strings.Join(c.GetSelectNames(), " ")
+		prevCommand := c.m.GetPrevCommand()
+		c.m.ClearPrevCommand()
+		c.m.ClearSelectItems()
+		switch prevCommand {
 		case CommandCutFile:
-			err = bdpan.MoveFile(fromFile.Path, toFile)
+			// err = bdpan.MoveFiles(paths, dir)
+			for _, p := range paths {
+				err = bdpan.MoveFile(p, filepath.Join(dir, filepath.Base(p)))
+			}
 		case CommandCopyFile:
-			err = bdpan.CopyFile(fromFile.Path, toFile)
+			err = bdpan.CopyFiles(paths, dir)
 		default:
 			return ErrNoTypeToPaste
 		}
 		if err != nil {
 			return err
 		}
-		c.m.ClearPrevCommand()
-		c.m.ClearSelectItems()
 		c.DrawNormal()
-		c.DrawMessage(fmt.Sprintf("%s 已经粘贴", toFile))
+		c.DrawMessage(fmt.Sprintf("%s 已经粘贴", name))
 		return c.RefreshUsed()
 	default:
 		c.HandleCommonKeymap(k)
@@ -283,12 +289,8 @@ func (c *Client) HandleCommandKeymap(k Keymap) error {
 //---------------------------
 func (c *Client) SetNormalMode() *Client {
 	m := c.NewNormalMode()
-	if len(c.m.GetSelectItems()) > 0 {
-		m.SetSelectItems(c.m.GetSelectItems())
-	}
-	if c.m.GetPrevCommand() != "" {
-		m.SetPrevCommand(c.m.GetPrevCommand())
-	}
+	m.SetSelectItems(c.m.GetSelectItems())
+	m.SetPrevCommand(c.m.GetPrevCommand())
 	c.m = m
 	return c.SetMode(ModeNormal)
 }
@@ -340,9 +342,9 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 		err = c.Enter()
 	case CommandCutFile:
 		c.m.SetPrevCommand(k.Command)
-		c.m.SetSelectItems([]*terminal.SelectItem{c.midTerm.GetSeleteItem()})
-		fromFile := c.GetMidSelectFile()
-		c.DrawMessage(fmt.Sprintf("%s 已经剪切", fromFile.Path))
+		c.SetSelectItems()
+		name := strings.Join(c.GetSelectNames(), " ")
+		c.DrawMessage(fmt.Sprintf("%s 已经剪切", name))
 	case CommandDownloadFile:
 		c.Download()
 	case CommandDelete:
@@ -357,10 +359,26 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 	case CommandSelect:
 		item := c.midTerm.GetSeleteItem()
 		item.IsSelect = !item.IsSelect
+		if item.IsSelect {
+			c.AppendSelectItem(item)
+		} else {
+			c.RemoveSelectItem(item)
+		}
+		// 设置是否有选项
+		c.hasSelect = false
+		for _, item := range c.m.GetSelectItems() {
+			if item.IsSelect {
+				c.hasSelect = true
+			}
+		}
 		c.midTerm.Draw()
 		c.MoveDown(1)
 	case CommandQuit:
-		if c.useFilter {
+		if c.hasSelect {
+			c.hasSelect = false
+			c.m.ClearSelectItems()
+			c.DrawCache()
+		} else if c.useFilter {
 			c.DisableFilter().DrawCache()
 		} else {
 			return ErrQuit

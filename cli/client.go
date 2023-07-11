@@ -60,8 +60,8 @@ type Client struct {
 	filterText string
 	// 选择文件列表
 	selectFiles []*bdpan.FileInfoDto
-	// 选择列表
-	// selectItems []*terminal.SelectItem
+	// 是否有选项
+	hasSelect bool
 }
 
 func (c Client) Size() (w, h int) {
@@ -195,15 +195,49 @@ func (c *Client) GetSelectFile() *bdpan.FileInfoDto {
 	return c.m.GetSelectItems()[0].Info.(*FileInfo).FileInfoDto
 }
 
-func (c *Client) SetSelectItems() *Client {
-	c.m.SetSelectItems(make([]*terminal.SelectItem, 0))
-	for _, item := range c.midTerm.Items {
-		if item.IsSelect {
-			c.m.AppendSelectItems(item)
-		}
+func (c *Client) GetSelectFilePaths() []string {
+	var paths []string
+	for _, item := range c.m.GetSelectItems() {
+		paths = append(paths, item.Info.(*FileInfo).Path)
 	}
+	return paths
+}
+
+func (c *Client) GetSelectNames() []string {
+	var paths []string
+	for _, item := range c.m.GetSelectItems() {
+		paths = append(paths, item.Info.Name())
+	}
+	return paths
+}
+
+func (c *Client) SetSelectItems() *Client {
+	// c.m.SetSelectItems(make([]*terminal.SelectItem, 0))
+	// for _, item := range c.midTerm.Items {
+	// if item.IsSelect {
+	// c.m.AppendSelectItems(item)
+	// }
+	// }
 	if len(c.m.GetSelectItems()) == 0 {
 		c.m.SetSelectItems(c.GetMidSelectItems())
+	}
+	return c
+}
+
+func (c *Client) AppendSelectItem(item *terminal.SelectItem) *Client {
+	items := c.m.GetSelectItems()
+	items = append(items, item)
+	c.m.SetSelectItems(items)
+	return c
+}
+
+func (c *Client) RemoveSelectItem(item *terminal.SelectItem) *Client {
+	items := c.m.GetSelectItems()
+	c.m.ClearSelectItems()
+	for _, it := range items {
+		if it.Info.Id() != item.Info.Id() {
+			c.AppendSelectItem(it)
+		}
 	}
 	return c
 }
@@ -233,6 +267,7 @@ func (c *Client) Draw() error {
 	c.t.S.Clear()
 	c.t.S.Sync()
 	c.t.S.Show() // 需要展示才生效
+	Log.Infof("PrevCommand %v", c.m.GetPrevCommand())
 
 	// draw before
 	c.DrawTitle(c.GetMidDir())
@@ -352,6 +387,19 @@ func (c *Client) DrawMid() error {
 		cacheindex, ok := GetCacheSelectIndex(c.normalAction)
 		if c.useCache && ok {
 			c.midTerm.SetSelectIndex(cacheindex)
+		}
+	}
+	// 绘制选项
+	if c.hasSelect {
+		var selectItemMap = make(map[string]*terminal.SelectItem)
+		for _, item := range c.m.GetSelectItems() {
+			selectItemMap[item.Info.Id()] = item
+		}
+		for _, item := range c.midTerm.Items {
+			_, ok := selectItemMap[item.Info.Id()]
+			if ok {
+				item.IsSelect = true
+			}
 		}
 	}
 
