@@ -360,6 +360,9 @@ func (c *Client) DrawMid() error {
 		})
 
 		c.midTerm.SetItems(ConverFilesToSelectItems(c.midTerm, files))
+	case ActionCollect:
+		files := GetCollectFiles()
+		c.midTerm.SetItems(ConverFilesToSelectItems(c.midTerm, files))
 	case ActionSync:
 		var items = make([]*terminal.SelectItem, 0)
 		boxWidth := c.midTerm.Box.Width()
@@ -536,6 +539,13 @@ func (c *Client) Enter() error {
 		c.SetMidFile(c.GetMidSelectFile())
 		if c.midFile.IsDir() {
 			c.DrawCache()
+		} else {
+			c.Download()
+		}
+	case ActionCollect:
+		c.SetMidFile(c.GetMidSelectFile())
+		if c.midFile.IsDir() {
+			c.SetNormalAction(ActionFile).DrawCacheNormal()
 		} else {
 			c.Download()
 		}

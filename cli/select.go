@@ -142,6 +142,7 @@ const (
 	ActionFile
 	ActionBigFile
 	ActionSync
+	ActionCollect
 )
 
 func NewSystemSelectItem(icon, name string, action SystemAction) *terminal.SelectItem {
@@ -156,8 +157,9 @@ func NewSystemSelectItem(icon, name string, action SystemAction) *terminal.Selec
 
 func FillSystemToSelect(s *terminal.Select, action SystemAction) error {
 	s.Items = append(s.Items, NewSystemSelectItem("", "网盘文件", ActionFile))
-	s.Items = append(s.Items, NewSystemSelectItem("", "查看大文件", ActionBigFile))
+	s.Items = append(s.Items, NewSystemSelectItem("", "收藏", ActionCollect))
 	s.Items = append(s.Items, NewSystemSelectItem("", "同步", ActionSync))
+	s.Items = append(s.Items, NewSystemSelectItem("", "查看大文件", ActionBigFile))
 	s.SelectIndex = int(action) - 1
 	return nil
 }

@@ -314,6 +314,15 @@ func (c *Client) HandleNormalKeymap(k Keymap) error {
 		c.SetSyncMode().DrawCache()
 	case CommandReload:
 		c.DrawNormal()
+	case CommandCollectTrigger:
+		file := c.GetMidSelectFile()
+		if IsCollect(file) {
+			CancelCollect(file)
+			c.DrawMessage(fmt.Sprintf("%s 取消收藏", file.GetFilename()))
+		} else {
+			SaveCollect(file)
+			c.DrawMessage(fmt.Sprintf("%s 收藏成功", file.GetFilename()))
+		}
 	// 向下移动
 	case CommandCursorMoveDown:
 		c.midTerm.SetAnchorIndex(c.midTerm.Box.Height() - 5)

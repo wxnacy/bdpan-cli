@@ -134,6 +134,7 @@ var (
 		NewKeymapN([]string{"?"}, CommandHelp).SetDesc("帮助"),
 		NewKeymapN([]string{"/"}, CommandFilter).SetDesc("过滤"),
 		NewKeymapN([]string{"s"}, CommandSync).SetDesc("同步"),
+		NewKeymapN([]string{"c"}, CommandCollectTrigger).SetDesc("触发收藏或取消操作"),
 
 		NewKeymapN([]string{","}, CommandSystem).SetDesc("文件源"),
 		// 光标移动
@@ -457,6 +458,8 @@ const (
 	CommandDownloadFile = "download_file"
 
 	CommandSyncExec = "sync_exec"
+
+	CommandCollectTrigger = "trigger_collect"
 
 	// 模式切换
 	CommandKeymap = "keymap"
