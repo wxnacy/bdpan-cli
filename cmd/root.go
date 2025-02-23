@@ -26,12 +26,14 @@ var (
 func GetGlobalReq() *dto.GlobalReq {
 	globalReq.AppId = globalArg.AppId
 	globalReq.IsVerbose = globalArg.IsVerbose
+	globalReq.Path = globalArg.Path
 	return globalReq
 }
 
 type GlobalArg struct {
 	IsVerbose bool
 	AppId     string
+	Path      string
 }
 
 // rootCmd represents the base command when called without any subcommands
@@ -84,7 +86,8 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&globalArg.IsVerbose, "verbose", "v", false, "打印赘余信息")
 
 	// root 参数
-	rootCmd.PersistentFlags().StringVarP(&bdpanCommand.Path, "path", "p", "/", "直接查看文件")
+	// rootCmd.PersistentFlags().StringVarP(&bdpanCommand.Path, "path", "p", "/", "直接查看文件")
+	rootCmd.PersistentFlags().StringVarP(&globalArg.Path, "path", "p", "/", "直接查看文件")
 	// rootCmd.PersistentFlags().IntVarP(&rootCommand.Limit, "limit", "l", 10, "查询数目")
 	// 运行前全局命令
 	cobra.OnInitialize(func() {
