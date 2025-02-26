@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/huh"
 	"github.com/wxnacy/bdpan"
+	"github.com/wxnacy/bdpan-cli/internal/api"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/model"
@@ -141,8 +143,48 @@ func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfoDto, error) {
 	return nil, errors.New("file not found")
 }
 
+func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
+	var info *bdpan.FileInfoDto
+	var err error
+	if req.FSID > 0 {
+		fmt.Println("通过 FSID 查询文件")
+		info, err = api.GetFileInfo(h.acceccToken, req.FSID)
+	} else {
+		fmt.Println("通过 Path 查询文件")
+		info, err = h.GetFileByPath(req.Path)
+	}
+	if err != nil {
+		fmt.Println("找不到文件")
+		return nil
+	}
+	if info.IsDir() {
+		var confirm bool
+		err = huh.NewConfirm().
+			Title("目标是个目录，是否确认删除").
+			Affirmative("Yes!").
+			Negative("No.").
+			Value(&confirm).Run()
+		if err != nil {
+			return nil
+		}
+		if !confirm {
+			fmt.Println("取消删除")
+			return nil
+		}
+	}
+	var path = info.Path
+	res, err := file.DeleteFile(h.acceccToken, path)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("删除文件: %s 成功\n", path)
+	if res.Taskid > 0 {
+		fmt.Printf("异步删除，任务 ID: %d\n", res.Taskid)
+	}
+	return nil
+}
+
 func (h *FileHandler) CmdList(req *dto.ListReq) error {
-	// model.GetDB().AutoMigrate(&model.File{})
 	r := file.NewGetFileListReq()
 	r.Dir = req.Path
 	r.Limit = req.Limit
@@ -153,7 +195,6 @@ func (h *FileHandler) CmdList(req *dto.ListReq) error {
 	}
 	for _, f := range res.List {
 		file := model.FindFirstByID(f.FSID)
-
 		// var size = int64(f.Size)
 		// if f.IsDir() {
 		// var path = FormatPath(f.Path)

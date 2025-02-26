@@ -30,3 +30,12 @@ type RefreshReq struct {
 	GlobalReq
 	IsSync bool
 }
+
+func NewDeleteReq() *DeleteReq {
+	return &DeleteReq{}
+}
+
+type DeleteReq struct {
+	GlobalReq
+	FSID uint64
+}
