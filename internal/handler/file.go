@@ -4,13 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/tasker"
 	"github.com/wxnacy/bdpan/file"
 	"github.com/wxnacy/dler"
+	"github.com/wxnacy/go-tools"
 )
 
 var fileHandler *FileHandler
@@ -135,4 +139,107 @@ func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfoDto, error) {
 		}
 	}
 	return nil, errors.New("file not found")
+}
+
+func (h *FileHandler) CmdList(req *dto.ListReq) error {
+	// model.GetDB().AutoMigrate(&model.File{})
+	r := file.NewGetFileListReq()
+	r.Dir = req.Path
+	r.Limit = req.Limit
+	r.SetPage(req.Page)
+	res, err := file.GetFileList(h.acceccToken, r)
+	if err != nil {
+		return err
+	}
+	for _, f := range res.List {
+		file := model.FindFirstByID(f.FSID)
+
+		// var size = int64(f.Size)
+		// if f.IsDir() {
+		// var path = FormatPath(f.Path)
+		// sfiles := model.FindFilesPrefixPath(path, false)
+		// for _, sf := range sfiles {
+		// size += int64(sf.Size)
+		// }
+		// }
+		fmt.Printf("%18d\t%s\t%s\t%s\n", f.FSID, f.GetFileType(), file.GetSize(), f.Path)
+	}
+	return nil
+}
+
+func (h *FileHandler) CmdRefresh(req *dto.RefreshReq) error {
+	// model.GetDB().AutoMigrate(&model.File{})
+	path := FormatPath(req.Path)
+
+	// 刷新目标目录
+	if req.IsSync {
+		h.refreshFiles(path)
+		for {
+			// 获取需要刷新的目录逐级刷新
+			infos := model.FindNeedRefreshFiles(path)
+			if len(infos) == 0 {
+				break
+			}
+			fmt.Printf("Refresh %s dir count: %d\n", path, len(infos))
+			total := len(infos)
+			for i, f := range infos {
+				begin := time.Now()
+				h.refreshFiles(f.Path)
+				f.IsRefresh = 1
+				f.Save()
+				timeUsed := time.Now().Sub(begin)
+				fmt.Printf("[%d/%d]Saved path: %s time used: %v\n", i, total, f.Path, timeUsed)
+			}
+		}
+	}
+
+	fmt.Println("开始刷新目录数据大小")
+	curDir := model.FindFirstByPath(req.Path)
+	h.refreshDirSize(curDir)
+	refreshDirs := model.FindFilesPrefixPath(path, true)
+	for _, dir := range refreshDirs {
+		h.refreshDirSize(dir)
+	}
+
+	return nil
+}
+
+func (h *FileHandler) refreshFiles(path string) error {
+	if path == "/" {
+		model.NewRootFile().Resave()
+	}
+	files, err := h.GetDirAllFiles(path)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		model.NewFileFromDto(f).Resave()
+	}
+	return nil
+}
+
+func (h *FileHandler) refreshDirSize(dir *model.File) error {
+	dPath := FormatPath(dir.Path)
+	subFiles := model.FindFilesPrefixPath(dPath, false)
+	size := 0
+	for _, sf := range subFiles {
+		size += sf.Size
+	}
+	dir.Size = size
+	res := dir.Save()
+	fmt.Printf(
+		"Path: %s Size: %s UpdateCount: %d Err: %v\n",
+		dPath,
+		tools.FormatSize(int64(size)),
+		res.RowsAffected,
+		res.Error,
+	)
+	return nil
+}
+
+func FormatPath(path string) string {
+	if !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
+	return path
 }

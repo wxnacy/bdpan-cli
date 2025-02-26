@@ -26,10 +26,10 @@ func InitDownloadReq(c *cobra.Command, req *dto.DownloadReq) {
 }
 
 func runDownload(cmd *cobra.Command, args []string) error {
+	downloadReq.GlobalReq = *GetGlobalReq()
 	if len(args) > 0 {
 		downloadReq.Path = args[0]
 	}
-	downloadReq.GlobalReq = *GetGlobalReq()
 	dir, _ := homedir.Expand(downloadReq.OutputDir)
 	downloadReq.OutputDir = dir
 	return handler.GetFileHandler().CmdDownload(downloadReq)
