@@ -18,8 +18,9 @@ func NewListReq() *ListReq {
 
 type ListReq struct {
 	GlobalReq
-	Page  int
-	Limit int32
+	Page       int
+	Limit      int32
+	WithoutTui bool
 }
 
 func NewRefreshReq() *RefreshReq {
@@ -38,4 +39,5 @@ func NewDeleteReq() *DeleteReq {
 type DeleteReq struct {
 	GlobalReq
 	FSID uint64
+	Yes  bool
 }

@@ -1,13 +1,14 @@
 module github.com/wxnacy/bdpan-cli
 
-go 1.22.0
-
-toolchain go1.22.5
+go 1.23.4
 
 require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/boombuler/barcode v1.0.2
+	github.com/charmbracelet/bubbles v0.20.0
+	github.com/charmbracelet/bubbletea v1.2.0
 	github.com/charmbracelet/huh v0.6.0
+	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-dev-frame/sponge v1.12.7
@@ -19,6 +20,7 @@ require (
 	github.com/wxnacy/bdpan v0.3.3
 	github.com/wxnacy/dler v0.7.2
 	github.com/wxnacy/dler/godler v0.0.0-20230502090212-1854c87e8009
+	github.com/wxnacy/go-bdpan v0.0.1
 	github.com/wxnacy/go-tools v0.0.9
 	gorm.io/gorm v1.25.11
 )
@@ -28,9 +30,6 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
-	github.com/charmbracelet/bubbles v0.20.0 // indirect
-	github.com/charmbracelet/bubbletea v1.2.0 // indirect
-	github.com/charmbracelet/lipgloss v1.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20241101155414-3df16cb7eefd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
@@ -121,6 +120,8 @@ require (
 )
 
 replace github.com/wxnacy/bdpan => ../bdpan
+
+replace github.com/wxnacy/go-bdpan => ../go-bdpan
 
 replace github.com/wxnacy/dler => /Users/wxnacy/Documents/Projects/wxnacy/dler
 

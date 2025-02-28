@@ -6,15 +6,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/internal/api"
 	"github.com/wxnacy/bdpan-cli/internal/common"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/dler/godler"
+	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
 )
 
-func DownloadFile(f *bdpan.FileInfoDto, path string) {
+func DownloadFile(f *bdpan.FileInfo, path string) {
 	begin := time.Now()
 	tasker := NewDownloadTasker(f, path)
 	tasker.BuildTasks()
@@ -34,12 +34,12 @@ type DownloadTaskInfo struct {
 type DownloadTasker struct {
 	*godler.Tasker
 	// 迁移的地址
-	File  *bdpan.FileInfoDto
+	File  *bdpan.FileInfo
 	To    string
 	Token string
 }
 
-func NewDownloadTasker(f *bdpan.FileInfoDto, path string) *DownloadTasker {
+func NewDownloadTasker(f *bdpan.FileInfo, path string) *DownloadTasker {
 	t := DownloadTasker{Tasker: godler.NewTasker(godler.NewTaskerConfig())}
 	t.File = f
 	t.To = path

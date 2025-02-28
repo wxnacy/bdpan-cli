@@ -32,5 +32,6 @@ func init() {
 
 	cmd.Flags().IntVarP(&listReq.Page, "page", "P", 1, "页码")
 	cmd.Flags().Int32VarP(&listReq.Limit, "limit", "l", 10, "每页条数")
+	cmd.Flags().BoolVarP(&listReq.WithoutTui, "without-tui", "T", false, "是否用不用 TUI 展示")
 	rootCmd.AddCommand(cmd)
 }

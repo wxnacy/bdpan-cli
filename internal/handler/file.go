@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/charmbracelet/huh"
-	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/internal/api"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/tasker"
-	"github.com/wxnacy/bdpan/file"
+	"github.com/wxnacy/bdpan-cli/internal/terminal"
 	"github.com/wxnacy/dler"
+	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
 )
 
@@ -34,15 +34,15 @@ type FileHandler struct {
 	acceccToken string
 }
 
-func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfoDto, error) {
-	req := file.NewGetFileListReq()
+func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
+	req := bdpan.NewGetFileListReq()
 	req.Dir = dir
-	totalList := []*bdpan.FileInfoDto{}
-	fileList := []*bdpan.FileInfoDto{}
+	totalList := []*bdpan.FileInfo{}
+	fileList := []*bdpan.FileInfo{}
 	page := 1
 	for {
 		req.SetPage(page)
-		res, err := file.GetFileList(h.acceccToken, req)
+		res, err := bdpan.GetFileList(h.acceccToken, req)
 		if err != nil {
 			return nil, err
 		}
@@ -91,13 +91,13 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 
 // 根据地址查找文件
 // 在文件目录中循环查找是否有该名称文件
-func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfoDto, error) {
+func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfo, error) {
 
-	getFileByPage := func(dir, name string, page int) (*bdpan.FileInfoDto, bool, error) {
-		req := file.NewGetFileListReq()
+	getFileByPage := func(dir, name string, page int) (*bdpan.FileInfo, bool, error) {
+		req := bdpan.NewGetFileListReq()
 		req.Dir = dir
 		req.SetPage(page)
-		res, err := file.GetFileList(h.acceccToken, req)
+		res, err := bdpan.GetFileList(h.acceccToken, req)
 		// fmt.Println(req)
 		// fmt.Println(page, res, err)
 		if err != nil {
@@ -123,14 +123,14 @@ func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfoDto, error) {
 			return nil, err
 		}
 		if f != nil {
-			req := file.NewGetFileInfoReq(f.FSID)
+			req := bdpan.NewGetFileInfoReq(f.FSID)
 
 			// 获取带有下载地址的文件详情
-			infoRes, err := file.GetFileInfo(h.acceccToken, req)
+			infoRes, err := bdpan.GetFileInfo(h.acceccToken, req)
 			if err != nil {
 				return nil, err
 			}
-			info := &infoRes.FileInfoDto
+			info := &infoRes.FileInfo
 			info.Dlink = fmt.Sprintf("%s&access_token=%s", info.Dlink, h.acceccToken)
 			return info, nil
 		} else {
@@ -144,7 +144,7 @@ func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfoDto, error) {
 }
 
 func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
-	var info *bdpan.FileInfoDto
+	var info *bdpan.FileInfo
 	var err error
 	if req.FSID > 0 {
 		fmt.Println("通过 FSID 查询文件")
@@ -158,22 +158,24 @@ func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
 		return nil
 	}
 	if info.IsDir() {
-		var confirm bool
-		err = huh.NewConfirm().
-			Title("目标是个目录，是否确认删除").
-			Affirmative("Yes!").
-			Negative("No.").
-			Value(&confirm).Run()
-		if err != nil {
-			return nil
-		}
-		if !confirm {
-			fmt.Println("取消删除")
-			return nil
+		if !req.Yes {
+			var confirm bool
+			err = huh.NewConfirm().
+				Title("目标是个目录，是否确认删除").
+				Affirmative("Yes!").
+				Negative("No.").
+				Value(&confirm).WithTheme(huh.ThemeCatppuccin()).Run()
+			if err != nil {
+				return nil
+			}
+			if !confirm {
+				fmt.Println("取消删除")
+				return nil
+			}
 		}
 	}
 	var path = info.Path
-	res, err := file.DeleteFile(h.acceccToken, path)
+	res, err := bdpan.DeleteFile(h.acceccToken, path)
 	if err != nil {
 		return err
 	}
@@ -185,25 +187,21 @@ func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
 }
 
 func (h *FileHandler) CmdList(req *dto.ListReq) error {
-	r := file.NewGetFileListReq()
+	r := bdpan.NewGetFileListReq()
 	r.Dir = req.Path
 	r.Limit = req.Limit
 	r.SetPage(req.Page)
-	res, err := file.GetFileList(h.acceccToken, r)
+	res, err := bdpan.GetFileList(h.acceccToken, r)
 	if err != nil {
 		return err
 	}
-	for _, f := range res.List {
-		file := model.FindFirstByID(f.FSID)
-		// var size = int64(f.Size)
-		// if f.IsDir() {
-		// var path = FormatPath(f.Path)
-		// sfiles := model.FindFilesPrefixPath(path, false)
-		// for _, sf := range sfiles {
-		// size += int64(sf.Size)
-		// }
-		// }
-		fmt.Printf("%18d\t%s\t%s\t%s\n", f.FSID, f.GetFileType(), file.GetSize(), f.Path)
+	if req.WithoutTui {
+		for _, f := range res.List {
+			file := model.FindFirstByID(f.FSID)
+			fmt.Printf("%18d\t%s\t%s\t%s\n", f.FSID, f.GetFileType(), file.GetSize(), f.Path)
+		}
+	} else {
+		terminal.ShowTableFiles(res.List)
 	}
 	return nil
 }

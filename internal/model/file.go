@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/wxnacy/bdpan"
+	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
 	"gorm.io/gorm"
 )
@@ -20,7 +20,7 @@ func NewRootFile() *File {
 	return &file
 }
 
-func NewFileFromDto(fileInfoDto *bdpan.FileInfoDto) *File {
+func NewFileFromDto(fileInfoDto *bdpan.FileInfo) *File {
 	file := File{
 		ID:             fileInfoDto.FSID,
 		FSID:           fileInfoDto.FSID,
