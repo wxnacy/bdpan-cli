@@ -36,6 +36,10 @@ type ChangeFilesMsg struct {
 	files []*model.File
 }
 
+type ChangePanMsg struct {
+	Pan *model.Pan
+}
+
 func NewBDPan(dir string) (*BDPan, error) {
 	files, err := handler.GetFileHandler().GetFiles(dir, 1)
 	if err != nil {
@@ -139,10 +143,10 @@ func (m *BDPan) Init() tea.Cmd {
 	logger.Infof("Window size: %dx%d", m.width, m.height)
 
 	var err error
-	m.pan, err = m.authHandler.GetPan()
-	if err != nil {
-		return tea.Quit
-	}
+	// m.pan, err = m.authHandler.GetPan()
+	// if err != nil {
+	// return tea.Quit
+	// }
 
 	m.user, err = m.authHandler.GetUser()
 	if err != nil {
@@ -169,8 +173,6 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.fileListModel, cmd = m.fileListModel.Update(msg)
 
 	switch msg := msg.(type) {
-	// case *bdpan.GetPanInfoRes:
-	// m.panInfo = msg
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -180,6 +182,9 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChangeFilesMsg:
 		// 异步加载文件列表
 		m.setFiles(msg.files)
+	case ChangePanMsg:
+		// 异步加载 pan 信息
+		m.pan = msg.Pan
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.KeyMap.Back):
@@ -286,20 +291,28 @@ func (m *BDPan) GetStatusView() string {
 
 	fishCakeStyle := statusNugget.Background(lipgloss.Color("#6124DF"))
 
+	// left
+	used := "-/-"
+	if m.pan != nil {
+		used = fmt.Sprintf("%s/%s", m.pan.GetUsedStr(), m.pan.GetTotalStr())
+	}
 	statusKey := statusStyle.Render(fmt.Sprintf(
-		"容量 %s/%s",
-		m.pan.GetUsedStr(),
-		m.pan.GetTotalStr(),
+		"容量 %s",
+		used,
 	))
 	encoding := encodingStyle.Render(m.user.GetNetdiskName())
 	fishCake := fishCakeStyle.Render(m.user.GetVipName())
 
-	f, err := m.fileListModel.GetSelectFile()
-	if err != nil {
-		tea.Quit()
-		return ""
+	// mid
+	fileLineText := ""
+	if m.fileListModel != nil {
+		f, err := m.fileListModel.GetSelectFile()
+		if err != nil {
+			tea.Quit()
+			return ""
+		}
+		fileLineText = fmt.Sprintf("%s", f.Path)
 	}
-	fileLineText := fmt.Sprintf("%s", f.Path)
 	statusVal := statusText.
 		Width(m.GetWidth() - w(statusKey) - w(encoding) - w(fishCake)).
 		Render(fileLineText)
@@ -454,6 +467,10 @@ func (m *BDPan) DisableLoadingFileList() *BDPan {
 
 func (m *BDPan) IsLoadingFileList() bool {
 	return !m.fileListViewState
+}
+
+func (m *BDPan) PanIsNil() bool {
+	return m.pan == nil
 }
 
 type KeyMap struct {

@@ -53,6 +53,7 @@ func (t *Terminal) Run() error {
 				))
 				continue
 			}
+			// 刷新文件列表
 			if m.IsLoadingFileList() {
 				files, err := t.fileHandler.GetFiles(m.Dir, 1)
 				if err != nil {
@@ -61,6 +62,15 @@ func (t *Terminal) Run() error {
 				p.Send(ChangeFilesMsg{
 					files: files,
 				})
+				continue
+			}
+			// 初始化 pan 信息
+			if m.PanIsNil() {
+				pan, err := t.authHandler.GetPan()
+				if err != nil {
+					panic(err)
+				}
+				p.Send(ChangePanMsg{Pan: pan})
 				continue
 			}
 			// time.Sleep(time.Duration(10) * time.Second)
