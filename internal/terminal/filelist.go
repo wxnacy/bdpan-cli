@@ -53,18 +53,6 @@ func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {
 			} else {
 				m.model.Focus()
 			}
-			// case "q", "ctrl+c":
-			// logger.Infof("q")
-			// return m, tea.Quit
-			// case "o":
-			// logger.Debugf("enter\n")
-			// return m, tea.Batch(
-			// tea.Printf("Let's go to %s!", m.model.SelectedRow()[1]),
-			// )
-			// case "enter":
-			// return m, tea.Batch(
-			// tea.Printf("Let's go to %s!", m.model.SelectedRow()[1]),
-			// )
 		}
 	}
 	return m, cmd
@@ -74,7 +62,7 @@ func (m FileList) View() string {
 	return baseStyle.Render(m.model.View())
 }
 
-func NewFileList(files []*model.File, width, height int) (*FileList, error) {
+func NewFileList(files []*model.File, width, height int) *FileList {
 	columns := []table.Column{
 		{Title: "FSID", Width: 0},
 		{Title: "文件名", Width: width - 10 - 10 - 20},
@@ -84,14 +72,24 @@ func NewFileList(files []*model.File, width, height int) (*FileList, error) {
 	}
 
 	rows := make([]table.Row, 0)
-	for _, f := range files {
+	if files == nil {
 		rows = append(rows, table.Row{
-			fmt.Sprintf("%d", f.FSID),
-			fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()),
-			f.GetSize(),
-			f.GetFileType(),
-			f.GetServerMTime(),
+			"",
+			"数据加载中...",
+			"",
+			"",
+			"",
 		})
+	} else {
+		for _, f := range files {
+			rows = append(rows, table.Row{
+				fmt.Sprintf("%d", f.FSID),
+				fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()),
+				f.GetSize(),
+				f.GetFileType(),
+				f.GetServerMTime(),
+			})
+		}
 	}
 
 	t := table.New(
@@ -117,5 +115,5 @@ func NewFileList(files []*model.File, width, height int) (*FileList, error) {
 	return &FileList{
 		model: t,
 		files: files,
-	}, nil
+	}
 }

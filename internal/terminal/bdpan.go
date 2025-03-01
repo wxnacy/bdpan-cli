@@ -2,8 +2,6 @@ package terminal
 
 import (
 	"fmt"
-	"image"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,6 +32,10 @@ type InitMsg struct {
 	user  *model.User
 }
 
+type ChangeFilesMsg struct {
+	files []*model.File
+}
+
 func NewBDPan(dir string) (*BDPan, error) {
 	files, err := handler.GetFileHandler().GetFiles(dir, 1)
 	if err != nil {
@@ -56,12 +58,15 @@ type BDPan struct {
 
 	// Data
 	// useCache bool
-	files     []*model.File
-	filesMap  map[string][]*model.File
-	pan       *model.Pan
-	user      *model.User
-	KeyMap    KeyMap
-	viewState bool
+	files    []*model.File
+	filesMap map[string][]*model.File
+	pan      *model.Pan
+	user     *model.User
+	KeyMap   KeyMap
+
+	// state
+	viewState         bool
+	fileListViewState bool
 
 	fileHandler *handler.FileHandler
 	authHandler *handler.AuthHandler
@@ -88,6 +93,18 @@ func (m *BDPan) GetHeight() int {
 	return 20
 }
 
+func (m *BDPan) getFiles(dir string) []*model.File {
+	files, _ := m.filesMap[dir]
+	return files
+}
+
+func (m *BDPan) setFiles(files []*model.File) {
+	m.files = files
+	m.filesMap[m.Dir] = files
+	m.fileListModel = m.NewFileList(m.files)
+	m.DisableLoadingFileList()
+}
+
 func (m *BDPan) getFileList(dir string) ([]*model.File, error) {
 	files, ok := m.filesMap[dir]
 	if ok {
@@ -112,10 +129,7 @@ func (m *BDPan) initFileList(dir string) tea.Cmd {
 		return tea.Quit
 	}
 
-	m.fileListModel, err = NewFileList(m.files, m.GetWidth()/2, m.GetMidHeight())
-	if err != nil {
-		return tea.Quit
-	}
+	m.fileListModel = m.NewFileList(m.files)
 	return nil
 }
 
@@ -140,6 +154,7 @@ func (m *BDPan) Init() tea.Cmd {
 		return cmd
 	}
 	m.viewState = true
+	m.fileListViewState = true
 	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
 	return tea.SetWindowTitle("bdpan")
 }
@@ -147,7 +162,7 @@ func (m *BDPan) Init() tea.Cmd {
 func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	logger.Infof("BDPan Update =================================")
 	var cmd tea.Cmd
-	var err error
+	// var err error
 	logger.Infof("Update by msg: %v", msg)
 
 	// 先做原始修改操作
@@ -161,11 +176,10 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 		// 更改尺寸后,重新获取模型
-		m.fileListModel, err = NewFileList(m.files, m.GetWidth()/2, m.GetMidHeight())
-		if err != nil {
-			tea.Quit()
-			return m, tea.Quit
-		}
+		m.fileListModel = m.NewFileList(m.files)
+	case ChangeFilesMsg:
+		// 异步加载文件列表
+		m.setFiles(msg.files)
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.KeyMap.Back):
@@ -180,10 +194,14 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			if selectFile.IsDir() {
-				_cmd := m.initFileList(selectFile.Path)
-				if _cmd != nil {
-					return m, _cmd
+				m.Dir = selectFile.Path
+				files := m.getFiles(m.Dir)
+				if files != nil {
+					m.fileListModel = m.NewFileList(files)
+				} else {
+					m.EnableLoadingFileList()
 				}
+				return m, cmd
 			}
 		}
 		switch msg.String() {
@@ -212,17 +230,21 @@ func (m *BDPan) View() string {
 	)
 }
 
-func (m *BDPan) GetMidCenterView() string {
-	fileListView := m.fileListModel.View()
-	logger.Infof("FileListView height %d", lipgloss.Height(fileListView))
-	return fileListView
+func (m *BDPan) GetFileListView() string {
+	if m.fileListViewState {
+		fileListView := m.fileListModel.View()
+		logger.Infof("FileListView height %d", lipgloss.Height(fileListView))
+		return fileListView
+	} else {
+		return m.NewFileList(nil).View()
+	}
 }
 
 func (m *BDPan) GetMidView() string {
 
 	// filelist
-	centerView := m.fileListModel.View()
-	logger.Infof("Mid center view height %d", lipgloss.Height(centerView))
+	centerView := m.GetFileListView()
+	// logger.Infof("Mid center view height %d", lipgloss.Height(centerView))
 
 	// fileinfo
 	f, err := m.fileListModel.GetSelectFile()
@@ -410,35 +432,28 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 
 }
 
-func encodeImage(path string) string {
-	// 读取图片文件内容
-	file, _ := os.Open(path)
-	defer file.Close()
-	img, _, _ := image.Decode(file)
-
-	// 2. 定义字符映射表（按灰度排序）
-	chars := []string{"@", "#", "S", "%", "?", "*", "+", ";", ":", ",", "."}
-
-	// 3. 遍历像素生成字符画
-	bounds := img.Bounds()
-	res := ""
-	for y := bounds.Min.Y; y < bounds.Max.Y; y += 2 { // 纵向降采样
-		var line string
-		for x := bounds.Min.X; x < bounds.Max.X; x += 1 {
-			r, g, b, _ := img.At(x, y).RGBA()
-			gray := 0.299*float64(r>>8) + 0.587*float64(g>>8) + 0.114*float64(b>>8)
-			index := int(gray / 255 * float64(len(chars)-1))
-			line += chars[index]
-		}
-		res += line
-	}
-	return res
-}
-
 func (m *BDPan) GetMidHeight() int {
 	height := m.GetHeight() - 2
 	logger.Infof("GetMidHeight %d", height)
 	return height
+}
+
+func (m *BDPan) NewFileList(files []*model.File) *FileList {
+	return NewFileList(files, m.GetWidth()/2, m.GetMidHeight())
+}
+
+func (m *BDPan) EnableLoadingFileList() *BDPan {
+	m.fileListViewState = false
+	return m
+}
+
+func (m *BDPan) DisableLoadingFileList() *BDPan {
+	m.fileListViewState = true
+	return m
+}
+
+func (m *BDPan) IsLoadingFileList() bool {
+	return !m.fileListViewState
 }
 
 type KeyMap struct {

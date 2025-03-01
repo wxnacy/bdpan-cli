@@ -1,8 +1,6 @@
 package terminal
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
@@ -34,7 +32,7 @@ func (t *Terminal) Run() error {
 	logger.Infof("BDPan state %v", m.viewState)
 	go func() {
 		for {
-			logger.Infof("开始异步刷新信息...")
+			// logger.Infof("开始异步刷新信息...")
 			if !m.viewState {
 				files, err := t.fileHandler.GetFiles(m.Dir, 1)
 				if err != nil {
@@ -55,8 +53,18 @@ func (t *Terminal) Run() error {
 				))
 				continue
 			}
-			time.Sleep(time.Duration(10) * time.Second)
-			logger.Infof("BDPan state %v", m.viewState)
+			if m.IsLoadingFileList() {
+				files, err := t.fileHandler.GetFiles(m.Dir, 1)
+				if err != nil {
+					panic(err)
+				}
+				p.Send(ChangeFilesMsg{
+					files: files,
+				})
+				continue
+			}
+			// time.Sleep(time.Duration(10) * time.Second)
+			// logger.Infof("BDPan state %v", m.viewState)
 
 			// panInfo, _ := t.authHandler.GetPanInfo()
 			// p.Send(panInfo)
