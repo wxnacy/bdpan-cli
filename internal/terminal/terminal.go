@@ -29,38 +29,38 @@ func (t *Terminal) Run() error {
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	logger.Infof("BDPan state %v", m.viewState)
+	// logger.Infof("BDPan state %v", m.viewState)
 	go func() {
 		for {
 			// logger.Infof("开始异步刷新信息...")
-			if !m.viewState {
-				files, err := t.fileHandler.GetFiles(m.Dir, 1)
-				if err != nil {
-					panic(err)
-				}
-				pan, err := t.authHandler.GetPan()
-				if err != nil {
-					panic(err)
-				}
-				user, err := t.authHandler.GetUser()
-				if err != nil {
-					panic(err)
-				}
-				p.Send(NewInitMsg(
-					files,
-					pan,
-					user,
-				))
-				continue
-			}
+			// if !m.viewState {
+			// files, err := t.fileHandler.GetFiles(m.Dir, 1)
+			// if err != nil {
+			// panic(err)
+			// }
+			// pan, err := t.authHandler.GetPan()
+			// if err != nil {
+			// panic(err)
+			// }
+			// user, err := t.authHandler.GetUser()
+			// if err != nil {
+			// panic(err)
+			// }
+			// p.Send(NewInitMsg(
+			// files,
+			// pan,
+			// user,
+			// ))
+			// continue
+			// }
 			// 刷新文件列表
-			if m.IsLoadingFileList() {
+			if m.IsLoadingFileList() || m.FileListModelIsNil() {
 				files, err := t.fileHandler.GetFiles(m.Dir, 1)
 				if err != nil {
 					panic(err)
 				}
 				p.Send(ChangeFilesMsg{
-					files: files,
+					Files: files,
 				})
 				continue
 			}

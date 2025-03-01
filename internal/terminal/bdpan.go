@@ -14,26 +14,21 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/model"
 )
 
-func NewInitMsg(
-	files []*model.File,
-	pan *model.Pan,
-	user *model.User,
-) *InitMsg {
-	return &InitMsg{
-		files: files,
-		pan:   pan,
-		user:  user,
-	}
-}
+type TaskType int
 
-type InitMsg struct {
-	files []*model.File
-	pan   *model.Pan
-	user  *model.User
+const (
+	TaskDelete TaskType = iota
+	TaskDownload
+)
+
+type Task struct {
+	FSID uint64
+	Path string
+	Type TaskType
 }
 
 type ChangeFilesMsg struct {
-	files []*model.File
+	Files []*model.File
 }
 
 type ChangePanMsg struct {
@@ -55,6 +50,7 @@ func NewBDPan(dir string) (*BDPan, error) {
 		// useCache:    true,
 		files:       files,
 		filesMap:    make(map[string][]*model.File, 0),
+		tasks:       make([]*Task, 0),
 		fileHandler: handler.GetFileHandler(),
 		authHandler: handler.GetAuthHandler(),
 		KeyMap:      DefaultKeyMap(),
@@ -68,12 +64,13 @@ type BDPan struct {
 	// useCache bool
 	files    []*model.File
 	filesMap map[string][]*model.File
+	tasks    []*Task
 	pan      *model.Pan
 	user     *model.User
 	KeyMap   KeyMap
 
 	// state
-	viewState         bool
+	// viewState         bool
 	fileListViewState bool
 
 	fileHandler *handler.FileHandler
@@ -106,39 +103,11 @@ func (m *BDPan) getFiles(dir string) []*model.File {
 	return files
 }
 
-func (m *BDPan) setFiles(files []*model.File) {
+func (m *BDPan) SetFiles(files []*model.File) {
 	m.files = files
 	m.filesMap[m.Dir] = files
 	m.fileListModel = m.NewFileList(m.files)
 	m.DisableLoadingFileList()
-}
-
-func (m *BDPan) getFileList(dir string) ([]*model.File, error) {
-	files, ok := m.filesMap[dir]
-	if ok {
-		logger.Infof("从缓存中读取文件列表")
-		return files, nil
-	} else {
-		logger.Infof("从网络中读取文件列表")
-		files, err := m.fileHandler.GetFiles(m.Dir, 1)
-		if err != nil {
-			return nil, err
-		}
-		m.filesMap[dir] = files
-		return files, nil
-	}
-}
-
-func (m *BDPan) initFileList(dir string) tea.Cmd {
-	var err error
-	m.Dir = dir
-	m.files, err = m.getFileList(m.Dir)
-	if err != nil {
-		return tea.Quit
-	}
-
-	m.fileListModel = m.NewFileList(m.files)
-	return nil
 }
 
 func (m *BDPan) Init() tea.Cmd {
@@ -146,23 +115,7 @@ func (m *BDPan) Init() tea.Cmd {
 	logger.Infof("BDPan Init begin ============================")
 	logger.Infof("Window size: %dx%d", m.width, m.height)
 
-	// var err error
-	// m.pan, err = m.authHandler.GetPan()
-	// if err != nil {
-	// return tea.Quit
-	// }
-
-	// m.user, err = m.authHandler.GetUser()
-	// if err != nil {
-	// return tea.Quit
-	// }
-
-	cmd := m.initFileList(m.Dir)
-	if cmd != nil {
-		return cmd
-	}
-	m.viewState = true
-	m.fileListViewState = true
+	// m.viewState = true
 	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
 	return tea.SetWindowTitle("bdpan")
 }
@@ -174,7 +127,9 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	logger.Infof("Update by msg: %v", msg)
 
 	// 先做原始修改操作
-	m.fileListModel, cmd = m.fileListModel.Update(msg)
+	if m.FileListModelIsNotNil() {
+		m.fileListModel, cmd = m.fileListModel.Update(msg)
+	}
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -182,10 +137,10 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 		// 更改尺寸后,重新获取模型
-		m.fileListModel = m.NewFileList(m.files)
+		m.ChangeDir(m.Dir)
 	case ChangeFilesMsg:
 		// 异步加载文件列表
-		m.setFiles(msg.files)
+		m.SetFiles(msg.Files)
 	case ChangePanMsg:
 		// 异步加载 pan 信息
 		m.pan = msg.Pan
@@ -195,10 +150,7 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.KeyMap.Back):
-			_cmd := m.initFileList(filepath.Dir(m.Dir))
-			if _cmd != nil {
-				return m, _cmd
-			}
+			m.ChangeDir(filepath.Dir(m.Dir))
 		case key.Matches(msg, m.KeyMap.Enter):
 			selectFile, err := m.fileListModel.GetSelectFile()
 			if err != nil {
@@ -206,14 +158,7 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 			if selectFile.IsDir() {
-				m.Dir = selectFile.Path
-				files := m.getFiles(m.Dir)
-				if files != nil {
-					m.fileListModel = m.NewFileList(files)
-				} else {
-					m.EnableLoadingFileList()
-				}
-				return m, cmd
+				m.ChangeDir(selectFile.Path)
 			}
 		}
 		switch msg.String() {
@@ -228,13 +173,10 @@ func (m *BDPan) View() string {
 	logger.Infof("BDPan View =================================")
 	logger.Infof("Window size: %dx%d", m.width, m.height)
 
-	if !m.viewState {
-		return "界面初始化..."
-	}
-
 	midView := m.GetMidView()
 
 	statusView := m.GetStatusView()
+
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		midView,
@@ -243,7 +185,7 @@ func (m *BDPan) View() string {
 }
 
 func (m *BDPan) GetFileListView() string {
-	if m.fileListViewState {
+	if !m.IsLoadingFileList() && m.FileListModelIsNotNil() {
 		fileListView := m.fileListModel.View()
 		logger.Infof("FileListView height %d", lipgloss.Height(fileListView))
 		return fileListView
@@ -256,15 +198,17 @@ func (m *BDPan) GetMidView() string {
 
 	// filelist
 	centerView := m.GetFileListView()
-	// logger.Infof("Mid center view height %d", lipgloss.Height(centerView))
 
 	// fileinfo
-	f, err := m.fileListModel.GetSelectFile()
-	if err != nil {
-		tea.Quit()
-		return ""
+	rightView := m.GetFileInfoView(nil)
+	if m.FileListModelIsNotNil() {
+		f, err := m.fileListModel.GetSelectFile()
+		if err != nil {
+			tea.Quit()
+			return ""
+		}
+		rightView = m.GetFileInfoView(f)
 	}
-	rightView := m.GetFileInfoView(f)
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -318,7 +262,7 @@ func (m *BDPan) GetStatusView() string {
 
 	// mid
 	fileLineText := ""
-	if m.fileListModel != nil {
+	if m.FileListModelIsNotNil() {
 		f, err := m.fileListModel.GetSelectFile()
 		if err != nil {
 			tea.Quit()
@@ -375,64 +319,74 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 			// Border(contentBorder).
 			Render("详情"),
 	))
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.
-			BorderTop(true).
-			Render("FSID"),
-		rightStyle.
-			BorderTop(true).
-			Render(fmt.Sprintf("%d", f.FSID)),
-	))
 
-	filename := fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()) + "\n"
-	nameStr := rightStyle.Render(filename)
-	nameH := lipgloss.Height(nameStr)
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.Height(nameH).Render("文件名"),
-		nameStr,
-	))
+	if f != nil {
 
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.Render("大小"),
-		rightStyle.Render(f.GetSize()),
-	))
-
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.Render("类型"),
-		rightStyle.Render(f.GetFileType()),
-	))
-
-	pathStr := rightStyle.Render(f.Path)
-	pathH := lipgloss.Height(pathStr)
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.Height(pathH).Render("地址"),
-		pathStr,
-	))
-
-	if !f.IsDir() {
 		lines = append(lines, lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			leftStyle.Render("MD5"),
-			rightStyle.Render(f.MD5),
+			leftStyle.
+				BorderTop(true).
+				Render("FSID"),
+			rightStyle.
+				BorderTop(true).
+				Render(fmt.Sprintf("%d", f.FSID)),
+		))
+
+		filename := fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()) + "\n"
+		nameStr := rightStyle.Render(filename)
+		nameH := lipgloss.Height(nameStr)
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Height(nameH).Render("文件名"),
+			nameStr,
+		))
+
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Render("大小"),
+			rightStyle.Render(f.GetSize()),
+		))
+
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Render("类型"),
+			rightStyle.Render(f.GetFileType()),
+		))
+
+		pathStr := rightStyle.Render(f.Path)
+		pathH := lipgloss.Height(pathStr)
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Height(pathH).Render("地址"),
+			pathStr,
+		))
+
+		if !f.IsDir() {
+			lines = append(lines, lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				leftStyle.Render("MD5"),
+				rightStyle.Render(f.MD5),
+			))
+		}
+
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Render("创建时间"),
+			rightStyle.Render(f.GetServerCTime()),
+		))
+
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Render("修改时间"),
+			rightStyle.Render(f.GetServerMTime()),
+		))
+	} else {
+		lines = append(lines, lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			leftStyle.Render(""),
+			rightStyle.Render("数据加载中..."),
 		))
 	}
-
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.Render("创建时间"),
-		rightStyle.Render(f.GetServerCTime()),
-	))
-
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.Render("修改时间"),
-		rightStyle.Render(f.GetServerMTime()),
-	))
 
 	lastBeforeH := lipgloss.Height(strings.Join(lines, "\n"))
 	logger.Infof("lastBeforeH %d", lastBeforeH)
@@ -490,9 +444,31 @@ func (m *BDPan) UserIsNil() bool {
 	return m.user == nil
 }
 
+func (m *BDPan) FileListModelIsNotNil() bool {
+	return m.fileListModel != nil
+}
+
+func (m *BDPan) FileListModelIsNil() bool {
+	return m.fileListModel == nil
+}
+
+// 改变显示的目录
+func (m *BDPan) ChangeDir(dir string) {
+	m.Dir = dir
+	files := m.getFiles(m.Dir)
+	if files == nil {
+		// 没有缓存时打开 Loading
+		m.EnableLoadingFileList()
+	} else {
+		m.files = files
+		m.fileListModel = m.NewFileList(m.files)
+	}
+}
+
 type KeyMap struct {
-	Enter key.Binding
-	Back  key.Binding
+	Enter  key.Binding
+	Back   key.Binding
+	Delete key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -504,6 +480,10 @@ func DefaultKeyMap() KeyMap {
 		Back: key.NewBinding(
 			key.WithKeys("left", "h"),
 			key.WithHelp("left/h", "退回"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "删除"),
 		),
 	}
 }
