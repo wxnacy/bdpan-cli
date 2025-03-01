@@ -33,8 +33,13 @@ type AuthHandler struct {
 	appID       int
 }
 
-func (h *AuthHandler) GetUserInfo() (*bdpan.GetUserInfoRes, error) {
-	return bdpan.GetUserInfo(h.accessToken)
+func (h *AuthHandler) GetUser() (*model.User, error) {
+
+	info, err := bdpan.GetUserInfo(h.accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return model.NewUser(info), nil
 }
 
 // func (h *AuthHandler) RefreshUserInfo() (*model.User, error) {

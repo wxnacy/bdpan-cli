@@ -6,7 +6,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
-	"github.com/wxnacy/bdpan-cli/internal/model"
 )
 
 func NewTerminal(path string) *Terminal {
@@ -45,11 +44,10 @@ func (t *Terminal) Run() error {
 				if err != nil {
 					panic(err)
 				}
-				userInfo, err := t.authHandler.GetUserInfo()
+				user, err := t.authHandler.GetUser()
 				if err != nil {
 					panic(err)
 				}
-				user := model.NewUser(userInfo)
 				p.Send(NewInitMsg(
 					files,
 					pan,

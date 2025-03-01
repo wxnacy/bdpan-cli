@@ -14,7 +14,6 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
-	"github.com/wxnacy/go-bdpan"
 )
 
 func NewInitMsg(
@@ -60,7 +59,7 @@ type BDPan struct {
 	files     []*model.File
 	filesMap  map[string][]*model.File
 	pan       *model.Pan
-	userInfo  *bdpan.GetUserInfoRes
+	user      *model.User
 	KeyMap    KeyMap
 	viewState bool
 
@@ -131,7 +130,7 @@ func (m *BDPan) Init() tea.Cmd {
 		return tea.Quit
 	}
 
-	m.userInfo, err = m.authHandler.GetUserInfo()
+	m.user, err = m.authHandler.GetUser()
 	if err != nil {
 		return tea.Quit
 	}
@@ -270,8 +269,8 @@ func (m *BDPan) GetStatusView() string {
 		m.pan.GetUsedStr(),
 		m.pan.GetTotalStr(),
 	))
-	encoding := encodingStyle.Render(m.userInfo.GetNetdiskName())
-	fishCake := fishCakeStyle.Render(m.userInfo.GetVipName())
+	encoding := encodingStyle.Render(m.user.GetNetdiskName())
+	fishCake := fishCakeStyle.Render(m.user.GetVipName())
 
 	f, err := m.fileListModel.GetSelectFile()
 	if err != nil {
