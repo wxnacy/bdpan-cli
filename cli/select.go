@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/wxnacy/bdpan"
-	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/terminal"
 )
 
@@ -73,8 +72,8 @@ func ConverFilesToSelectItems(s *terminal.Select, files []*bdpan.FileInfoDto) []
 // 填充文件数据到 select 组件
 func FillFileToSelect(s *terminal.Select, dir, selectPath string) error {
 	Log.Infof("FillFileToSelect Dir %s SelectPath %s", dir, selectPath)
-	// files, err := bdpan.GetDirAllFiles(dir)
-	files, err := handler.GetFileHandler().GetDirAllFiles(dir)
+	files, err := bdpan.GetDirAllFiles(dir)
+	// files, err := handler.GetFileHandler().GetDirAllFiles(dir)
 	if err != nil {
 		return err
 	}
