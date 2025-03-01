@@ -73,6 +73,15 @@ func (t *Terminal) Run() error {
 				p.Send(ChangePanMsg{Pan: pan})
 				continue
 			}
+			// 初始化 user 信息
+			if m.UserIsNil() {
+				user, err := t.authHandler.GetUser()
+				if err != nil {
+					panic(err)
+				}
+				p.Send(ChangeUserMsg{User: user})
+				continue
+			}
 			// time.Sleep(time.Duration(10) * time.Second)
 			// logger.Infof("BDPan state %v", m.viewState)
 

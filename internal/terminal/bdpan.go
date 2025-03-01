@@ -40,6 +40,10 @@ type ChangePanMsg struct {
 	Pan *model.Pan
 }
 
+type ChangeUserMsg struct {
+	User *model.User
+}
+
 func NewBDPan(dir string) (*BDPan, error) {
 	files, err := handler.GetFileHandler().GetFiles(dir, 1)
 	if err != nil {
@@ -142,16 +146,16 @@ func (m *BDPan) Init() tea.Cmd {
 	logger.Infof("BDPan Init begin ============================")
 	logger.Infof("Window size: %dx%d", m.width, m.height)
 
-	var err error
+	// var err error
 	// m.pan, err = m.authHandler.GetPan()
 	// if err != nil {
 	// return tea.Quit
 	// }
 
-	m.user, err = m.authHandler.GetUser()
-	if err != nil {
-		return tea.Quit
-	}
+	// m.user, err = m.authHandler.GetUser()
+	// if err != nil {
+	// return tea.Quit
+	// }
 
 	cmd := m.initFileList(m.Dir)
 	if cmd != nil {
@@ -185,6 +189,9 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChangePanMsg:
 		// 异步加载 pan 信息
 		m.pan = msg.Pan
+	case ChangeUserMsg:
+		// 异步加载 user 信息
+		m.user = msg.User
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.KeyMap.Back):
@@ -300,8 +307,14 @@ func (m *BDPan) GetStatusView() string {
 		"容量 %s",
 		used,
 	))
-	encoding := encodingStyle.Render(m.user.GetNetdiskName())
-	fishCake := fishCakeStyle.Render(m.user.GetVipName())
+
+	// right
+	encoding := ""
+	fishCake := ""
+	if !m.UserIsNil() {
+		encoding = encodingStyle.Render(m.user.GetNetdiskName())
+		fishCake = fishCakeStyle.Render(m.user.GetVipName())
+	}
 
 	// mid
 	fileLineText := ""
@@ -471,6 +484,10 @@ func (m *BDPan) IsLoadingFileList() bool {
 
 func (m *BDPan) PanIsNil() bool {
 	return m.pan == nil
+}
+
+func (m *BDPan) UserIsNil() bool {
+	return m.user == nil
 }
 
 type KeyMap struct {
