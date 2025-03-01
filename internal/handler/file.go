@@ -13,7 +13,6 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/tasker"
-	"github.com/wxnacy/bdpan-cli/internal/terminal"
 	"github.com/wxnacy/dler"
 	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
@@ -32,6 +31,15 @@ func GetFileHandler() *FileHandler {
 
 type FileHandler struct {
 	acceccToken string
+}
+
+func (h *FileHandler) GetFiles(dir string, page int) ([]*model.File, error) {
+	req := bdpan.NewGetFileListReq().SetDir(dir).SetPage(page)
+	res, err := bdpan.GetFileList(h.acceccToken, req)
+	if err != nil {
+		return nil, err
+	}
+	return model.NewFiles(res.List), nil
 }
 
 func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
@@ -195,13 +203,18 @@ func (h *FileHandler) CmdList(req *dto.ListReq) error {
 	if err != nil {
 		return err
 	}
-	if req.WithoutTui {
-		for _, f := range res.List {
-			file := model.FindFirstByID(f.FSID)
-			fmt.Printf("%18d\t%s\t%s\t%s\n", f.FSID, f.GetFileType(), file.GetSize(), f.Path)
+	// pan, err := bdpan.GetPanInfo(h.acceccToken)
+	// if err != nil {
+	// return err
+	// }
+	// fmt.Printf("网盘容量 (%s/%s)\n", tools.FormatSize(pan.GetUsed()), tools.FormatSize(pan.GetTotal()))
+	for _, f := range res.List {
+		size := f.GetSize()
+		file := model.FindFirstByID(f.FSID)
+		if file != nil {
+			size = file.GetSize()
 		}
-	} else {
-		terminal.ShowTableFiles(res.List)
+		fmt.Printf("%18d\t%s\t%s\t%s\n", f.FSID, f.GetFileType(), size, f.GetFilename())
 	}
 	return nil
 }
@@ -252,7 +265,7 @@ func (h *FileHandler) refreshFiles(path string) error {
 		return err
 	}
 	for _, f := range files {
-		model.NewFileFromDto(f).Resave()
+		model.NewFile(f).Resave()
 	}
 	return nil
 }

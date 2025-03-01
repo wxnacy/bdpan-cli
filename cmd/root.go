@@ -10,11 +10,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/wxnacy/bdpan"
 	"github.com/wxnacy/bdpan-cli/cli"
 	"github.com/wxnacy/bdpan-cli/cmd/initial"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/logger"
+	"github.com/wxnacy/bdpan-cli/internal/terminal"
+	"github.com/wxnacy/go-bdpan"
 )
 
 var (
@@ -54,7 +56,16 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		handleCmdErr(bdpanCommand.Exec(args))
+		// handleCmdErr(bdpanCommand.Exec(args))
+		req := GetGlobalReq()
+		var path = req.Path
+		if len(args) > 0 {
+			path = args[0]
+		}
+		if req.IsVerbose {
+			logger.SetLogLevel(logrus.DebugLevel)
+		}
+		handleCmdErr(terminal.NewTerminal(path).Run())
 	},
 }
 

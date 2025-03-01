@@ -11,6 +11,7 @@ import (
 	"github.com/go-dev-frame/sponge/pkg/utils"
 	"github.com/mitchellh/go-homedir"
 	"github.com/wxnacy/bdpan-cli/internal/config"
+	log "github.com/wxnacy/bdpan-cli/internal/logger"
 	"gorm.io/gorm"
 )
 
@@ -62,6 +63,11 @@ func InitSqlite() {
 	if err != nil {
 		panic("InitSqlite error: " + err.Error())
 	}
+
+	// 初始化表格
+	begin := time.Now()
+	db.AutoMigrate(&File{})
+	log.Debugf("DB AutoMigrate time used %v", time.Now().Sub(begin))
 }
 
 // GetDB get db

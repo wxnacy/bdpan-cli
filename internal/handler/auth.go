@@ -10,6 +10,7 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/qrcode"
 	"github.com/wxnacy/bdpan/auth"
+	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
 )
 
@@ -26,6 +27,14 @@ func GetAuthHandler() *AuthHandler {
 
 type AuthHandler struct {
 	accessToken string
+}
+
+func (h *AuthHandler) GetUserInfo() (*bdpan.GetUserInfoRes, error) {
+	return bdpan.GetUserInfo(h.accessToken)
+}
+
+func (h *AuthHandler) GetPanInfo() (*bdpan.GetPanInfoRes, error) {
+	return bdpan.GetPanInfo(h.accessToken)
 }
 
 func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {

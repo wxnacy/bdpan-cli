@@ -19,7 +19,7 @@ func InitApp() {
 
 	// initial logger
 	logger.Init(config.Get().Logger.LogFileConfig.Filename)
-	logger.Infof("Init Config %#v", config.Get())
+	logger.Debugf("Init Config %#v", config.Get())
 }
 
 func initConfig() {

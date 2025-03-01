@@ -1,15 +1,22 @@
 package logger
 
-import "github.com/wxnacy/bdpan"
+import (
+	"github.com/sirupsen/logrus"
+	"github.com/wxnacy/go-bdpan"
+)
+
+func GetLogger() *logrus.Logger {
+	return bdpan.GetLogger()
+}
 
 func Debugf(format string, args ...interface{}) {
-	bdpan.Log.Debugf(format, args...)
+	GetLogger().Debugf(format, args...)
 }
 
 func Infof(format string, args ...interface{}) {
-	bdpan.Log.Infof(format, args...)
+	GetLogger().Infof(format, args...)
 }
 
 func Errorf(format string, args ...interface{}) {
-	bdpan.Log.Errorf(format, args...)
+	GetLogger().Errorf(format, args...)
 }
