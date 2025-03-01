@@ -114,11 +114,11 @@ func FindNeedRefreshFiles(path string) []*File {
 	return files
 }
 
-func FindFirstByID(id uint64) *File {
-	var file *File
-	GetDB().Where("id = ?", id).First(&file)
-	return file.Fill()
-}
+// func FindFirstByID(id uint64) *File {
+// var file *File
+// GetDB().Where("id = ?", id).First(&file)
+// return file.Fill()
+// }
 
 func FindFirstByPath(path string) *File {
 	var file *File

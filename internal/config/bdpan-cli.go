@@ -44,7 +44,7 @@ type Access struct {
 }
 
 type Credential struct {
-	AppID     string `yaml:"appId" json:"appId"`
+	AppID     int    `yaml:"appId" json:"appId"`
 	AppKey    string `yaml:"appKey" json:"appKey"`
 	SecretKey string `yaml:"secretKey" json:"secretKey"`
 	SignKey   string `yaml:"signKey" json:"signKey"`

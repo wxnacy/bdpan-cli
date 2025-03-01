@@ -210,7 +210,7 @@ func (h *FileHandler) CmdList(req *dto.ListReq) error {
 	// fmt.Printf("网盘容量 (%s/%s)\n", tools.FormatSize(pan.GetUsed()), tools.FormatSize(pan.GetTotal()))
 	for _, f := range res.List {
 		size := f.GetSize()
-		file := model.FindFirstByID(f.FSID)
+		file := model.FindFirstByID[model.File](int(f.FSID))
 		if file != nil {
 			size = file.GetSize()
 		}

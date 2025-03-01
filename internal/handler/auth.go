@@ -3,11 +3,13 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/qrcode"
 	"github.com/wxnacy/bdpan/auth"
 	"github.com/wxnacy/go-bdpan"
@@ -20,6 +22,7 @@ func GetAuthHandler() *AuthHandler {
 	if authHandler == nil {
 		authHandler = &AuthHandler{
 			accessToken: config.GetAccessToken(),
+			appID:       config.Get().Credential.AppID,
 		}
 	}
 	return authHandler
@@ -27,14 +30,41 @@ func GetAuthHandler() *AuthHandler {
 
 type AuthHandler struct {
 	accessToken string
+	appID       int
 }
 
 func (h *AuthHandler) GetUserInfo() (*bdpan.GetUserInfoRes, error) {
 	return bdpan.GetUserInfo(h.accessToken)
 }
 
-func (h *AuthHandler) GetPanInfo() (*bdpan.GetPanInfoRes, error) {
-	return bdpan.GetPanInfo(h.accessToken)
+// func (h *AuthHandler) RefreshUserInfo() (*model.User, error) {
+// return bdpan.GetUserInfo(h.accessToken)
+// }
+
+func (h *AuthHandler) GetPan() (*model.Pan, error) {
+	info, err := bdpan.GetPanInfo(h.accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return model.NewPan(h.appID, info), nil
+}
+
+func (h *AuthHandler) NewPan(panInfo *bdpan.GetPanInfoRes) *model.Pan {
+	return model.NewPan(h.appID, panInfo)
+}
+
+func (h *AuthHandler) GetPanFromDB() *model.Pan {
+	return model.FindFirstByID[model.Pan](h.appID)
+}
+
+func (h *AuthHandler) RefreshPan() (*model.Pan, error) {
+	pan, err := h.GetPan()
+	if err != nil {
+		return nil, err
+	}
+	model.Save(pan)
+
+	return pan, nil
 }
 
 func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
@@ -111,9 +141,10 @@ func getCredentialByInut() *config.Credential {
 
 	item := &config.Credential{}
 
+	appId := ""
 	huh.NewInput().
 		Title("AppId").
-		Value(&item.AppID).
+		Value(&appId).
 		Run()
 
 	huh.NewInput().
@@ -125,5 +156,11 @@ func getCredentialByInut() *config.Credential {
 		Title("SecretKey").
 		Value(&item.SecretKey).
 		Run()
+
+	id, err := strconv.Atoi(appId)
+	if err != nil {
+		panic("AppID 输入错误")
+	}
+	item.AppID = id
 	return item
 }

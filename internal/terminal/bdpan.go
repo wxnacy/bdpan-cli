@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,8 +15,25 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/go-bdpan"
-	"github.com/wxnacy/go-bdpan/openapi"
 )
+
+func NewInitMsg(
+	files []*model.File,
+	pan *model.Pan,
+	user *model.User,
+) *InitMsg {
+	return &InitMsg{
+		files: files,
+		pan:   pan,
+		user:  user,
+	}
+}
+
+type InitMsg struct {
+	files []*model.File
+	pan   *model.Pan
+	user  *model.User
+}
 
 func NewBDPan(dir string) (*BDPan, error) {
 	files, err := handler.GetFileHandler().GetFiles(dir, 1)
@@ -39,11 +57,12 @@ type BDPan struct {
 
 	// Data
 	// useCache bool
-	files    []*model.File
-	filesMap map[string][]*model.File
-	panInfo  *bdpan.GetPanInfoRes
-	userInfo *bdpan.GetUserInfoRes
-	KeyMap   KeyMap
+	files     []*model.File
+	filesMap  map[string][]*model.File
+	pan       *model.Pan
+	userInfo  *bdpan.GetUserInfoRes
+	KeyMap    KeyMap
+	viewState bool
 
 	fileHandler *handler.FileHandler
 	authHandler *handler.AuthHandler
@@ -102,21 +121,15 @@ func (m *BDPan) initFileList(dir string) tea.Cmd {
 }
 
 func (m *BDPan) Init() tea.Cmd {
-	logger.Infof("BDPan Init =================================")
+	begin := time.Now()
+	logger.Infof("BDPan Init begin ============================")
 	logger.Infof("Window size: %dx%d", m.width, m.height)
 
 	var err error
-	used := int64(1)
-	m.panInfo = &bdpan.GetPanInfoRes{
-		&openapi.Quotaresponse{
-			Used:  &used,
-			Total: &used,
-		},
+	m.pan, err = m.authHandler.GetPan()
+	if err != nil {
+		return tea.Quit
 	}
-	// m.panInfo, err = m.authHandler.GetPanInfo()
-	// if err != nil {
-	// return tea.Quit
-	// }
 
 	m.userInfo, err = m.authHandler.GetUserInfo()
 	if err != nil {
@@ -127,7 +140,8 @@ func (m *BDPan) Init() tea.Cmd {
 	if cmd != nil {
 		return cmd
 	}
-	// logger.Infof("filelist model %v", m.fileListModel)
+	m.viewState = true
+	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
 	return tea.SetWindowTitle("bdpan")
 }
 
@@ -141,8 +155,8 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.fileListModel, cmd = m.fileListModel.Update(msg)
 
 	switch msg := msg.(type) {
-	case *bdpan.GetPanInfoRes:
-		m.panInfo = msg
+	// case *bdpan.GetPanInfoRes:
+	// m.panInfo = msg
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -184,6 +198,10 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *BDPan) View() string {
 	logger.Infof("BDPan View =================================")
 	logger.Infof("Window size: %dx%d", m.width, m.height)
+
+	if !m.viewState {
+		return "界面初始化..."
+	}
 
 	midView := m.GetMidView()
 
@@ -249,8 +267,8 @@ func (m *BDPan) GetStatusView() string {
 
 	statusKey := statusStyle.Render(fmt.Sprintf(
 		"容量 %s/%s",
-		m.panInfo.GetUsedStr(),
-		m.panInfo.GetTotalStr(),
+		m.pan.GetUsedStr(),
+		m.pan.GetTotalStr(),
 	))
 	encoding := encodingStyle.Render(m.userInfo.GetNetdiskName())
 	fishCake := fishCakeStyle.Render(m.userInfo.GetVipName())

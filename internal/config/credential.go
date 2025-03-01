@@ -5,7 +5,7 @@ import (
 )
 
 func (c *Credential) IsNil() bool {
-	if c.AppID == "" ||
+	if c.AppID == 0 ||
 		c.AppKey == "" ||
 		c.SecretKey == "" {
 		return true
