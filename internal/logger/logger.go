@@ -17,6 +17,10 @@ func Infof(format string, args ...interface{}) {
 	GetLogger().Infof(format, args...)
 }
 
+func Infoln(args ...interface{}) {
+	GetLogger().Infoln(args...)
+}
+
 func Errorf(format string, args ...interface{}) {
 	GetLogger().Errorf(format, args...)
 }

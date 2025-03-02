@@ -134,11 +134,120 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// var err error
 	logger.Infof("Update by msg: %v", msg)
 
-	// 先做原始修改操作
-	if m.FileListModelIsNotNil() {
-		m.fileListModel, cmd = m.fileListModel.Update(msg)
+	if m.ListenCombKeyMsg(msg) {
+		// 监听到组合键位后的操作
+		// 清理上一个key
+		m.ClearLastKey()
+	} else {
+		// m.SetLastKey(msg)
+		var isKeyMsg bool
+		isKeyMsg, cmd = m.ListenKeyMsg(msg)
+		if isKeyMsg {
+			// 监听不到组合键位才设置最后一个键位
+			m.SetLastKey(msg.(tea.KeyMsg))
+		} else {
+			_, cmd = m.ListenOtherMsg(msg)
+		}
 	}
 
+	// switch msg := msg.(type) {
+	// case tea.WindowSizeMsg:
+	// m.width = msg.Width
+	// m.height = msg.Height
+
+	// // 更改尺寸后,重新获取模型
+	// m.ChangeDir(m.Dir)
+	// case ChangeFilesMsg:
+	// // 异步加载文件列表
+	// m.SetFiles(msg.Files)
+	// case ChangePanMsg:
+	// // 异步加载 pan 信息
+	// m.pan = msg.Pan
+	// case ChangeUserMsg:
+	// // 异步加载 user 信息
+	// m.user = msg.User
+	// case ChangeMessageMsg:
+	// // 接收信息
+	// m.SetMessage(msg.Message)
+	// case tea.KeyMsg:
+	// switch {
+	// case key.Matches(msg, m.KeyMap.Delete):
+	// logger.Infof("do delete")
+	// case key.Matches(msg, m.KeyMap.Back):
+	// m.ChangeDir(filepath.Dir(m.Dir))
+	// case key.Matches(msg, m.KeyMap.Enter):
+	// selectFile, err := m.fileListModel.GetSelectFile()
+	// if err != nil {
+	// tea.Quit()
+	// return m, tea.Quit
+	// }
+	// if selectFile.IsDir() {
+	// m.ChangeDir(selectFile.Path)
+	// }
+	// }
+
+	// switch msg.String() {
+	// case "q", "ctrl+c":
+	// return m, tea.Quit
+	// }
+
+	// // 监听两个键位的组合键位
+	// switch {
+	// case m.MatcheKeys(msg, m.KeyMap.CopyPath):
+	// logger.Infof("复制文件地址")
+	// selectFile, err := m.GetSelectFile()
+	// if !m.IsLoadingFileList() && err == nil {
+	// clipboard.WriteAll(selectFile.Path)
+	// m.SetMessage(fmt.Sprintf("地址 '%s' 复制到剪切板中", selectFile.Path))
+	// } else {
+	// m.SetMessage("数据加载中，稍后再试...")
+	// }
+	// m.ClearLastKey()
+	// case m.MatcheKeys(msg, m.KeyMap.CopyDir):
+	// logger.Infof("复制当前目录")
+	// m.SetMessage(fmt.Sprintf("目录 '%s' 复制到剪切板中", m.Dir))
+	// m.ClearLastKey()
+	// case m.MatcheKeys(msg, m.KeyMap.CopyFilename):
+	// logger.Infof("复制文件名称")
+	// selectFile, err := m.GetSelectFile()
+	// if !m.IsLoadingFileList() && err == nil {
+	// filename := selectFile.GetFilename()
+	// clipboard.WriteAll(filename)
+	// m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", filename))
+	// } else {
+	// m.SetMessage("数据加载中，稍后再试...")
+	// }
+	// m.ClearLastKey()
+	// case m.MatcheKeys(msg, m.KeyMap.CopyFilenameWithoutExt):
+	// logger.Infof("复制文件名称不含扩展")
+	// selectFile, err := m.GetSelectFile()
+	// if !m.IsLoadingFileList() && err == nil {
+	// filename := selectFile.GetFilename()
+	// // 获取文件名（包含扩展名）
+	// baseName := filepath.Base(filename)
+	// // 获取扩展名
+	// ext := filepath.Ext(filename)
+	// // 获取文件名（不包含扩展名）
+	// fileNameWithoutExt := baseName[:len(baseName)-len(ext)]
+	// clipboard.WriteAll(fileNameWithoutExt)
+	// m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", fileNameWithoutExt))
+	// } else {
+	// m.SetMessage("数据加载中，稍后再试...")
+	// }
+	// m.ClearLastKey()
+	// default:
+	// // 监听不到组合键位才设置最后一个键位
+	// m.SetLastKey(msg)
+	// }
+	// }
+	logger.Infof("记录最后的键位是 %v", m.lastKey)
+	logger.Infof("BDPan Update time used %v ==================", time.Now().Sub(begin))
+	return m, cmd
+}
+
+func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
+	var flag bool = true
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -158,76 +267,96 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChangeMessageMsg:
 		// 接收信息
 		m.SetMessage(msg.Message)
+	}
+	return flag, cmd
+}
+
+func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
+	flag := true
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// 先做原始修改操作
+		if m.FileListModelIsNotNil() {
+			m.fileListModel, cmd = m.fileListModel.Update(msg)
+		}
+
 		switch {
-		case key.Matches(msg, m.KeyMap.Delete):
-			logger.Infof("do delete")
+		case key.Matches(msg, m.KeyMap.Exit):
+			// 退出程序
+			return true, tea.Quit
 		case key.Matches(msg, m.KeyMap.Back):
+			// 返回目录
 			m.ChangeDir(filepath.Dir(m.Dir))
 		case key.Matches(msg, m.KeyMap.Enter):
 			selectFile, err := m.fileListModel.GetSelectFile()
 			if err != nil {
-				tea.Quit()
-				return m, tea.Quit
+				return true, tea.Quit
 			}
 			if selectFile.IsDir() {
 				m.ChangeDir(selectFile.Path)
 			}
 		}
-
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		}
-
-		// 监听两个键位的组合键位
-		switch {
-		case m.MatcheKeys(msg, m.KeyMap.CopyPath):
-			logger.Infof("复制文件地址")
-			selectFile, err := m.GetSelectFile()
-			if !m.IsLoadingFileList() && err == nil {
-				clipboard.WriteAll(selectFile.Path)
-				m.SetMessage(fmt.Sprintf("地址 '%s' 复制到剪切板中", selectFile.Path))
-			} else {
-				m.SetMessage("数据加载中，稍后再试...")
-			}
-			m.ClearLastKey()
-		case m.MatcheKeys(msg, m.KeyMap.CopyFilename):
-			logger.Infof("复制文件名称")
-			selectFile, err := m.GetSelectFile()
-			if !m.IsLoadingFileList() && err == nil {
-				filename := selectFile.GetFilename()
-				clipboard.WriteAll(filename)
-				m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", filename))
-			} else {
-				m.SetMessage("数据加载中，稍后再试...")
-			}
-			m.ClearLastKey()
-		case m.MatcheKeys(msg, m.KeyMap.CopyFilenameWithoutExt):
-			logger.Infof("复制文件名称不含扩展")
-			selectFile, err := m.GetSelectFile()
-			if !m.IsLoadingFileList() && err == nil {
-				filename := selectFile.GetFilename()
-				// 获取文件名（包含扩展名）
-				baseName := filepath.Base(filename)
-				// 获取扩展名
-				ext := filepath.Ext(filename)
-				// 获取文件名（不包含扩展名）
-				fileNameWithoutExt := baseName[:len(baseName)-len(ext)]
-				clipboard.WriteAll(fileNameWithoutExt)
-				m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", fileNameWithoutExt))
-			} else {
-				m.SetMessage("数据加载中，稍后再试...")
-			}
-			m.ClearLastKey()
-		default:
-			// 监听不到组合键位才设置最后一个键位
-			m.SetLastKey(msg)
-		}
+	default:
+		flag = false
 	}
-	logger.Infof("记录最后的键位是 %v", m.lastKey)
-	logger.Infof("BDPan Update time used %v ==================", time.Now().Sub(begin))
-	return m, cmd
+	return flag, cmd
+}
+
+func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) bool {
+	// 监听两个键位的组合键位
+	flag := true
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if !m.MatcheKeys(msg, m.KeyMap.GetCombKeys()...) {
+			return false
+		}
+		switch {
+		case m.MatcheKeys(msg, m.KeyMap.GetCopyKeys()...):
+			// 监听复制键位
+			var copyText string
+			switch {
+			case m.MatcheKeys(msg, m.KeyMap.CopyPath):
+				logger.Infoln(m.KeyMap.CopyPath.Help().Desc)
+				selectFile, err := m.GetSelectFile()
+				if !m.IsLoadingFileList() && err == nil {
+					copyText = selectFile.Path
+				}
+			case m.MatcheKeys(msg, m.KeyMap.CopyDir):
+				logger.Infoln(m.KeyMap.CopyDir.Help().Desc)
+				copyText = m.Dir
+			case m.MatcheKeys(msg, m.KeyMap.CopyFilename):
+				logger.Infoln(m.KeyMap.CopyFilename.Help().Desc)
+				selectFile, err := m.GetSelectFile()
+				if !m.IsLoadingFileList() && err == nil {
+					copyText = selectFile.GetFilename()
+				}
+			case m.MatcheKeys(msg, m.KeyMap.CopyFilenameWithoutExt):
+				logger.Infoln(m.KeyMap.CopyFilenameWithoutExt.Help().Desc)
+				selectFile, err := m.GetSelectFile()
+				if !m.IsLoadingFileList() && err == nil {
+					filename := selectFile.GetFilename()
+					// 获取文件名（包含扩展名）
+					baseName := filepath.Base(filename)
+					// 获取扩展名
+					ext := filepath.Ext(filename)
+					// 获取文件名（不包含扩展名）
+					copyText = baseName[:len(baseName)-len(ext)]
+				}
+			}
+			if copyText != "" {
+				m.SetClipboardMessage(copyText)
+				clipboard.WriteAll(copyText)
+			}
+			if m.IsLoadingFileList() {
+				m.SetLoadingMessage()
+
+			}
+		}
+	default:
+		flag = false
+	}
+	return flag
 }
 
 func (m *BDPan) View() string {
@@ -553,6 +682,14 @@ func (m *BDPan) SetMessage(msg string) {
 	m.message = msg
 }
 
+func (m *BDPan) SetClipboardMessage(msg string) {
+	m.SetMessage(fmt.Sprintf("'%s' 复制到剪切板中", msg))
+}
+
+func (m *BDPan) SetLoadingMessage() {
+	m.SetMessage("数据加载中，稍后再试...")
+}
+
 func (m *BDPan) MessageIsNotNil() bool {
 	return m.message != ""
 }
@@ -594,44 +731,4 @@ func (m *BDPan) MatcheKeys(msg tea.KeyMsg, b ...key.Binding) bool {
 		}
 	}
 	return false
-}
-
-type KeyMap struct {
-	Enter  key.Binding
-	Back   key.Binding
-	Delete key.Binding
-
-	// 复制组合键位
-	CopyPath               key.Binding
-	CopyFilename           key.Binding
-	CopyFilenameWithoutExt key.Binding
-}
-
-func DefaultKeyMap() KeyMap {
-	return KeyMap{
-		Enter: key.NewBinding(
-			key.WithKeys("right", "l", "enter"),
-			key.WithHelp("right/l/enter", "确认/打开"),
-		),
-		Back: key.NewBinding(
-			key.WithKeys("left", "h"),
-			key.WithHelp("left/h", "退回"),
-		),
-		// Delete: key.NewBinding(
-		// key.WithKeys("d", "d"),
-		// key.WithHelp("dd", "删除"),
-		// ),
-		CopyPath: key.NewBinding(
-			key.WithKeys("cc"),
-			key.WithHelp("cc", "复制文件地址"),
-		),
-		CopyFilename: key.NewBinding(
-			key.WithKeys("cf"),
-			key.WithHelp("cf", "复制文件名称"),
-		),
-		CopyFilenameWithoutExt: key.NewBinding(
-			key.WithKeys("cn"),
-			key.WithHelp("cn", "复制文件名称不含扩展"),
-		),
-	}
 }
