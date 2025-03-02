@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -39,6 +40,10 @@ type ChangeUserMsg struct {
 	User *model.User
 }
 
+type ChangeMessageMsg struct {
+	Message string
+}
+
 func NewBDPan(dir string) (*BDPan, error) {
 	files, err := handler.GetFileHandler().GetFiles(dir, 1)
 	if err != nil {
@@ -46,11 +51,11 @@ func NewBDPan(dir string) (*BDPan, error) {
 	}
 
 	return &BDPan{
-		Dir: dir,
-		// useCache:    true,
-		files:       files,
-		filesMap:    make(map[string][]*model.File, 0),
-		tasks:       make([]*Task, 0),
+		Dir:      dir,
+		files:    files,
+		filesMap: make(map[string][]*model.File, 0),
+		tasks:    make([]*Task, 0),
+		// message:     "初始化",
 		fileHandler: handler.GetFileHandler(),
 		authHandler: handler.GetAuthHandler(),
 		KeyMap:      DefaultKeyMap(),
@@ -67,10 +72,12 @@ type BDPan struct {
 	tasks    []*Task
 	pan      *model.Pan
 	user     *model.User
-	KeyMap   KeyMap
+	message  string
+
+	KeyMap  KeyMap
+	lastKey *tea.KeyMsg
 
 	// state
-	// viewState         bool
 	fileListViewState bool
 
 	fileHandler *handler.FileHandler
@@ -121,7 +128,8 @@ func (m *BDPan) Init() tea.Cmd {
 }
 
 func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	logger.Infof("BDPan Update =================================")
+	begin := time.Now()
+	logger.Infof("BDPan Update begin ===========================")
 	var cmd tea.Cmd
 	// var err error
 	logger.Infof("Update by msg: %v", msg)
@@ -147,8 +155,13 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ChangeUserMsg:
 		// 异步加载 user 信息
 		m.user = msg.User
+	case ChangeMessageMsg:
+		// 接收信息
+		m.SetMessage(msg.Message)
 	case tea.KeyMsg:
 		switch {
+		case key.Matches(msg, m.KeyMap.Delete):
+			logger.Infof("do delete")
 		case key.Matches(msg, m.KeyMap.Back):
 			m.ChangeDir(filepath.Dir(m.Dir))
 		case key.Matches(msg, m.KeyMap.Enter):
@@ -161,26 +174,79 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.ChangeDir(selectFile.Path)
 			}
 		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
+
+		// 监听两个键位的组合键位
+		switch {
+		case m.MatcheKeys(msg, m.KeyMap.CopyPath):
+			logger.Infof("复制文件地址")
+			selectFile, err := m.GetSelectFile()
+			if !m.IsLoadingFileList() && err == nil {
+				clipboard.WriteAll(selectFile.Path)
+				m.SetMessage(fmt.Sprintf("地址 '%s' 复制到剪切板中", selectFile.Path))
+			} else {
+				m.SetMessage("数据加载中，稍后再试...")
+			}
+			m.ClearLastKey()
+		case m.MatcheKeys(msg, m.KeyMap.CopyFilename):
+			logger.Infof("复制文件名称")
+			selectFile, err := m.GetSelectFile()
+			if !m.IsLoadingFileList() && err == nil {
+				filename := selectFile.GetFilename()
+				clipboard.WriteAll(filename)
+				m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", filename))
+			} else {
+				m.SetMessage("数据加载中，稍后再试...")
+			}
+			m.ClearLastKey()
+		case m.MatcheKeys(msg, m.KeyMap.CopyFilenameWithoutExt):
+			logger.Infof("复制文件名称不含扩展")
+			selectFile, err := m.GetSelectFile()
+			if !m.IsLoadingFileList() && err == nil {
+				filename := selectFile.GetFilename()
+				// 获取文件名（包含扩展名）
+				baseName := filepath.Base(filename)
+				// 获取扩展名
+				ext := filepath.Ext(filename)
+				// 获取文件名（不包含扩展名）
+				fileNameWithoutExt := baseName[:len(baseName)-len(ext)]
+				clipboard.WriteAll(fileNameWithoutExt)
+				m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", fileNameWithoutExt))
+			} else {
+				m.SetMessage("数据加载中，稍后再试...")
+			}
+			m.ClearLastKey()
+		default:
+			// 监听不到组合键位才设置最后一个键位
+			m.SetLastKey(msg)
+		}
 	}
+	logger.Infof("记录最后的键位是 %v", m.lastKey)
+	logger.Infof("BDPan Update time used %v ==================", time.Now().Sub(begin))
 	return m, cmd
 }
 
 func (m *BDPan) View() string {
-	logger.Infof("BDPan View =================================")
+	begin := time.Now()
+	logger.Infof("BDPan View begin ===========================")
 	logger.Infof("Window size: %dx%d", m.width, m.height)
 
 	midView := m.GetMidView()
 
 	statusView := m.GetStatusView()
 
+	messageView := m.GetMessageView()
+
+	logger.Infof("BDPan View time used %v ====================", time.Now().Sub(begin))
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		midView,
 		statusView,
+		messageView,
 	)
 }
 
@@ -214,6 +280,23 @@ func (m *BDPan) GetMidView() string {
 		lipgloss.Top,
 		centerView,
 		rightView,
+	)
+}
+
+func (m *BDPan) GetMessageView() string {
+	commonStyle := lipgloss.
+		NewStyle().
+		Width(m.GetWidth() / 2)
+	confirmView := commonStyle.
+		Align(lipgloss.Left).
+		Render("确认")
+	messageView := commonStyle.
+		Align(lipgloss.Right).
+		Render(m.message)
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		confirmView,
+		messageView,
 	)
 }
 
@@ -413,7 +496,7 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 }
 
 func (m *BDPan) GetMidHeight() int {
-	height := m.GetHeight() - 2
+	height := m.GetHeight() - 1 - lipgloss.Height(m.GetMessageView())
 	logger.Infof("GetMidHeight %d", height)
 	return height
 }
@@ -465,10 +548,63 @@ func (m *BDPan) ChangeDir(dir string) {
 	}
 }
 
+// 设置消息
+func (m *BDPan) SetMessage(msg string) {
+	m.message = msg
+}
+
+func (m *BDPan) MessageIsNotNil() bool {
+	return m.message != ""
+}
+
+func (m *BDPan) GetSelectFile() (*model.File, error) {
+	if m.FileListModelIsNotNil() {
+		return m.fileListModel.GetSelectFile()
+	}
+	return nil, fmt.Errorf("not found select file")
+}
+
+func (m *BDPan) SetLastKey(msg tea.KeyMsg) *BDPan {
+	m.lastKey = &msg
+	return m
+}
+
+func (m *BDPan) ClearLastKey() *BDPan {
+	m.lastKey = nil
+	return m
+}
+
+func (m *BDPan) MatcheKeys(msg tea.KeyMsg, b ...key.Binding) bool {
+	curKey := msg.String()
+	lastKey := ""
+	if m.lastKey != nil {
+		lastKey = m.lastKey.String()
+	}
+	combKey := lastKey + curKey
+	for _, binding := range b {
+		for _, k := range binding.Keys() {
+			if binding.Enabled() {
+				if combKey == k {
+					return true
+				}
+				if curKey == k {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 type KeyMap struct {
 	Enter  key.Binding
 	Back   key.Binding
 	Delete key.Binding
+
+	// 复制组合键位
+	CopyPath               key.Binding
+	CopyFilename           key.Binding
+	CopyFilenameWithoutExt key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -481,9 +617,21 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("left", "h"),
 			key.WithHelp("left/h", "退回"),
 		),
-		Delete: key.NewBinding(
-			key.WithKeys("d"),
-			key.WithHelp("d", "删除"),
+		// Delete: key.NewBinding(
+		// key.WithKeys("d", "d"),
+		// key.WithHelp("dd", "删除"),
+		// ),
+		CopyPath: key.NewBinding(
+			key.WithKeys("cc"),
+			key.WithHelp("cc", "复制文件地址"),
+		),
+		CopyFilename: key.NewBinding(
+			key.WithKeys("cf"),
+			key.WithHelp("cf", "复制文件名称"),
+		),
+		CopyFilenameWithoutExt: key.NewBinding(
+			key.WithKeys("cn"),
+			key.WithHelp("cn", "复制文件名称不含扩展"),
 		),
 	}
 }

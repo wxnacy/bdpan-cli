@@ -1,6 +1,8 @@
 package terminal
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
@@ -18,6 +20,18 @@ type Terminal struct {
 	Path        string
 	fileHandler *handler.FileHandler
 	authHandler *handler.AuthHandler
+	p           *tea.Program
+}
+
+func (t *Terminal) Send(second int, send func() interface{}) {
+	now := time.Now().Second()
+	if now%second == 0 {
+		// logger.Infof("监听时间并执行发送消息任务 %d", now)
+		m := send()
+		if m != nil {
+			t.p.Send(m)
+		}
+	}
 }
 
 func (t *Terminal) Run() error {
@@ -29,30 +43,10 @@ func (t *Terminal) Run() error {
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
+	t.p = p
 	// logger.Infof("BDPan state %v", m.viewState)
 	go func() {
 		for {
-			// logger.Infof("开始异步刷新信息...")
-			// if !m.viewState {
-			// files, err := t.fileHandler.GetFiles(m.Dir, 1)
-			// if err != nil {
-			// panic(err)
-			// }
-			// pan, err := t.authHandler.GetPan()
-			// if err != nil {
-			// panic(err)
-			// }
-			// user, err := t.authHandler.GetUser()
-			// if err != nil {
-			// panic(err)
-			// }
-			// p.Send(NewInitMsg(
-			// files,
-			// pan,
-			// user,
-			// ))
-			// continue
-			// }
 			// 刷新文件列表
 			if m.IsLoadingFileList() || m.FileListModelIsNil() {
 				files, err := t.fileHandler.GetFiles(m.Dir, 1)
@@ -62,7 +56,6 @@ func (t *Terminal) Run() error {
 				p.Send(ChangeFilesMsg{
 					Files: files,
 				})
-				continue
 			}
 			// 初始化 pan 信息
 			if m.PanIsNil() {
@@ -71,7 +64,6 @@ func (t *Terminal) Run() error {
 					panic(err)
 				}
 				p.Send(ChangePanMsg{Pan: pan})
-				continue
 			}
 			// 初始化 user 信息
 			if m.UserIsNil() {
@@ -80,8 +72,20 @@ func (t *Terminal) Run() error {
 					panic(err)
 				}
 				p.Send(ChangeUserMsg{User: user})
-				continue
 			}
+
+			// 2 秒执行一次
+			// if time.Now().Second()%2 == 0 {
+			// if m.MessageIsNotNil() {
+			// p.Send(ChangeMessageMsg{Message: ""})
+			// }
+			// }
+			t.Send(5, func() interface{} {
+				if m.MessageIsNotNil() {
+					return ChangeMessageMsg{Message: ""}
+				}
+				return nil
+			})
 			// time.Sleep(time.Duration(10) * time.Second)
 			// logger.Infof("BDPan state %v", m.viewState)
 
