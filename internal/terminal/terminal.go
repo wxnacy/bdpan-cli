@@ -67,16 +67,16 @@ func (t *Terminal) listenRefreshFiles() {
 	}
 }
 
-func (t *Terminal) listenTasks() {
-	// 监听任务
-	for {
-		time.Sleep(time.Duration(1) * time.Second)
-		for _, task := range t.m.GetConfirmTasks() {
-			logger.Infof("监听到任务 %v", task)
-			// t.m.DoneTask(task)
-		}
-	}
-}
+// func (t *Terminal) listenTasks() {
+// // 监听任务
+// for {
+// time.Sleep(time.Duration(1) * time.Second)
+// for _, task := range t.m.GetConfirmTasks() {
+// logger.Infof("监听到任务 %v", task)
+// // t.m.DoneTask(task)
+// }
+// }
+// }
 
 func (t *Terminal) clearMessage() {
 	// 清理消息
@@ -111,9 +111,9 @@ func (t *Terminal) Run() error {
 	t.p = p
 	t.m = m
 
-	go t.refreshFiles()
-	go t.refreshPan()
-	go t.refreshUser()
+	// go t.refreshFiles()
+	// go t.refreshPan()
+	// go t.refreshUser()
 
 	// go t.listenRefreshFiles()
 

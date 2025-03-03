@@ -3,7 +3,6 @@ package terminal
 import (
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -11,90 +10,26 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/wxnacy/bdpan-cli/internal/common"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
+	wtea "github.com/wxnacy/bdpan-cli/pkg/whitetea"
 )
 
-type TaskType int
-type TaskStatus int
-
-const (
-	TypeDelete TaskType = iota
-	TypeDownload
-
-	StatusWating TaskStatus = iota
-	StatusRunning
-	StatusSuccess
-	StatusFailed
-)
-
-func NewTask(type_ TaskType, f *model.File) *Task {
-	idStr := fmt.Sprintf("%s%d", common.FormatNumberWithTrailingZeros(int(type_), 3), f.FSID)
-	id, _ := strconv.Atoi(idStr)
-	return &Task{
-		ID:     id,
-		File:   f,
-		Type:   type_,
-		Status: StatusWating,
-	}
+type RunTaskMsg struct {
+	Task *Task
 }
 
-type Task struct {
-	ID        int
-	File      *model.File
-	Type      TaskType
-	Status    TaskStatus
-	IsConfirm bool
-	err       error
-}
-
-func (t Task) GetTypeString() string {
-	switch t.Type {
-	case TypeDelete:
-		return "Delete"
-	case TypeDownload:
-		return "Download"
-	}
-	panic("unkown type")
-}
-
-func (t Task) GetStatusString() string {
-	switch t.Status {
-	case StatusWating:
-		return "Wating"
-	case StatusRunning:
-		return "Running"
-	case StatusSuccess:
-		return "Success"
-	case StatusFailed:
-		return "Failed"
-	}
-	panic("unkown status")
-}
-
-func (t Task) String() string {
-	err := ""
-	if t.err != nil {
-		err = t.err.Error()
-	}
-	return fmt.Sprintf(
-		"%s: %s %s %s",
-		t.GetTypeString(),
-		t.File.GetFilename(),
-		t.GetStatusString(),
-		err,
-	)
-}
-
-type GetFilesMsg struct {
+type GotoMsg struct {
 	Dir string
 }
 
 type ChangeFilesMsg struct {
 	Files []*model.File
 }
+
+type RefreshPanMsg struct{}
+type RefreshUserMsg struct{}
 
 type ChangePanMsg struct {
 	Pan *model.Pan
@@ -103,6 +38,8 @@ type ChangePanMsg struct {
 type ChangeUserMsg struct {
 	User *model.User
 }
+
+type MessageTimeoutMsg struct{}
 
 type ChangeMessageMsg struct {
 	Message string
@@ -120,9 +57,10 @@ func NewBDPan(dir string) (*BDPan, error) {
 		filesMap: make(map[string][]*model.File, 0),
 		taskMap:  make(map[int]*Task, 0),
 		// message:     "初始化",
-		fileHandler: handler.GetFileHandler(),
-		authHandler: handler.GetAuthHandler(),
-		KeyMap:      DefaultKeyMap(),
+		messageLifetime: time.Second,
+		fileHandler:     handler.GetFileHandler(),
+		authHandler:     handler.GetAuthHandler(),
+		KeyMap:          DefaultKeyMap(),
 	}, nil
 }
 
@@ -136,7 +74,11 @@ type BDPan struct {
 	taskMap  map[int]*Task
 	pan      *model.Pan
 	user     *model.User
-	message  string
+
+	// message
+	message         string
+	messageTimer    *time.Timer
+	messageLifetime time.Duration
 
 	// state
 	// 改变窗口尺寸
@@ -156,8 +98,12 @@ type BDPan struct {
 	fileListModel     *FileList
 	fileListViewState bool
 
+	// quick
+	quicks     []*model.Quick
+	quickModel *wtea.List
+
 	// confirm
-	confirmModel *Confirm
+	confirmModel *wtea.Confirm
 }
 
 func (m *BDPan) GetWidth() int {
@@ -189,21 +135,32 @@ func (m *BDPan) SetFiles(files []*model.File) {
 func (m *BDPan) Init() tea.Cmd {
 	begin := time.Now()
 	logger.Infof("BDPan Init begin ============================")
-	logger.Infof("Window size: %dx%d", m.width, m.height)
 
-	// m.viewState = true
+	// m.quicks = []*model.Quick{
+	// &model.Quick{
+
+	// },
+	// }
+
 	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
-	return tea.SetWindowTitle("bdpan")
+	return tea.Batch(
+		m.SendGoto(m.Dir),
+		m.SendRefreshPan(),
+		m.SendRefreshUser(),
+	)
 }
 
 func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	begin := time.Now()
 	logger.Infof("BDPan Update begin ===========================")
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	// var err error
 	logger.Infof("Update by msg: %v", msg)
 
-	if m.ListenCombKeyMsg(msg) {
+	flag, cmd := m.ListenCombKeyMsg(msg)
+	cmds = append(cmds, cmd)
+	if flag {
 		// 监听到组合键位后的操作
 		// 清理上一个key
 		m.ClearLastKey()
@@ -226,7 +183,8 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 	var flag bool = true
-	var cmd tea.Cmd
+	var cmds []tea.Cmd
+	// var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -235,27 +193,63 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		// 更改尺寸后,重新获取模型
 		// m.ChangeDir(m.Dir)
 		m.changeWindowSizeState = true
-	case GetFilesMsg:
+	case GotoMsg:
 		// 新获取文件列表
 		files, err := m.fileHandler.GetFiles(msg.Dir, 1)
 		if err != nil {
 			return false, tea.Quit
 		}
+		m.Dir = msg.Dir
 		m.SetFiles(files)
+	case RunTaskMsg:
+		// 运行任务
+		t := msg.Task
+
+		switch t.Type {
+		case TypeDelete:
+			_, err := m.fileHandler.DeleteFile(t.File.Path)
+			cmds = append(cmds, m.DoneTask(t, err))
+			if err == nil {
+				// 删除成功后刷新目录
+				cmds = append(cmds, m.SendGoto(m.Dir))
+			}
+
+		}
 	case ChangeFilesMsg:
 		// 异步加载文件列表
 		m.SetFiles(msg.Files)
+	case RefreshPanMsg:
+		// 刷新网盘信息
+		pan, err := m.authHandler.GetPan()
+		if err != nil {
+			return flag, tea.Quit
+		}
+		m.pan = pan
+	case RefreshUserMsg:
+		// 刷新用户信息
+		user, err := m.authHandler.GetUser()
+		if err != nil {
+			return flag, tea.Quit
+		}
+		m.user = user
 	case ChangePanMsg:
 		// 异步加载 pan 信息
 		m.pan = msg.Pan
 	case ChangeUserMsg:
 		// 异步加载 user 信息
 		m.user = msg.User
-	case ChangeMessageMsg:
-		// 接收信息
-		m.SetMessage(msg.Message)
+	// case ChangeMessageMsg:
+	// 接收信息
+	// m.SetMessage(msg.Message)
+	case MessageTimeoutMsg:
+		// 消息过期
+		m.message = ""
+		if m.messageTimer != nil {
+			m.messageTimer.Stop()
+		}
+
 	}
-	return flag, cmd
+	return flag, tea.Batch(cmds...)
 }
 
 func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
@@ -285,31 +279,25 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						return true, tea.Quit
 					}
 					task := m.AddDeleteTask(f)
-					m.confirmModel = NewConfirm("确认删除？").
+					m.confirmModel = wtea.NewConfirm("确认删除？").
 						Width(m.GetRightWidth()).
-						SetTask(task).
+						SetData(task).
 						Focus()
 				}
 
 			case key.Matches(msg, m.KeyMap.Refresh):
 				// 刷新目录
-				m.EnableLoadingFileList()
-				cmd = func() tea.Msg {
-					return GetFilesMsg{
-						Dir: m.Dir,
-					}
-				}
-				cmds = append(cmds, cmd)
+				cmds = append(cmds, m.SendGoto(m.Dir))
 			case key.Matches(msg, m.KeyMap.Back):
 				// 返回目录
-				m.ChangeDir(filepath.Dir(m.Dir))
+				cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
 			case key.Matches(msg, m.KeyMap.Enter):
 				selectFile, err := m.fileListModel.GetSelectFile()
 				if err != nil {
 					return true, tea.Quit
 				}
 				if selectFile.IsDir() {
-					m.ChangeDir(selectFile.Path)
+					cmds = append(cmds, m.Goto(selectFile.Path))
 				}
 			}
 		case m.confirmModel.Focused():
@@ -323,7 +311,8 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 
 				// 执行任务
 				if m.confirmModel.GetValue() {
-					go m.RunTask(m.confirmModel.task)
+					t := m.confirmModel.GetData().(*Task)
+					cmds = append(cmds, m.SendRunTask(t))
 				}
 			}
 		}
@@ -333,13 +322,15 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	return flag, tea.Batch(cmds...)
 }
 
-func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) bool {
+func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	// 监听两个键位的组合键位
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
 	flag := true
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if !m.MatcheKeys(msg, m.KeyMap.GetCombKeys()...) {
-			return false
+			return false, cmd
 		}
 		switch {
 		case m.MatcheKeys(msg, m.KeyMap.GetCopyKeys()...):
@@ -375,18 +366,25 @@ func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) bool {
 				}
 			}
 			if copyText != "" {
-				m.SetClipboardMessage(copyText)
+				// m.SetClipboardMessage(copyText)
 				clipboard.WriteAll(copyText)
+				cmds = append(cmds, m.SendClipboardMessage(copyText))
 			}
-			if m.IsLoadingFileList() {
-				m.SetLoadingMessage()
+			// if m.IsLoadingFileList() {
+			// m.SetLoadingMessage()
+			// }
+		case m.MatcheKeys(msg, m.KeyMap.GetGotoKeys()...):
+			// 监听 Goto 键位
+			switch {
+			case m.MatcheKeys(msg, m.KeyMap.GotoRoot):
+				cmds = append(cmds, m.SendGoto("/"))
+			}
 
-			}
 		}
 	default:
 		flag = false
 	}
-	return flag
+	return flag, tea.Batch(cmds...)
 }
 
 func (m *BDPan) View() string {
@@ -756,53 +754,35 @@ func (m *BDPan) GetConfirmTasks() []*Task {
 	return tasks
 }
 
-func (m *BDPan) RunTask(t *Task) {
-	t.Status = StatusRunning
-	m.SetMessage(t.String())
-
-	switch t.Type {
-	case TypeDelete:
-		_, err := m.fileHandler.DeleteFile(t.File.Path)
-		m.DoneTask(t, err)
-	}
-}
-
-func (m *BDPan) DoneTask(t *Task, err error) {
+func (m *BDPan) DoneTask(t *Task, err error) tea.Cmd {
 	t.Status = StatusSuccess
 	if err != nil {
 		t.Status = StatusFailed
 		t.err = err
 	}
 	delete(m.taskMap, t.ID)
-	m.SetMessage(t.String())
+	// m.SetMessage(t.String())
+	return m.SendMessage(t.String())
 }
 
-// func (m *BDPan) ConfirmBlur() *BDPan {
-// m.confirmFocused = false
-// m.confirmModel.Blur()
-// return m
-// }
-// func (m *BDPan) ConfirmFocus() *BDPan {
-// m.confirmFocused = true
-// m.confirmModel.Focus()
-// return m
-// }
-
 // 改变显示的目录
-func (m *BDPan) ChangeDir(dir string) {
+func (m *BDPan) Goto(dir string) tea.Cmd {
 	if m.IsLoadingFileList() {
-		m.SetLoadingMessage()
-		return
+		// m.SetLoadingMessage()
+		return m.SendLoadingMessage()
 	}
+
 	m.Dir = dir
 	files := m.getFiles(m.Dir)
 	if files == nil {
 		// 没有缓存时打开 Loading
 		m.EnableLoadingFileList()
+		return m.SendGoto(dir)
 	} else {
 		m.files = files
 		m.fileListModel = m.NewFileList(m.files)
 	}
+	return nil
 }
 
 // 设置消息
@@ -815,20 +795,69 @@ func (m *BDPan) SetMessage(msg string, args ...interface{}) {
 	logger.Infoln(m.message)
 }
 
-func (m *BDPan) SetClipboardMessage(msg string) {
-	m.SetMessage("'%s' 复制到剪切板中", msg)
-}
-
-func (m *BDPan) SetLoadingMessage() {
-	m.SetMessage("数据加载中，稍后再试...")
-}
-
 func (m *BDPan) SetSomeTaskMessage() {
 	m.SetMessage("相同任务已添加")
 }
 
 func (m *BDPan) MessageIsNotNil() bool {
 	return m.message != ""
+}
+
+func (m *BDPan) SendLoadingMessage() tea.Cmd {
+	return m.SendMessage("数据加载中，稍后再试...")
+}
+
+func (m *BDPan) SendClipboardMessage(msg string) tea.Cmd {
+	return m.SendMessage("'%s' 复制到剪切板中", msg)
+}
+
+func (m *BDPan) SendMessage(msg string, a ...any) tea.Cmd {
+	s := msg
+	if len(a) > 0 {
+		s = fmt.Sprintf(msg, a...)
+	}
+	m.message = s
+	if m.messageTimer != nil {
+		m.messageTimer.Stop()
+	}
+	m.messageTimer = time.NewTimer(m.messageLifetime)
+	return func() tea.Msg {
+		<-m.messageTimer.C
+		return MessageTimeoutMsg{}
+	}
+}
+
+func (m *BDPan) SendRunTask(t *Task) tea.Cmd {
+	t.Status = StatusRunning
+	return tea.Batch(
+		func() tea.Msg {
+			return RunTaskMsg{
+				Task: t,
+			}
+		},
+		m.SendMessage(t.String()),
+	)
+}
+
+func (m *BDPan) SendGoto(dir string) tea.Cmd {
+	m.EnableLoadingFileList()
+	return func() tea.Msg {
+		return GotoMsg{
+			Dir: dir,
+		}
+	}
+}
+
+func (m *BDPan) SendRefreshPan() tea.Cmd {
+	return func() tea.Msg {
+		return RefreshPanMsg{}
+	}
+}
+
+func (m *BDPan) SendRefreshUser() tea.Cmd {
+	return func() tea.Msg {
+		return RefreshUserMsg{}
+	}
 }
 
 func (m *BDPan) GetSelectFile() (*model.File, error) {

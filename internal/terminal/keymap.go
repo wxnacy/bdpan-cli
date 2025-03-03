@@ -16,6 +16,9 @@ type KeyMap struct {
 	CopyDir                key.Binding
 	CopyFilename           key.Binding
 	CopyFilenameWithoutExt key.Binding
+
+	// Goto 组合键位
+	GotoRoot key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -64,6 +67,11 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("cn"),
 			key.WithHelp("cn", "复制文件名称不含扩展"),
 		),
+
+		GotoRoot: key.NewBinding(
+			key.WithKeys("g/", "ctrl+c"),
+			key.WithHelp("q/", "Go to the Root dir"),
+		),
 	}
 }
 
@@ -79,5 +87,13 @@ func (k KeyMap) GetCopyKeys() []key.Binding {
 func (k KeyMap) GetCombKeys() []key.Binding {
 	bindings := make([]key.Binding, 0)
 	bindings = append(bindings, k.GetCopyKeys()...)
+	bindings = append(bindings, k.GetGotoKeys()...)
+	return bindings
+}
+
+func (k KeyMap) GetGotoKeys() []key.Binding {
+	bindings := []key.Binding{
+		k.GotoRoot,
+	}
 	return bindings
 }
