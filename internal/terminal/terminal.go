@@ -60,6 +60,34 @@ func (t *Terminal) refreshFiles() {
 	}
 }
 
+func (t *Terminal) listenRefreshFiles() {
+	// 监听刷新文件列表
+	for {
+		t.refreshFiles()
+	}
+}
+
+func (t *Terminal) listenTasks() {
+	// 监听任务
+	for {
+		time.Sleep(time.Duration(1) * time.Second)
+		for _, task := range t.m.GetConfirmTasks() {
+			logger.Infof("监听到任务 %v", task)
+			// t.m.DoneTask(task)
+		}
+	}
+}
+
+func (t *Terminal) clearMessage() {
+	// 清理消息
+	for {
+		time.Sleep(time.Duration(2) * time.Second)
+		if t.m.MessageIsNotNil() {
+			t.p.Send(ChangeMessageMsg{Message: ""})
+		}
+	}
+}
+
 func (t *Terminal) refreshUser() {
 	// 初始化 user 信息
 	if t.m.UserIsNil() {
@@ -87,23 +115,11 @@ func (t *Terminal) Run() error {
 	go t.refreshPan()
 	go t.refreshUser()
 
-	go func() {
-		for {
-			t.refreshFiles()
-			// 5 秒执行一次
-			t.Send(5, func() interface{} {
-				if m.MessageIsNotNil() {
-					return ChangeMessageMsg{Message: ""}
-				}
-				return nil
-			})
-			// time.Sleep(time.Duration(10) * time.Second)
-			// logger.Infof("BDPan state %v", m.viewState)
+	// go t.listenRefreshFiles()
 
-			// panInfo, _ := t.authHandler.GetPanInfo()
-			// p.Send(panInfo)
-		}
-	}()
+	// go t.listenTasks()
+
+	// go t.clearMessage()
 
 	if _, err := p.Run(); err != nil {
 		return err

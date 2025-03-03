@@ -65,6 +65,10 @@ func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
 	return totalList, nil
 }
 
+func (h *FileHandler) DeleteFile(path string) (*bdpan.ManageFileRes, error) {
+	return bdpan.DeleteFile(h.acceccToken, path)
+}
+
 func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 	fmt.Printf("查找文件地址: %s\n", req.Path)
 	f, err := h.GetFileByPath(req.Path)

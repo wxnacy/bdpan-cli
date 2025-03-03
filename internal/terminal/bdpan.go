@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -10,22 +11,81 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wxnacy/bdpan-cli/internal/common"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 )
 
 type TaskType int
+type TaskStatus int
 
 const (
-	TaskDelete TaskType = iota
-	TaskDownload
+	TypeDelete TaskType = iota
+	TypeDownload
+
+	StatusWating TaskStatus = iota
+	StatusRunning
+	StatusSuccess
+	StatusFailed
 )
 
+func NewTask(type_ TaskType, f *model.File) *Task {
+	idStr := fmt.Sprintf("%s%d", common.FormatNumberWithTrailingZeros(int(type_), 3), f.FSID)
+	id, _ := strconv.Atoi(idStr)
+	return &Task{
+		ID:     id,
+		File:   f,
+		Type:   type_,
+		Status: StatusWating,
+	}
+}
+
 type Task struct {
-	FSID uint64
-	Path string
-	Type TaskType
+	ID        int
+	File      *model.File
+	Type      TaskType
+	Status    TaskStatus
+	IsConfirm bool
+	err       error
+}
+
+func (t Task) GetTypeString() string {
+	switch t.Type {
+	case TypeDelete:
+		return "Delete"
+	case TypeDownload:
+		return "Download"
+	}
+	panic("unkown type")
+}
+
+func (t Task) GetStatusString() string {
+	switch t.Status {
+	case StatusWating:
+		return "Wating"
+	case StatusRunning:
+		return "Running"
+	case StatusSuccess:
+		return "Success"
+	case StatusFailed:
+		return "Failed"
+	}
+	panic("unkown status")
+}
+
+func (t Task) String() string {
+	err := ""
+	if t.err != nil {
+		err = t.err.Error()
+	}
+	return fmt.Sprintf(
+		"%s: %s %s %s",
+		t.GetTypeString(),
+		t.File.GetFilename(),
+		t.GetStatusString(),
+		err,
+	)
 }
 
 type ChangeFilesMsg struct {
@@ -54,7 +114,7 @@ func NewBDPan(dir string) (*BDPan, error) {
 		Dir:      dir,
 		files:    files,
 		filesMap: make(map[string][]*model.File, 0),
-		tasks:    make([]*Task, 0),
+		taskMap:  make(map[int]*Task, 0),
 		// message:     "初始化",
 		fileHandler: handler.GetFileHandler(),
 		authHandler: handler.GetAuthHandler(),
@@ -69,10 +129,14 @@ type BDPan struct {
 	// useCache bool
 	files    []*model.File
 	filesMap map[string][]*model.File
-	tasks    []*Task
+	taskMap  map[int]*Task
 	pan      *model.Pan
 	user     *model.User
 	message  string
+
+	// state
+	// 改变窗口尺寸
+	changeWindowSizeState bool
 
 	KeyMap  KeyMap
 	lastKey *tea.KeyMsg
@@ -165,7 +229,8 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		m.height = msg.Height
 
 		// 更改尺寸后,重新获取模型
-		m.ChangeDir(m.Dir)
+		// m.ChangeDir(m.Dir)
+		m.changeWindowSizeState = true
 	case ChangeFilesMsg:
 		// 异步加载文件列表
 		m.SetFiles(msg.Files)
@@ -201,8 +266,17 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			case key.Matches(msg, m.KeyMap.Delete):
 				// 删除
 				m.fileListModel.Blur()
-				m.confirmModel = NewConfirm("确认删除？").
-					Width(m.GetRightWidth()).Focus()
+				if m.FileListModelIsNotNil() {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					task := m.AddDeleteTask(f)
+					m.confirmModel = NewConfirm("确认删除？").
+						Width(m.GetRightWidth()).
+						SetTask(task).
+						Focus()
+				}
 
 			case key.Matches(msg, m.KeyMap.Back):
 				// 返回目录
@@ -222,6 +296,11 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				m.confirmModel, cmd = m.confirmModel.Update(msg)
 				if !m.confirmModel.Focused() {
 					m.fileListModel.Focus()
+				}
+
+				// 执行任务
+				if m.confirmModel.GetValue() {
+					go m.RunTask(m.confirmModel.task)
 				}
 			}
 		}
@@ -318,6 +397,11 @@ func (m *BDPan) View() string {
 
 func (m *BDPan) GetFileListView() string {
 	if !m.IsLoadingFileList() && m.FileListModelIsNotNil() {
+		// 尺寸改变重新加载
+		if m.changeWindowSizeState {
+			m.fileListModel = m.NewFileList(m.files)
+			m.changeWindowSizeState = false
+		}
 		fileListView := m.fileListModel.View()
 		logger.Infof("FileListView height %d", lipgloss.Height(fileListView))
 		return fileListView
@@ -367,16 +451,17 @@ func (m *BDPan) GetMidView() string {
 func (m *BDPan) GetMessageView() string {
 	commonStyle := lipgloss.
 		NewStyle().
-		Width(m.GetWidth() / 2)
-	confirmView := commonStyle.
-		Align(lipgloss.Left).
-		Render("确认")
+		Width(m.GetWidth())
+		// Width(m.GetWidth() / 2)
+	// confirmView := commonStyle.
+	// Align(lipgloss.Left).
+	// Render("确认")
 	messageView := commonStyle.
-		Align(lipgloss.Right).
+		Align(lipgloss.Left).
 		Render(m.message)
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
-		confirmView,
+		// confirmView,
 		messageView,
 	)
 }
@@ -627,6 +712,48 @@ func (m *BDPan) ConfirmFocused() bool {
 	return m.confirmModel != nil && m.confirmModel.Focused()
 }
 
+func (m *BDPan) AddDeleteTask(f *model.File) *Task {
+	task := NewTask(TypeDelete, f)
+	_, exists := m.taskMap[task.ID]
+	if exists {
+		m.SetSomeTaskMessage()
+	} else {
+		m.taskMap[task.ID] = task
+	}
+	return task
+}
+
+func (m *BDPan) GetConfirmTasks() []*Task {
+	tasks := make([]*Task, 0)
+	for _, t := range m.taskMap {
+		if t.IsConfirm {
+			tasks = append(tasks, t)
+		}
+	}
+	return tasks
+}
+
+func (m *BDPan) RunTask(t *Task) {
+	t.Status = StatusRunning
+	m.SetMessage(t.String())
+
+	switch t.Type {
+	case TypeDelete:
+		_, err := m.fileHandler.DeleteFile(t.File.Path)
+		m.DoneTask(t, err)
+	}
+}
+
+func (m *BDPan) DoneTask(t *Task, err error) {
+	t.Status = StatusSuccess
+	if err != nil {
+		t.Status = StatusFailed
+		t.err = err
+	}
+	delete(m.taskMap, t.ID)
+	m.SetMessage(t.String())
+}
+
 // func (m *BDPan) ConfirmBlur() *BDPan {
 // m.confirmFocused = false
 // m.confirmModel.Blur()
@@ -640,6 +767,10 @@ func (m *BDPan) ConfirmFocused() bool {
 
 // 改变显示的目录
 func (m *BDPan) ChangeDir(dir string) {
+	if m.IsLoadingFileList() {
+		m.SetLoadingMessage()
+		return
+	}
 	m.Dir = dir
 	files := m.getFiles(m.Dir)
 	if files == nil {
@@ -652,16 +783,25 @@ func (m *BDPan) ChangeDir(dir string) {
 }
 
 // 设置消息
-func (m *BDPan) SetMessage(msg string) {
-	m.message = msg
+func (m *BDPan) SetMessage(msg string, args ...interface{}) {
+	if len(args) == 0 {
+		m.message = msg
+	} else {
+		m.message = fmt.Sprintf(msg, args...)
+	}
+	logger.Infoln(m.message)
 }
 
 func (m *BDPan) SetClipboardMessage(msg string) {
-	m.SetMessage(fmt.Sprintf("'%s' 复制到剪切板中", msg))
+	m.SetMessage("'%s' 复制到剪切板中", msg)
 }
 
 func (m *BDPan) SetLoadingMessage() {
 	m.SetMessage("数据加载中，稍后再试...")
+}
+
+func (m *BDPan) SetSomeTaskMessage() {
+	m.SetMessage("相同任务已添加")
 }
 
 func (m *BDPan) MessageIsNotNil() bool {
