@@ -44,22 +44,36 @@ func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {
 	m.model, cmd = m.model.Update(msg)
 	logger.Infof("光标移动后的对象: %v", m.model.SelectedRow())
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc":
-			if m.model.Focused() {
-				m.model.Blur()
-			} else {
-				m.model.Focus()
-			}
-		}
-	}
+	// switch msg := msg.(type) {
+	// case tea.KeyMsg:
+	// switch msg.String() {
+	// case "esc":
+	// if m.model.Focused() {
+	// m.model.Blur()
+	// } else {
+	// m.model.Focus()
+	// }
+	// }
+	// }
 	return m, cmd
 }
 
 func (m FileList) View() string {
 	return baseStyle.Render(m.model.View())
+}
+
+func (m *FileList) Focus() *FileList {
+	m.model.Focus()
+	return m
+}
+
+func (m *FileList) Blur() *FileList {
+	m.model.Blur()
+	return m
+}
+
+func (m FileList) Focused() bool {
+	return m.model.Focused()
 }
 
 func NewFileList(files []*model.File, width, height int) *FileList {

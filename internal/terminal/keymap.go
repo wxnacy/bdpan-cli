@@ -8,6 +8,8 @@ type KeyMap struct {
 	Delete  key.Binding
 	Refresh key.Binding
 	Exit    key.Binding
+	Right   key.Binding
+	Left    key.Binding
 
 	// 复制组合键位
 	CopyPath               key.Binding
@@ -26,6 +28,14 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("right", "l", "enter"),
 			key.WithHelp("right/l/enter", "确认/打开"),
 		),
+		Right: key.NewBinding(
+			key.WithKeys("right", "l"),
+			key.WithHelp("right/l", "向右"),
+		),
+		Left: key.NewBinding(
+			key.WithKeys("left", "h"),
+			key.WithHelp("left/h", "向左"),
+		),
 		Back: key.NewBinding(
 			key.WithKeys("left", "h"),
 			key.WithHelp("left/h", "退回"),
@@ -34,10 +44,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("R"),
 			key.WithHelp("R", "刷新当前目录"),
 		),
-		// Delete: key.NewBinding(
-		// key.WithKeys("d", "d"),
-		// key.WithHelp("dd", "删除"),
-		// ),
+		Delete: key.NewBinding(
+			key.WithKeys("D"),
+			key.WithHelp("D", "删除"),
+		),
 		CopyDir: key.NewBinding(
 			key.WithKeys("cd"),
 			key.WithHelp("cd", "复制当前目录"),

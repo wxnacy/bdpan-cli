@@ -77,9 +77,6 @@ type BDPan struct {
 	KeyMap  KeyMap
 	lastKey *tea.KeyMsg
 
-	// state
-	fileListViewState bool
-
 	fileHandler *handler.FileHandler
 	authHandler *handler.AuthHandler
 
@@ -87,8 +84,12 @@ type BDPan struct {
 	width  int
 	height int
 
-	// model
-	fileListModel *FileList
+	// filelist
+	fileListModel     *FileList
+	fileListViewState bool
+
+	// confirm
+	confirmModel *Confirm
 }
 
 func (m *BDPan) GetWidth() int {
@@ -150,96 +151,6 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// switch msg := msg.(type) {
-	// case tea.WindowSizeMsg:
-	// m.width = msg.Width
-	// m.height = msg.Height
-
-	// // 更改尺寸后,重新获取模型
-	// m.ChangeDir(m.Dir)
-	// case ChangeFilesMsg:
-	// // 异步加载文件列表
-	// m.SetFiles(msg.Files)
-	// case ChangePanMsg:
-	// // 异步加载 pan 信息
-	// m.pan = msg.Pan
-	// case ChangeUserMsg:
-	// // 异步加载 user 信息
-	// m.user = msg.User
-	// case ChangeMessageMsg:
-	// // 接收信息
-	// m.SetMessage(msg.Message)
-	// case tea.KeyMsg:
-	// switch {
-	// case key.Matches(msg, m.KeyMap.Delete):
-	// logger.Infof("do delete")
-	// case key.Matches(msg, m.KeyMap.Back):
-	// m.ChangeDir(filepath.Dir(m.Dir))
-	// case key.Matches(msg, m.KeyMap.Enter):
-	// selectFile, err := m.fileListModel.GetSelectFile()
-	// if err != nil {
-	// tea.Quit()
-	// return m, tea.Quit
-	// }
-	// if selectFile.IsDir() {
-	// m.ChangeDir(selectFile.Path)
-	// }
-	// }
-
-	// switch msg.String() {
-	// case "q", "ctrl+c":
-	// return m, tea.Quit
-	// }
-
-	// // 监听两个键位的组合键位
-	// switch {
-	// case m.MatcheKeys(msg, m.KeyMap.CopyPath):
-	// logger.Infof("复制文件地址")
-	// selectFile, err := m.GetSelectFile()
-	// if !m.IsLoadingFileList() && err == nil {
-	// clipboard.WriteAll(selectFile.Path)
-	// m.SetMessage(fmt.Sprintf("地址 '%s' 复制到剪切板中", selectFile.Path))
-	// } else {
-	// m.SetMessage("数据加载中，稍后再试...")
-	// }
-	// m.ClearLastKey()
-	// case m.MatcheKeys(msg, m.KeyMap.CopyDir):
-	// logger.Infof("复制当前目录")
-	// m.SetMessage(fmt.Sprintf("目录 '%s' 复制到剪切板中", m.Dir))
-	// m.ClearLastKey()
-	// case m.MatcheKeys(msg, m.KeyMap.CopyFilename):
-	// logger.Infof("复制文件名称")
-	// selectFile, err := m.GetSelectFile()
-	// if !m.IsLoadingFileList() && err == nil {
-	// filename := selectFile.GetFilename()
-	// clipboard.WriteAll(filename)
-	// m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", filename))
-	// } else {
-	// m.SetMessage("数据加载中，稍后再试...")
-	// }
-	// m.ClearLastKey()
-	// case m.MatcheKeys(msg, m.KeyMap.CopyFilenameWithoutExt):
-	// logger.Infof("复制文件名称不含扩展")
-	// selectFile, err := m.GetSelectFile()
-	// if !m.IsLoadingFileList() && err == nil {
-	// filename := selectFile.GetFilename()
-	// // 获取文件名（包含扩展名）
-	// baseName := filepath.Base(filename)
-	// // 获取扩展名
-	// ext := filepath.Ext(filename)
-	// // 获取文件名（不包含扩展名）
-	// fileNameWithoutExt := baseName[:len(baseName)-len(ext)]
-	// clipboard.WriteAll(fileNameWithoutExt)
-	// m.SetMessage(fmt.Sprintf("文件名 '%s' 复制到剪切板中", fileNameWithoutExt))
-	// } else {
-	// m.SetMessage("数据加载中，稍后再试...")
-	// }
-	// m.ClearLastKey()
-	// default:
-	// // 监听不到组合键位才设置最后一个键位
-	// m.SetLastKey(msg)
-	// }
-	// }
 	logger.Infof("记录最后的键位是 %v", m.lastKey)
 	logger.Infof("BDPan Update time used %v ==================", time.Now().Sub(begin))
 	return m, cmd
@@ -276,25 +187,42 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// 先做原始修改操作
-		if m.FileListModelIsNotNil() {
-			m.fileListModel, cmd = m.fileListModel.Update(msg)
-		}
-
 		switch {
 		case key.Matches(msg, m.KeyMap.Exit):
 			// 退出程序
 			return true, tea.Quit
-		case key.Matches(msg, m.KeyMap.Back):
-			// 返回目录
-			m.ChangeDir(filepath.Dir(m.Dir))
-		case key.Matches(msg, m.KeyMap.Enter):
-			selectFile, err := m.fileListModel.GetSelectFile()
-			if err != nil {
-				return true, tea.Quit
+		case m.fileListModel.Focused():
+			// 光标聚焦在文件列表中
+			// 先做原始修改操作
+			if m.FileListModelIsNotNil() {
+				m.fileListModel, cmd = m.fileListModel.Update(msg)
 			}
-			if selectFile.IsDir() {
-				m.ChangeDir(selectFile.Path)
+			switch {
+			case key.Matches(msg, m.KeyMap.Delete):
+				// 删除
+				m.fileListModel.Blur()
+				m.confirmModel = NewConfirm("确认删除？").
+					Width(m.GetRightWidth()).Focus()
+
+			case key.Matches(msg, m.KeyMap.Back):
+				// 返回目录
+				m.ChangeDir(filepath.Dir(m.Dir))
+			case key.Matches(msg, m.KeyMap.Enter):
+				selectFile, err := m.fileListModel.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				if selectFile.IsDir() {
+					m.ChangeDir(selectFile.Path)
+				}
+			}
+		case m.confirmModel.Focused():
+			// 光标聚焦在确认框中
+			if m.confirmModel != nil {
+				m.confirmModel, cmd = m.confirmModel.Update(msg)
+				if !m.confirmModel.Focused() {
+					m.fileListModel.Focus()
+				}
 			}
 		}
 	default:
@@ -370,13 +298,22 @@ func (m *BDPan) View() string {
 
 	messageView := m.GetMessageView()
 
-	logger.Infof("BDPan View time used %v ====================", time.Now().Sub(begin))
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
+	views := []string{
 		midView,
+	}
+
+	views = append(
+		views,
 		statusView,
 		messageView,
 	)
+
+	logger.Infof("BDPan View time used %v ====================", time.Now().Sub(begin))
+	view := lipgloss.JoinVertical(
+		lipgloss.Top,
+		views...,
+	)
+	return view
 }
 
 func (m *BDPan) GetFileListView() string {
@@ -389,21 +326,36 @@ func (m *BDPan) GetFileListView() string {
 	}
 }
 
+func (m *BDPan) GetConfirmView() string {
+	// return baseStyle.Width(60).Render(m.confirmModel.View())
+	return m.confirmModel.View()
+}
+
 func (m *BDPan) GetMidView() string {
 
 	// filelist
 	centerView := m.GetFileListView()
 
 	// fileinfo
-	rightView := m.GetFileInfoView(nil)
+	fileinfoView := m.GetFileInfoView(nil)
 	if m.FileListModelIsNotNil() {
 		f, err := m.fileListModel.GetSelectFile()
 		if err != nil {
 			tea.Quit()
 			return ""
 		}
-		rightView = m.GetFileInfoView(f)
+		fileinfoView = m.GetFileInfoView(f)
 	}
+
+	rightViews := []string{fileinfoView}
+	if m.ConfirmFocused() {
+		rightViews = append(rightViews, m.GetConfirmView())
+	}
+
+	rightView := lipgloss.JoinVertical(
+		lipgloss.Top,
+		rightViews...,
+	)
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -603,6 +555,9 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 	lastBeforeH := lipgloss.Height(strings.Join(lines, "\n"))
 	logger.Infof("lastBeforeH %d", lastBeforeH)
 	lastH := m.GetMidHeight() - lastBeforeH - 2
+	if m.ConfirmFocused() {
+		lastH -= lipgloss.Height(m.GetConfirmView())
+	}
 
 	lines = append(lines, lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -628,6 +583,10 @@ func (m *BDPan) GetMidHeight() int {
 	height := m.GetHeight() - 1 - lipgloss.Height(m.GetMessageView())
 	logger.Infof("GetMidHeight %d", height)
 	return height
+}
+
+func (m *BDPan) GetRightWidth() int {
+	return 60
 }
 
 func (m *BDPan) NewFileList(files []*model.File) *FileList {
@@ -663,6 +622,21 @@ func (m *BDPan) FileListModelIsNotNil() bool {
 func (m *BDPan) FileListModelIsNil() bool {
 	return m.fileListModel == nil
 }
+
+func (m *BDPan) ConfirmFocused() bool {
+	return m.confirmModel != nil && m.confirmModel.Focused()
+}
+
+// func (m *BDPan) ConfirmBlur() *BDPan {
+// m.confirmFocused = false
+// m.confirmModel.Blur()
+// return m
+// }
+// func (m *BDPan) ConfirmFocus() *BDPan {
+// m.confirmFocused = true
+// m.confirmModel.Focus()
+// return m
+// }
 
 // 改变显示的目录
 func (m *BDPan) ChangeDir(dir string) {

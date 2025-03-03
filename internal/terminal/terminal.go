@@ -20,7 +20,9 @@ type Terminal struct {
 	Path        string
 	fileHandler *handler.FileHandler
 	authHandler *handler.AuthHandler
-	p           *tea.Program
+
+	p *tea.Program
+	m *BDPan
 }
 
 func (t *Terminal) Send(second int, send func() interface{}) {
@@ -34,6 +36,41 @@ func (t *Terminal) Send(second int, send func() interface{}) {
 	}
 }
 
+func (t *Terminal) refreshPan() {
+	// 初始化 pan 信息
+	if t.m.PanIsNil() {
+		pan, err := t.authHandler.GetPan()
+		if err != nil {
+			panic(err)
+		}
+		t.p.Send(ChangePanMsg{Pan: pan})
+	}
+}
+
+func (t *Terminal) refreshFiles() {
+	// 刷新文件列表
+	if t.m.IsLoadingFileList() || t.m.FileListModelIsNil() {
+		files, err := t.fileHandler.GetFiles(t.m.Dir, 1)
+		if err != nil {
+			panic(err)
+		}
+		t.p.Send(ChangeFilesMsg{
+			Files: files,
+		})
+	}
+}
+
+func (t *Terminal) refreshUser() {
+	// 初始化 user 信息
+	if t.m.UserIsNil() {
+		user, err := t.authHandler.GetUser()
+		if err != nil {
+			panic(err)
+		}
+		t.p.Send(ChangeUserMsg{User: user})
+	}
+}
+
 func (t *Terminal) Run() error {
 	logger.Infof("")
 	logger.Infof("BDPan Terminal begin ================================")
@@ -44,42 +81,16 @@ func (t *Terminal) Run() error {
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	t.p = p
-	// logger.Infof("BDPan state %v", m.viewState)
+	t.m = m
+
+	go t.refreshFiles()
+	go t.refreshPan()
+	go t.refreshUser()
+
 	go func() {
 		for {
-			// 刷新文件列表
-			if m.IsLoadingFileList() || m.FileListModelIsNil() {
-				files, err := t.fileHandler.GetFiles(m.Dir, 1)
-				if err != nil {
-					panic(err)
-				}
-				p.Send(ChangeFilesMsg{
-					Files: files,
-				})
-			}
-			// 初始化 pan 信息
-			if m.PanIsNil() {
-				pan, err := t.authHandler.GetPan()
-				if err != nil {
-					panic(err)
-				}
-				p.Send(ChangePanMsg{Pan: pan})
-			}
-			// 初始化 user 信息
-			if m.UserIsNil() {
-				user, err := t.authHandler.GetUser()
-				if err != nil {
-					panic(err)
-				}
-				p.Send(ChangeUserMsg{User: user})
-			}
-
-			// 2 秒执行一次
-			// if time.Now().Second()%2 == 0 {
-			// if m.MessageIsNotNil() {
-			// p.Send(ChangeMessageMsg{Message: ""})
-			// }
-			// }
+			t.refreshFiles()
+			// 5 秒执行一次
 			t.Send(5, func() interface{} {
 				if m.MessageIsNotNil() {
 					return ChangeMessageMsg{Message: ""}

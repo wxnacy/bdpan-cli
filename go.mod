@@ -73,6 +73,9 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
+	github.com/muesli/clusters v0.0.0-20200529215643-2700303c1762 // indirect
+	github.com/muesli/gamut v0.3.1 // indirect
+	github.com/muesli/kmeans v0.3.1 // indirect
 	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a // indirect
 	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
@@ -94,6 +97,7 @@ require (
 	github.com/wxnacy/go-pretty v0.0.1 // indirect
 	github.com/wxnacy/go-tasker v0.0.6 // indirect
 	github.com/wxnacy/gotool v0.0.5 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
