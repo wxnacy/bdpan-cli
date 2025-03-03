@@ -88,6 +88,10 @@ func (t Task) String() string {
 	)
 }
 
+type GetFilesMsg struct {
+	Dir string
+}
+
 type ChangeFilesMsg struct {
 	Files []*model.File
 }
@@ -231,6 +235,13 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		// 更改尺寸后,重新获取模型
 		// m.ChangeDir(m.Dir)
 		m.changeWindowSizeState = true
+	case GetFilesMsg:
+		// 新获取文件列表
+		files, err := m.fileHandler.GetFiles(msg.Dir, 1)
+		if err != nil {
+			return false, tea.Quit
+		}
+		m.SetFiles(files)
 	case ChangeFilesMsg:
 		// 异步加载文件列表
 		m.SetFiles(msg.Files)
@@ -249,6 +260,7 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 
 func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	flag := true
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -261,6 +273,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			// 先做原始修改操作
 			if m.FileListModelIsNotNil() {
 				m.fileListModel, cmd = m.fileListModel.Update(msg)
+				cmds = append(cmds, cmd)
 			}
 			switch {
 			case key.Matches(msg, m.KeyMap.Delete):
@@ -278,6 +291,15 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						Focus()
 				}
 
+			case key.Matches(msg, m.KeyMap.Refresh):
+				// 刷新目录
+				m.EnableLoadingFileList()
+				cmd = func() tea.Msg {
+					return GetFilesMsg{
+						Dir: m.Dir,
+					}
+				}
+				cmds = append(cmds, cmd)
 			case key.Matches(msg, m.KeyMap.Back):
 				// 返回目录
 				m.ChangeDir(filepath.Dir(m.Dir))
@@ -294,6 +316,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			// 光标聚焦在确认框中
 			if m.confirmModel != nil {
 				m.confirmModel, cmd = m.confirmModel.Update(msg)
+				cmds = append(cmds, cmd)
 				if !m.confirmModel.Focused() {
 					m.fileListModel.Focus()
 				}
@@ -307,7 +330,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	default:
 		flag = false
 	}
-	return flag, cmd
+	return flag, tea.Batch(cmds...)
 }
 
 func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) bool {

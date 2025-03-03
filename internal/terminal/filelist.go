@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,8 +17,9 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 type FileList struct {
-	model table.Model
-	files []*model.File
+	model  table.Model
+	files  []*model.File
+	keymap FileListKeyMap
 }
 
 func (m *FileList) GetSelectFile() (*model.File, error) {
@@ -60,6 +62,59 @@ func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {
 
 func (m FileList) View() string {
 	return baseStyle.Render(m.model.View())
+}
+
+func (m *FileList) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
+	flag := true
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keymap.Exit):
+			// 退出程序
+			return true, tea.Quit
+			// case key.Matches(msg, m.keymap.Refresh):
+			// 刷新列表
+			// return true, tea.Quit
+			// case m.fileListModel.Focused():
+			// // 光标聚焦在文件列表中
+			// // 先做原始修改操作
+			// if m.FileListModelIsNotNil() {
+			// m.fileListModel, cmd = m.fileListModel.Update(msg)
+			// }
+			// switch {
+			// case key.Matches(msg, m.KeyMap.Delete):
+			// // 删除
+			// m.fileListModel.Blur()
+			// if m.FileListModelIsNotNil() {
+			// f, err := m.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// task := m.AddDeleteTask(f)
+			// m.confirmModel = NewConfirm("确认删除？").
+			// Width(m.GetRightWidth()).
+			// SetTask(task).
+			// Focus()
+			// }
+
+			// case key.Matches(msg, m.KeyMap.Back):
+			// // 返回目录
+			// m.ChangeDir(filepath.Dir(m.Dir))
+			// case key.Matches(msg, m.KeyMap.Enter):
+			// selectFile, err := m.fileListModel.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// if selectFile.IsDir() {
+			// m.ChangeDir(selectFile.Path)
+			// }
+			// }
+		}
+	default:
+		flag = false
+	}
+	return flag, cmd
 }
 
 func (m *FileList) Focus() *FileList {
@@ -127,7 +182,88 @@ func NewFileList(files []*model.File, width, height int) *FileList {
 	t.SetStyles(s)
 
 	return &FileList{
-		model: t,
-		files: files,
+		model:  t,
+		files:  files,
+		keymap: DefaultFileListKeyMap(),
 	}
+}
+
+type FileListKeyMap struct {
+	Enter   key.Binding
+	Back    key.Binding
+	Delete  key.Binding
+	Refresh key.Binding
+	Exit    key.Binding
+	Right   key.Binding
+	Left    key.Binding
+
+	// 复制组合键位
+	CopyPath               key.Binding
+	CopyDir                key.Binding
+	CopyFilename           key.Binding
+	CopyFilenameWithoutExt key.Binding
+}
+
+func DefaultFileListKeyMap() FileListKeyMap {
+	return FileListKeyMap{
+		Exit: key.NewBinding(
+			key.WithKeys("q", "ctrl+c"),
+			key.WithHelp("q/ctrl+c", "退出"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("right", "l", "enter"),
+			key.WithHelp("right/l/enter", "确认/打开"),
+		),
+		Right: key.NewBinding(
+			key.WithKeys("right", "l"),
+			key.WithHelp("right/l", "向右"),
+		),
+		Left: key.NewBinding(
+			key.WithKeys("left", "h"),
+			key.WithHelp("left/h", "向左"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("left", "h"),
+			key.WithHelp("left/h", "退回"),
+		),
+		Refresh: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "刷新当前目录"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("D"),
+			key.WithHelp("D", "删除"),
+		),
+		CopyDir: key.NewBinding(
+			key.WithKeys("cd"),
+			key.WithHelp("cd", "复制当前目录"),
+		),
+		CopyPath: key.NewBinding(
+			key.WithKeys("cc"),
+			key.WithHelp("cc", "复制文件地址"),
+		),
+		CopyFilename: key.NewBinding(
+			key.WithKeys("cf"),
+			key.WithHelp("cf", "复制文件名称"),
+		),
+		CopyFilenameWithoutExt: key.NewBinding(
+			key.WithKeys("cn"),
+			key.WithHelp("cn", "复制文件名称不含扩展"),
+		),
+	}
+}
+
+func (k FileListKeyMap) GetCopyKeys() []key.Binding {
+	return []key.Binding{
+		k.CopyDir,
+		k.CopyPath,
+		k.CopyFilename,
+		k.CopyFilenameWithoutExt,
+	}
+}
+
+func (k FileListKeyMap) GetCombKeys() []key.Binding {
+	bindings := make([]key.Binding, 0)
+	bindings = append(bindings, k.GetCopyKeys()...)
+	return bindings
 }
