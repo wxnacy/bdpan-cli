@@ -46,7 +46,7 @@ type ChangeMessageMsg struct {
 }
 
 func NewBDPan(dir string) (*BDPan, error) {
-	files, err := handler.GetFileHandler().GetFiles(dir, 1)
+	files, err := handler.GetFileHandler().GetFilesFromDBOrReal(dir, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +100,7 @@ type BDPan struct {
 
 	// quick
 	quicks     []*model.Quick
+	quickKeys  []key.Binding
 	quickModel *wtea.List
 
 	// confirm
@@ -107,17 +108,21 @@ type BDPan struct {
 }
 
 func (m *BDPan) GetWidth() int {
+	var w = 100
 	if m.width > 0 {
-		return m.width
+		w = m.width
 	}
-	return 100
+	// logger.Infof("View Window Width %d", w)
+	return w
 }
 
 func (m *BDPan) GetHeight() int {
+	var h = 20
 	if m.height > 0 {
-		return m.height
+		h = m.height
 	}
-	return 20
+	// logger.Infof("View Window Height %d", h)
+	return h
 }
 
 func (m *BDPan) getFiles(dir string) []*model.File {
@@ -132,15 +137,59 @@ func (m *BDPan) SetFiles(files []*model.File) {
 	m.DisableLoadingFileList()
 }
 
+func (m *BDPan) GetQuickKeys() []key.Binding {
+	return m.quickKeys
+}
+func (m *BDPan) GetQuickByKeyStr(k string) *model.Quick {
+	for _, v := range m.quicks {
+		if k == v.Key {
+			return v
+		}
+	}
+	return nil
+}
+
+func (m *BDPan) SetQuicks(q []*model.Quick) {
+	m.quicks = q
+	keys := make([]key.Binding, 0)
+	for _, quick := range q {
+		k := "g" + quick.Key
+		keys = append(keys, key.NewBinding(
+			key.WithKeys(k),
+			key.WithHelp(k, fmt.Sprintf("Go to the %s", quick.Path)),
+		))
+	}
+	m.quickKeys = keys
+	m.quickModel = wtea.NewList("快速访问", model.ToList(m.quicks), baseStyle)
+}
+
 func (m *BDPan) Init() tea.Cmd {
 	begin := time.Now()
 	logger.Infof("BDPan Init begin ============================")
 
-	// m.quicks = []*model.Quick{
-	// &model.Quick{
-
-	// },
-	// }
+	m.quicks = []*model.Quick{
+		{
+			Filename: "我的应用数据",
+			Path:     "/apps",
+			Key:      "1",
+		},
+		{
+			Filename: "国产剧",
+			Path:     "/1视频/2电视剧/国产剧",
+			Key:      "m",
+		},
+		{
+			Filename: "bdpan",
+			Path:     "/apps/bdpan",
+			Key:      "b",
+		},
+		{
+			Filename: "bdpan",
+			Path:     "/apps/bdpan",
+			Key:      "b",
+		},
+	}
+	m.SetQuicks(m.quicks)
 
 	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
 	return tea.Batch(
@@ -193,6 +242,12 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		// 更改尺寸后,重新获取模型
 		// m.ChangeDir(m.Dir)
 		m.changeWindowSizeState = true
+		m.quickModel.
+			Width(m.GetLeftWidth()).
+			Height(m.GetMidHeight())
+		quickModel, cmd := m.quickModel.Update(msg)
+		cmds = append(cmds, cmd)
+		m.quickModel = quickModel.(*wtea.List)
 	case GotoMsg:
 		// 新获取文件列表
 		files, err := m.fileHandler.GetFiles(msg.Dir, 1)
@@ -201,6 +256,12 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		}
 		m.Dir = msg.Dir
 		m.SetFiles(files)
+		// 定位快速访问
+		for i, v := range m.quicks {
+			if v.Path == m.Dir {
+				m.quickModel.SetSelect(i)
+			}
+		}
 	case RunTaskMsg:
 		// 运行任务
 		t := msg.Task
@@ -279,7 +340,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						return true, tea.Quit
 					}
 					task := m.AddDeleteTask(f)
-					m.confirmModel = wtea.NewConfirm("确认删除？").
+					m.confirmModel = wtea.NewConfirm("确认删除？", baseStyle).
 						Width(m.GetRightWidth()).
 						SetData(task).
 						Focus()
@@ -329,7 +390,7 @@ func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	flag := true
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if !m.MatcheKeys(msg, m.KeyMap.GetCombKeys()...) {
+		if !m.MatcheKeys(msg, m.KeyMap.GetCombKeys(m.GetQuickKeys())...) {
 			return false, cmd
 		}
 		switch {
@@ -366,20 +427,31 @@ func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				}
 			}
 			if copyText != "" {
-				// m.SetClipboardMessage(copyText)
 				clipboard.WriteAll(copyText)
 				cmds = append(cmds, m.SendClipboardMessage(copyText))
 			}
-			// if m.IsLoadingFileList() {
-			// m.SetLoadingMessage()
-			// }
-		case m.MatcheKeys(msg, m.KeyMap.GetGotoKeys()...):
+			if m.IsLoadingFileList() {
+				cmds = append(cmds, m.SendLoadingMessage())
+			}
+		case m.MatcheKeys(msg, m.KeyMap.GetGotoKeys(m.GetQuickKeys())...):
 			// 监听 Goto 键位
+			var gotoDir string
 			switch {
 			case m.MatcheKeys(msg, m.KeyMap.GotoRoot):
-				cmds = append(cmds, m.SendGoto("/"))
+				gotoDir = "/"
+			default:
+				q := m.GetQuickByKeyStr(msg.String())
+				if q != nil {
+					gotoDir = q.Path
+				}
 			}
-
+			if gotoDir != "" {
+				cmds = append(
+					cmds,
+					m.Goto(gotoDir),
+					m.SendMessage("快速跳转 %s", gotoDir),
+				)
+			}
 		}
 	default:
 		flag = false
@@ -423,23 +495,35 @@ func (m *BDPan) GetFileListView() string {
 			m.fileListModel = m.NewFileList(m.files)
 			m.changeWindowSizeState = false
 		}
-		fileListView := m.fileListModel.View()
-		logger.Infof("FileListView height %d", lipgloss.Height(fileListView))
-		return fileListView
+		return m.fileListModel.View()
 	} else {
 		return m.NewFileList(nil).View()
 	}
 }
 
 func (m *BDPan) GetConfirmView() string {
-	// return baseStyle.Width(60).Render(m.confirmModel.View())
 	return m.confirmModel.View()
+}
+
+func (m *BDPan) GetDirView() string {
+	return baseStyle.Width(m.GetMidWidth()-2).Render("当前目录", m.Dir)
+}
+
+func (m *BDPan) GetCenterView() string {
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		m.GetDirView(),
+		m.GetFileListView(),
+	)
 }
 
 func (m *BDPan) GetMidView() string {
 
+	// quick
+	leftView := m.quickModel.View()
+
 	// filelist
-	centerView := m.GetFileListView()
+	centerView := m.GetCenterView()
 
 	// fileinfo
 	fileinfoView := m.GetFileInfoView(nil)
@@ -464,6 +548,7 @@ func (m *BDPan) GetMidView() string {
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
+		leftView,
 		centerView,
 		rightView,
 	)
@@ -554,6 +639,10 @@ func (m *BDPan) GetStatusView() string {
 
 func (m *BDPan) GetFileInfoView(f *model.File) string {
 
+	var leftW = 10
+	// 2 是边框的长度
+	var rightW = m.GetRightWidth() - leftW - 2
+
 	leftStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
@@ -564,7 +653,8 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 		// Margin(1, 3, 0, 0).
 		Padding(0, 1).
 		Height(1).
-		Width(10)
+		Width(leftW)
+
 	rightStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240")).
@@ -575,7 +665,7 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 		// Margin(1, 3, 0, 0).
 		Padding(0, 1).
 		Height(1).
-		Width(50)
+		Width(rightW)
 
 	lines := make([]string, 0)
 	lines = append(lines, lipgloss.JoinHorizontal(
@@ -677,26 +767,45 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 			Render(""),
 	))
 
-	res := lipgloss.JoinVertical(
+	var view = lipgloss.JoinVertical(
 		lipgloss.Top,
 		lines...,
 	)
-	return res
+	var viewW, viewH int
+	viewW, viewH = lipgloss.Size(view)
+	logger.Infof("FileInfoView Full Size %dx%d", viewW, viewH)
+	return view
 
+}
+
+func (m *BDPan) GetMidWidth() int {
+	w := m.GetWidth() / 2
+	logger.Infof("View GetMidWidth %d", w)
+	return w
 }
 
 func (m *BDPan) GetMidHeight() int {
 	height := m.GetHeight() - 1 - lipgloss.Height(m.GetMessageView())
-	logger.Infof("GetMidHeight %d", height)
+	logger.Infof("View GetMidHeight %d", height)
 	return height
 }
 
+func (m *BDPan) GetLeftWidth() int {
+	var w = int(float32(m.GetWidth()) * 0.16)
+	logger.Infof("View GetLeftWidth %d", w)
+	return w
+}
+
 func (m *BDPan) GetRightWidth() int {
-	return 60
+	// 1 是因为 Left 会多出一个长度
+	var w = m.GetWidth() - m.GetMidWidth() - m.GetLeftWidth() - 1
+	logger.Infof("View GetRightWidth %d", w)
+	return w
 }
 
 func (m *BDPan) NewFileList(files []*model.File) *FileList {
-	return NewFileList(files, m.GetWidth()/2, m.GetMidHeight())
+	var h = m.GetMidHeight() - lipgloss.Height(m.GetDirView())
+	return NewFileList(files, m.GetMidWidth(), h)
 }
 
 func (m *BDPan) EnableLoadingFileList() *BDPan {
@@ -839,6 +948,8 @@ func (m *BDPan) SendRunTask(t *Task) tea.Cmd {
 	)
 }
 
+// 发送跳转目录的命令
+// 实时获取最新结果
 func (m *BDPan) SendGoto(dir string) tea.Cmd {
 	m.EnableLoadingFileList()
 	return func() tea.Msg {

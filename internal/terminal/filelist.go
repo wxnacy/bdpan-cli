@@ -16,6 +16,18 @@ var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
+func GetBaseStyleWidth() int {
+	return 2
+}
+func GetBaseStyleHeight() int {
+	return 2
+}
+
+var (
+	baseStyleWidth  int
+	baseStyleHeight int
+)
+
 type FileList struct {
 	model  table.Model
 	files  []*model.File
@@ -61,7 +73,15 @@ func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {
 }
 
 func (m FileList) View() string {
-	return baseStyle.Render(m.model.View())
+	var view string
+	var viewW, viewH int
+	view = m.model.View()
+	viewW, viewH = lipgloss.Size(view)
+	logger.Infof("FileListView Table Size %dx%d", viewW, viewH)
+	view = baseStyle.Render(view)
+	viewW, viewH = lipgloss.Size(view)
+	logger.Infof("FileListView Full Size %dx%d", viewW, viewH)
+	return view
 }
 
 func (m *FileList) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
@@ -132,12 +152,17 @@ func (m FileList) Focused() bool {
 }
 
 func NewFileList(files []*model.File, width, height int) *FileList {
+	var sizeW int = 10
+	var typeW int = 10
+	var timeW int = 20
+	// 8 是为了和传进来的width保持一致设定的数字
+	var filenameW int = width - sizeW - typeW - timeW - GetBaseStyleWidth() - 8
 	columns := []table.Column{
 		{Title: "FSID", Width: 0},
-		{Title: "文件名", Width: width - 10 - 10 - 20},
-		{Title: "大小", Width: 10},
-		{Title: "类型", Width: 10},
-		{Title: "修改时间", Width: 20},
+		{Title: "文件名", Width: filenameW},
+		{Title: "大小", Width: sizeW},
+		{Title: "类型", Width: typeW},
+		{Title: "修改时间", Width: timeW},
 	}
 
 	rows := make([]table.Row, 0)

@@ -69,8 +69,8 @@ func DefaultKeyMap() KeyMap {
 		),
 
 		GotoRoot: key.NewBinding(
-			key.WithKeys("g/", "ctrl+c"),
-			key.WithHelp("q/", "Go to the Root dir"),
+			key.WithKeys("g/"),
+			key.WithHelp("g/", "Go to the Root dir"),
 		),
 	}
 }
@@ -84,16 +84,20 @@ func (k KeyMap) GetCopyKeys() []key.Binding {
 	}
 }
 
-func (k KeyMap) GetCombKeys() []key.Binding {
+func (k KeyMap) GetCombKeys(keys []key.Binding) []key.Binding {
 	bindings := make([]key.Binding, 0)
 	bindings = append(bindings, k.GetCopyKeys()...)
-	bindings = append(bindings, k.GetGotoKeys()...)
+	bindings = append(bindings, k.GetGotoKeys(nil)...)
+	bindings = append(bindings, keys...)
 	return bindings
 }
 
-func (k KeyMap) GetGotoKeys() []key.Binding {
+func (k KeyMap) GetGotoKeys(keys []key.Binding) []key.Binding {
 	bindings := []key.Binding{
 		k.GotoRoot,
+	}
+	if keys != nil {
+		bindings = append(bindings, keys...)
 	}
 	return bindings
 }

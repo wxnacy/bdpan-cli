@@ -107,6 +107,8 @@ func (t *Terminal) Run() error {
 		return err
 	}
 
+	logger.Infof("View base left size %d", baseStyle.GetBorderLeftSize())
+
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	t.p = p
 	t.m = m

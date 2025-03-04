@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"path/filepath"
 	"reflect"
 
 	"github.com/wxnacy/go-bdpan"
@@ -33,6 +34,7 @@ func NewFile(f *bdpan.FileInfo) *File {
 		ID:             f.FSID,
 		FSID:           f.FSID,
 		Path:           f.Path,
+		Dir:            filepath.Dir(f.Path),
 		Size:           f.Size,
 		FileType:       f.FileType,
 		Filename:       f.Filename,
@@ -56,6 +58,7 @@ type File struct {
 	ID              uint64 `gorm:"primaryKey;"`
 	FSID            uint64 `json:"fs_id" gorm:"column:fs_id"`
 	Path            string `json:"path"`
+	Dir             string `json:"dir"`
 	Size            int    `json:"size"`
 	FileType        int    `json:"isdir" gorm:"column:is_dir"`
 	Filename        string `json:"filename"`
@@ -124,6 +127,18 @@ func FindFirstByPath(path string) *File {
 	var file *File
 	GetDB().Where("path = ?", path).First(&file)
 	return file.Fill()
+}
+
+func FindFilesByDir(dir string, page int) []*File {
+	var files []*File
+	GetDB().Where(
+		"dir = ?",
+		dir,
+	).Find(&files)
+	for _, v := range files {
+		v.Fill()
+	}
+	return files
 }
 
 func FindFilesPrefixPath(path string, isDir bool) []*File {

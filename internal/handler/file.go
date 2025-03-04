@@ -42,6 +42,21 @@ func (h *FileHandler) GetFiles(dir string, page int) ([]*model.File, error) {
 	return model.NewFiles(res.List), nil
 }
 
+func (h *FileHandler) GetFilesFromDBOrReal(dir string, page int) ([]*model.File, error) {
+	var err error
+	files := model.FindFilesByDir(dir, page)
+	if len(files) == 0 {
+		files, err = h.GetFiles(dir, page)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range files {
+			model.Save(v)
+		}
+	}
+	return files, nil
+}
+
 func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
 	req := bdpan.NewGetFileListReq()
 	req.Dir = dir

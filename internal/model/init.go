@@ -67,6 +67,7 @@ func InitSqlite() {
 	// 初始化表格
 	begin := time.Now()
 	db.AutoMigrate(&File{})
+	db.AutoMigrate(&Quick{})
 	log.Debugf("DB AutoMigrate time used %v", time.Now().Sub(begin))
 }
 
