@@ -31,6 +31,7 @@ type GotoMsg struct {
 
 type RefreshPanMsg struct{}
 type RefreshUserMsg struct{}
+type RefreshQuickMsg struct{}
 
 type ChangeFilesMsg struct {
 	Files []*model.File
@@ -50,12 +51,20 @@ func NewBDPan(dir string) (*BDPan, error) {
 		return nil, err
 	}
 
+	quicks := []*model.Quick{
+		{
+			Filename: "我的应用数据",
+			Path:     "/apps",
+			Key:      "1",
+		},
+	}
+
 	return &BDPan{
-		Dir:      dir,
-		files:    files,
-		filesMap: make(map[string][]*model.File, 0),
-		taskMap:  make(map[int]*Task, 0),
-		// message:     "初始化",
+		Dir:             dir,
+		files:           files,
+		filesMap:        make(map[string][]*model.File, 0),
+		taskMap:         make(map[int]*Task, 0),
+		quicks:          quicks,
 		messageLifetime: time.Second,
 		fileHandler:     handler.GetFileHandler(),
 		authHandler:     handler.GetAuthHandler(),
@@ -77,7 +86,7 @@ type BDPan struct {
 	// message
 	message         string
 	messageTimer    *time.Timer
-	messageLifetime time.Duration
+	messageLifetime time.Duration // 消息生命周期
 
 	// state
 	// 改变窗口尺寸
@@ -129,11 +138,13 @@ func (m *BDPan) getFiles(dir string) []*model.File {
 	return files
 }
 
-func (m *BDPan) SetFiles(files []*model.File) {
+func (m *BDPan) SetFiles(files []*model.File) *BDPan {
 	m.files = files
 	m.filesMap[m.Dir] = files
 	m.fileListModel = m.NewFileList(m.files)
 	m.DisableLoadingFileList()
+	m.RefreshQuickSelect()
+	return m
 }
 
 func (m *BDPan) GetQuickKeys() []key.Binding {
@@ -147,57 +158,54 @@ func (m *BDPan) GetQuickByKeyStr(k string) *model.Quick {
 	}
 	return nil
 }
+func (m *BDPan) GetQuickByPath(p string) *model.Quick {
+	for _, v := range m.quicks {
+		if p == v.Path {
+			return v
+		}
+	}
+	return nil
+}
 func (m *BDPan) SetQuicks(q []*model.Quick) {
-	m.quicks = q
+	if q != nil && len(q) > 0 {
+		m.quicks = q
+	}
 	keys := make([]key.Binding, 0)
 	for _, quick := range q {
-		k := "g" + quick.Key
-		keys = append(keys, key.NewBinding(
-			key.WithKeys(k),
-			key.WithHelp(k, fmt.Sprintf("Go to the %s", quick.Path)),
-		))
+		if quick.Key != "" {
+			k := "g" + quick.Key
+			keys = append(keys, key.NewBinding(
+				key.WithKeys(k),
+				key.WithHelp(k, fmt.Sprintf("Go to the %s", quick.Path)),
+			))
+		}
 	}
 	m.quickKeys = keys
-	m.quickModel = NewQuick("快速访问", m.quicks, baseStyle)
+	m.quickModel = NewQuick("快速访问", m.quicks, baseStyle).
+		Width(m.GetLeftWidth()).
+		Height(m.GetMidHeight())
 }
-
-// func (m *BDPan) QuickFocus() *BDPan{
-// m.fileListModel
-// return m
-// }
+func (m *BDPan) RefreshQuickSelect() *BDPan {
+	// 定位快速访问
+	for i, v := range m.quicks {
+		if v.Path == m.Dir {
+			m.quickModel.Select(i)
+		}
+	}
+	return m
+}
 
 func (m *BDPan) Init() tea.Cmd {
 	begin := time.Now()
 	logger.Infof("BDPan Init begin ============================")
 
-	m.quicks = []*model.Quick{
-		{
-			Filename: "我的应用数据",
-			Path:     "/apps",
-			Key:      "1",
-		},
-		{
-			Filename: "国产剧",
-			Path:     "/1视频/2电视剧/国产剧",
-			Key:      "m",
-		},
-		{
-			Filename: "bdpan",
-			Path:     "/apps/bdpan",
-			Key:      "b",
-		},
-		{
-			Filename: "牛津树绘本1-9级",
-			Path:     "/教育/心心英语资料/牛津树绘本1-9级",
-			Key:      "y",
-		},
-	}
 	m.SetQuicks(m.quicks)
 
 	m.confirmModel = wtea.NewConfirm("", baseFocusStyle)
 
 	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
 	return tea.Batch(
+		m.SendRefreshQuick(),
 		m.SendGoto(m.Dir),
 		m.SendRefreshPan(),
 		m.SendRefreshUser(),
@@ -262,12 +270,6 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		}
 		m.Dir = msg.Dir
 		m.SetFiles(files)
-		// 定位快速访问
-		for i, v := range m.quicks {
-			if v.Path == m.Dir {
-				m.quickModel.Select(i)
-			}
-		}
 	case ShowConfirmMsg:
 		// 展示确认框
 		// m.confirmModel = wtea.NewConfirm(msg.Title, baseFocusStyle).
@@ -311,6 +313,10 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			return flag, tea.Quit
 		}
 		m.user = user
+	case RefreshQuickMsg:
+		// 刷新快速访问
+		quicks := model.FindItems[model.Quick]()
+		m.SetQuicks(quicks)
 	case ChangePanMsg:
 		// 异步加载 pan 信息
 		m.pan = msg.Pan
@@ -389,7 +395,29 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						cmds = append(cmds, cmd)
 					}
 				}
+			case key.Matches(msg, m.fileListModel.GetKeyMap().AddQuick):
+				// 添加快速访问
+				if m.CanSelectFile() {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					if f.IsDir() {
+						q := m.GetQuickByPath(f.Path)
+						if q != nil {
+							cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
+						} else {
+							q := f.ToQuick()
+							model.Save(q)
+							cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
+						}
+
+					} else {
+						cmds = append(cmds, m.SendMessage("文件不支持添加快速访问"))
+					}
+				}
 			}
+
 		case m.ConfirmFocused():
 			// 光标聚焦在确认框中
 			if m.confirmModel != nil {
@@ -957,8 +985,7 @@ func (m *BDPan) Goto(dir string) tea.Cmd {
 		m.EnableLoadingFileList()
 		return m.SendGoto(dir)
 	} else {
-		m.files = files
-		m.fileListModel = m.NewFileList(m.files)
+		m.SetFiles(files)
 	}
 	return nil
 }
@@ -1035,6 +1062,12 @@ func (m *BDPan) SendGoto(dir string) tea.Cmd {
 		return GotoMsg{
 			Dir: dir,
 		}
+	}
+}
+
+func (m *BDPan) SendRefreshQuick() tea.Cmd {
+	return func() tea.Msg {
+		return RefreshQuickMsg{}
 	}
 }
 

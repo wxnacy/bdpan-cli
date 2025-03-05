@@ -40,7 +40,7 @@ func (m *Quick) Update(msg tea.Msg) (*Quick, tea.Cmd) {
 			_h = m.height
 		}
 		logger.Infof("View List WindowSize %dx%d", _w, _h)
-		m.model.SetSize(_w-3, _h-3)
+		m.Width(_w).Height(_h)
 	}
 
 	var cmd tea.Cmd
@@ -81,16 +81,18 @@ func (m *Quick) GetSelect() *model.Quick {
 
 func (m *Quick) Width(w int) *Quick {
 	m.width = w
+	m.model.SetWidth(w - 3)
+	return m
+}
+
+func (m *Quick) Height(h int) *Quick {
+	m.height = h
+	m.model.SetHeight(h - 3)
 	return m
 }
 
 func (m *Quick) GetKeyMap() QuickKeyMap {
 	return m.keymap
-}
-
-func (m *Quick) Height(h int) *Quick {
-	m.height = h
-	return m
 }
 
 func (m *Quick) Focused() bool {

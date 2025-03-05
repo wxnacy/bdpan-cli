@@ -11,14 +11,18 @@ type Quick struct {
 	Filename string `json:"filename"`
 	Path     string `json:"path"`
 	Key      string `json:"key"`
+	ORMModel
 }
 
-func (Quick) TableName() string     { return "quick" }
-func (q Quick) Title() string       { return q.Filename }
+func (Quick) TableName() string { return "quick" }
+func (q Quick) Title() string {
+	var text = fmt.Sprintf("%s\tKey: g%s", q.Filename, q.Key)
+	return text
+}
 func (q Quick) FilterValue() string { return q.Filename }
 func (q Quick) Description() string {
-	var desc = fmt.Sprintf("%s:%s", q.Key, q.Path)
-	return desc
+	// var desc = fmt.Sprintf("%s%s", q.Key, q.Path)
+	return q.Path
 }
 
 func ToList(items []*Quick) []list.Item {

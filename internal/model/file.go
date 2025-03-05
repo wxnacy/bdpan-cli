@@ -99,6 +99,16 @@ func (f *File) Fill() *File {
 	return f
 }
 
+func (f *File) ToQuick() *Quick {
+	q := &Quick{
+		ID:       f.FSID,
+		Filename: f.GetFilename(),
+		Path:     f.Path,
+	}
+	q.Init()
+	return q
+}
+
 func (f *File) Save() *gorm.DB {
 	return GetDB().Save(f)
 }
