@@ -11,6 +11,10 @@ type KeyMap struct {
 	Right   key.Binding
 	Left    key.Binding
 
+	// Pane
+	MovePaneLeft  key.Binding
+	MovePaneRight key.Binding
+
 	// 复制组合键位
 	CopyPath               key.Binding
 	CopyDir                key.Binding
@@ -51,6 +55,16 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("D"),
 			key.WithHelp("D", "删除"),
 		),
+
+		MovePaneLeft: key.NewBinding(
+			key.WithKeys("ctrl+h"),
+			key.WithHelp("ctrl+h", "跳转左侧面板"),
+		),
+		MovePaneRight: key.NewBinding(
+			key.WithKeys("ctrl+l"),
+			key.WithHelp("ctrl+l", "跳转右侧面板"),
+		),
+
 		CopyDir: key.NewBinding(
 			key.WithKeys("cd"),
 			key.WithHelp("cd", "复制当前目录"),

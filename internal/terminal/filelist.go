@@ -157,6 +157,12 @@ func (m FileList) Focused() bool {
 	return m.model.Focused()
 }
 
+func (m *FileList) Size(w, h int) *FileList {
+	m.model.SetWidth(w)
+	m.model.SetHeight(h)
+	return m
+}
+
 func NewFileList(files []*model.File, width, height int) *FileList {
 	var sizeW int = 10
 	var typeW int = 10

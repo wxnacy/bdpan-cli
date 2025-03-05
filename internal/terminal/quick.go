@@ -3,6 +3,7 @@ package terminal
 import (
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -14,13 +15,15 @@ type Quick struct {
 	model         list.Model
 	width, height int
 	baseStyle     lipgloss.Style
+	keymap        QuickKeyMap
+	focus         bool
 }
 
 func (m Quick) Init() tea.Cmd {
 	return nil
 }
 
-func (m *Quick) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Quick) Update(msg tea.Msg) (*Quick, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
@@ -51,7 +54,11 @@ func (m Quick) View() string {
 	var view = m.model.View()
 	viewW, viewH = lipgloss.Size(view)
 	logger.Infof("ListView Size %dx%d", viewW, viewH)
-	view = m.baseStyle.Render(view)
+	if m.Focused() {
+		view = baseFocusStyle.Render(view)
+	} else {
+		view = baseStyle.Render(view)
+	}
 	viewW, viewH = lipgloss.Size(view)
 	logger.Infof("ListView Full Size %dx%d", viewW, viewH)
 	logger.Infof("ListView time used %v", time.Now().Sub(begin))
@@ -63,9 +70,13 @@ func (m *Quick) SetItems(items []list.Item) *Quick {
 	return m
 }
 
-func (m *Quick) SetSelect(i int) *Quick {
+func (m *Quick) Select(i int) *Quick {
 	m.model.Select(i)
 	return m
+}
+
+func (m *Quick) GetSelect() *model.Quick {
+	return m.model.SelectedItem().(*model.Quick)
 }
 
 func (m *Quick) Width(w int) *Quick {
@@ -73,9 +84,8 @@ func (m *Quick) Width(w int) *Quick {
 	return m
 }
 
-func (m *Quick) GetWidth(w int) *Quick {
-	m.width = w
-	return m
+func (m *Quick) GetKeyMap() QuickKeyMap {
+	return m.keymap
 }
 
 func (m *Quick) Height(h int) *Quick {
@@ -83,9 +93,25 @@ func (m *Quick) Height(h int) *Quick {
 	return m
 }
 
+func (m *Quick) Focused() bool {
+	return m.focus
+}
+
+func (m *Quick) Focus() *Quick {
+	m.focus = true
+	return m
+}
+func (m *Quick) Blur() *Quick {
+	m.focus = false
+	return m
+}
+
 func NewQuick(title string, items []*model.Quick, opts ...interface{}) *Quick {
-	m := &Quick{model: list.New(
-		model.ToList(items), list.NewDefaultDelegate(), 0, 0)}
+	m := &Quick{
+		model: list.New(
+			model.ToList(items), list.NewDefaultDelegate(), 0, 0),
+		keymap: DefaultQuickKeyMap(),
+	}
 	m.model.Title = title
 	for _, v := range opts {
 		switch v := v.(type) {
@@ -94,4 +120,22 @@ func NewQuick(title string, items []*model.Quick, opts ...interface{}) *Quick {
 		}
 	}
 	return m
+}
+
+type QuickKeyMap struct {
+	Enter key.Binding
+	Exit  key.Binding
+}
+
+func DefaultQuickKeyMap() QuickKeyMap {
+	return QuickKeyMap{
+		Exit: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "退出"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys("o", "enter"),
+			key.WithHelp("o/enter", "确认/打开"),
+		),
+	}
 }

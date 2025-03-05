@@ -147,7 +147,6 @@ func (m *BDPan) GetQuickByKeyStr(k string) *model.Quick {
 	}
 	return nil
 }
-
 func (m *BDPan) SetQuicks(q []*model.Quick) {
 	m.quicks = q
 	keys := make([]key.Binding, 0)
@@ -161,6 +160,11 @@ func (m *BDPan) SetQuicks(q []*model.Quick) {
 	m.quickKeys = keys
 	m.quickModel = NewQuick("快速访问", m.quicks, baseStyle)
 }
+
+// func (m *BDPan) QuickFocus() *BDPan{
+// m.fileListModel
+// return m
+// }
 
 func (m *BDPan) Init() tea.Cmd {
 	begin := time.Now()
@@ -189,6 +193,8 @@ func (m *BDPan) Init() tea.Cmd {
 		},
 	}
 	m.SetQuicks(m.quicks)
+
+	m.confirmModel = wtea.NewConfirm("", baseFocusStyle)
 
 	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
 	return tea.Batch(
@@ -233,7 +239,7 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 	var flag bool = true
 	var err error
 	var cmds []tea.Cmd
-	// var cmd tea.Cmd
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -242,12 +248,12 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		// 更改尺寸后,重新获取模型
 		// m.ChangeDir(m.Dir)
 		m.changeWindowSizeState = true
+		// 修改quick size
 		m.quickModel.
 			Width(m.GetLeftWidth()).
 			Height(m.GetMidHeight())
-		quickModel, cmd := m.quickModel.Update(msg)
+		m.quickModel, cmd = m.quickModel.Update(msg)
 		cmds = append(cmds, cmd)
-		m.quickModel = quickModel.(*Quick)
 	case GotoMsg:
 		// 新获取文件列表
 		files, err := m.fileHandler.GetFiles(msg.Dir, 1)
@@ -259,12 +265,14 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		// 定位快速访问
 		for i, v := range m.quicks {
 			if v.Path == m.Dir {
-				m.quickModel.SetSelect(i)
+				m.quickModel.Select(i)
 			}
 		}
 	case ShowConfirmMsg:
 		// 展示确认框
-		m.confirmModel = wtea.NewConfirm(msg.Title, baseFocusStyle).
+		// m.confirmModel = wtea.NewConfirm(msg.Title, baseFocusStyle).
+		m.confirmModel.
+			Title(msg.Title).
 			Width(m.GetRightWidth()).
 			Data(msg.Task).
 			Focus()
@@ -330,6 +338,17 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.Exit):
 			// 退出程序
 			return true, tea.Quit
+		case key.Matches(msg, m.KeyMap.MovePaneLeft):
+			// 向左移动面板
+			if m.fileListModel.Focused() {
+				m.quickModel.Focus()
+				m.fileListModel.Blur()
+			}
+		case key.Matches(msg, m.KeyMap.MovePaneRight):
+			// 向右移动面板
+			if m.quickModel.Focused() {
+				m.FileListFocus()
+			}
 		case m.fileListModel.Focused():
 			// 光标聚焦在文件列表中
 			// 先做原始修改操作
@@ -371,7 +390,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					}
 				}
 			}
-		case m.confirmModel.Focused():
+		case m.ConfirmFocused():
 			// 光标聚焦在确认框中
 			if m.confirmModel != nil {
 				m.confirmModel, cmd = m.confirmModel.Update(msg)
@@ -385,6 +404,16 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					t := m.confirmModel.GetData().(*Task)
 					cmds = append(cmds, m.SendRunTask(t))
 				}
+			}
+		case m.quickModel.Focused():
+			// 聚焦在快速访问
+			m.quickModel, cmd = m.quickModel.Update(msg)
+			switch {
+			case key.Matches(msg, m.quickModel.GetKeyMap().Enter):
+				m.quickModel.Blur()
+				m.fileListModel.Focus()
+				q := m.quickModel.GetSelect()
+				cmds = append(cmds, m.SendGoto(q.Path))
 			}
 		}
 	default:
@@ -810,8 +839,17 @@ func (m *BDPan) GetRightWidth() int {
 }
 
 func (m *BDPan) NewFileList(files []*model.File) *FileList {
+	var focused bool = true
+	if m.FileListModelIsNotNil() {
+		focused = m.fileListModel.Focused()
+	}
 	var h = m.GetMidHeight() - lipgloss.Height(m.GetDirView())
-	return NewFileList(files, m.GetMidWidth(), h)
+	model := NewFileList(files, m.GetMidWidth(), h)
+	// 检查之前是否聚焦
+	if !focused {
+		model.Blur()
+	}
+	return model
 }
 
 func (m *BDPan) EnableLoadingFileList() *BDPan {
@@ -877,6 +915,15 @@ func (m *BDPan) ConfirmFocused() bool {
 }
 func (m *BDPan) GetConfirmView() string {
 	return m.confirmModel.View()
+}
+
+func (m *BDPan) FileListFocus() *BDPan {
+	m.fileListModel.Focus()
+	m.quickModel.Blur()
+	if m.confirmModel != nil {
+		m.confirmModel.Blur()
+	}
+	return m
 }
 
 // func (m *BDPan) SetConfirmModel(title string, task *Task) *BDPan {

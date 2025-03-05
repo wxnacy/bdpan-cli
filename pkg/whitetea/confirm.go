@@ -5,7 +5,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucasb-eyer/go-colorful"
 	"github.com/muesli/gamut"
@@ -17,11 +16,7 @@ func NewConfirm(
 	opts ...interface{},
 ) *Confirm {
 	c := &Confirm{
-		title: title,
-		model: huh.NewConfirm().
-			Title(title).
-			Affirmative("Yes!").
-			Negative("No."),
+		title:  title,
 		keymap: DefaultConfirmKeyMap(),
 	}
 	for _, v := range opts {
@@ -38,7 +33,6 @@ type Confirm struct {
 	width     int
 	baseStyle lipgloss.Style
 
-	model  *huh.Confirm
 	focus  bool
 	value  bool
 	keymap ConfirmKeyMap
@@ -49,7 +43,6 @@ type Confirm struct {
 type ExtData interface{}
 
 func (m *Confirm) Init() tea.Cmd {
-	m.model.Focus()
 	return nil
 }
 
@@ -129,12 +122,10 @@ func (m *Confirm) Focused() bool {
 
 func (m *Confirm) Focus() *Confirm {
 	m.focus = true
-	m.model.Focus()
 	return m
 }
 func (m *Confirm) Blur() *Confirm {
 	m.focus = false
-	m.model.Blur()
 	return m
 }
 
@@ -157,7 +148,7 @@ func (m *Confirm) GetData() ExtData {
 }
 
 func (m *Confirm) Title(t string) *Confirm {
-	m.model.Title(t)
+	m.title = t
 	return m
 }
 
