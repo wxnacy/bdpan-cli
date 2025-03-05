@@ -125,8 +125,9 @@ func NewQuick(title string, items []*model.Quick, opts ...interface{}) *Quick {
 }
 
 type QuickKeyMap struct {
-	Enter key.Binding
-	Exit  key.Binding
+	Enter  key.Binding
+	Exit   key.Binding
+	Delete key.Binding
 }
 
 func DefaultQuickKeyMap() QuickKeyMap {
@@ -138,6 +139,10 @@ func DefaultQuickKeyMap() QuickKeyMap {
 		Enter: key.NewBinding(
 			key.WithKeys("o", "enter"),
 			key.WithHelp("o/enter", "确认/打开"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("D"),
+			key.WithHelp("D", "删除"),
 		),
 	}
 }

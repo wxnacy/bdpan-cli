@@ -22,7 +22,7 @@ type RunTaskMsg struct {
 }
 type ShowConfirmMsg struct {
 	Title string
-	Task  *Task
+	Data  wtea.ExtData
 }
 
 type GotoMsg struct {
@@ -32,6 +32,9 @@ type GotoMsg struct {
 type RefreshPanMsg struct{}
 type RefreshUserMsg struct{}
 type RefreshQuickMsg struct{}
+type DeleteQuickMsg struct {
+	Quick *model.Quick
+}
 
 type ChangeFilesMsg struct {
 	Files []*model.File
@@ -181,9 +184,17 @@ func (m *BDPan) SetQuicks(q []*model.Quick) {
 		}
 	}
 	m.quickKeys = keys
+
+	var focused bool
+	if m.quickModel != nil {
+		focused = m.quickModel.Focused()
+	}
 	m.quickModel = NewQuick("快速访问", m.quicks, baseStyle).
 		Width(m.GetLeftWidth()).
 		Height(m.GetMidHeight())
+	if focused {
+		m.quickModel.Focus()
+	}
 }
 func (m *BDPan) RefreshQuickSelect() *BDPan {
 	// 定位快速访问
@@ -272,12 +283,15 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		m.SetFiles(files)
 	case ShowConfirmMsg:
 		// 展示确认框
-		// m.confirmModel = wtea.NewConfirm(msg.Title, baseFocusStyle).
 		m.confirmModel.
 			Title(msg.Title).
 			Width(m.GetRightWidth()).
-			Data(msg.Task).
+			Data(msg.Data).
 			Focus()
+	case DeleteQuickMsg:
+		// 删除快捷方式
+		model.DeleteById[model.Quick](int(msg.Quick.ID))
+		cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("删除快速访问 %s", msg.Quick.Path))
 	case RunTaskMsg:
 		// 运行任务
 		t := msg.Task
@@ -429,8 +443,12 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 
 				// 执行任务
 				if m.confirmModel.GetValue() {
-					t := m.confirmModel.GetData().(*Task)
-					cmds = append(cmds, m.SendRunTask(t))
+					switch d := m.confirmModel.GetData().(type) {
+					case *Task:
+						cmds = append(cmds, m.SendRunTask(d))
+					case tea.Cmd:
+						cmds = append(cmds, d)
+					}
 				}
 			}
 		case m.quickModel.Focused():
@@ -442,6 +460,13 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				m.fileListModel.Focus()
 				q := m.quickModel.GetSelect()
 				cmds = append(cmds, m.SendGoto(q.Path))
+			case key.Matches(msg, m.quickModel.GetKeyMap().Delete):
+				q := m.quickModel.GetSelect()
+				cmd = m.SendShowConfirm(
+					fmt.Sprintf("确认删除快速访问 %s?", q.Path),
+					m.SendDeleteQuick(q),
+				)
+				cmds = append(cmds, cmd)
 			}
 		}
 	default:
@@ -1044,12 +1069,19 @@ func (m *BDPan) SendRunTask(t *Task) tea.Cmd {
 	)
 }
 
-func (m *BDPan) SendShowConfirm(title string, task *Task) tea.Cmd {
+func (m *BDPan) SendMsg(msg tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return msg
+	}
+}
+
+func (m *BDPan) SendShowConfirm(title string, data wtea.ExtData) tea.Cmd {
 	m.fileListModel.Blur()
+	m.quickModel.Blur()
 	return func() tea.Msg {
 		return ShowConfirmMsg{
 			Title: title,
-			Task:  task,
+			Data:  data,
 		}
 	}
 }
@@ -1062,6 +1094,12 @@ func (m *BDPan) SendGoto(dir string) tea.Cmd {
 		return GotoMsg{
 			Dir: dir,
 		}
+	}
+}
+
+func (m *BDPan) SendDeleteQuick(q *model.Quick) tea.Cmd {
+	return func() tea.Msg {
+		return DeleteQuickMsg{Quick: q}
 	}
 }
 
