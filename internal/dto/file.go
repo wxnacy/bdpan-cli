@@ -1,7 +1,12 @@
 package dto
 
+import "github.com/mitchellh/go-homedir"
+
 func NewDownloadReq() *DownloadReq {
-	return &DownloadReq{}
+	dlDir, _ := homedir.Expand("~/Downloads")
+	return &DownloadReq{
+		OutputDir: dlDir,
+	}
 }
 
 type DownloadReq struct {

@@ -72,46 +72,13 @@ func (m *Confirm) Update(msg tea.Msg) (*Confirm, tea.Cmd) {
 		case key.Matches(msg, m.keymap.Confirm):
 			m.value = true
 			m.Blur()
-		case key.Matches(msg, m.keymap.Cancel):
+		case key.Matches(msg, m.keymap.Cancel, m.keymap.Exit):
 			m.value = false
 			m.Blur()
 		}
 	}
-
 	logger.Infof("Update confirm end =============================")
 	return m, tea.Batch(cmds...)
-}
-
-func (m *Confirm) Focused() bool {
-	return m.focus
-}
-func (m *Confirm) Focus() *Confirm {
-	m.focus = true
-	m.model.Focus()
-	return m
-}
-func (m *Confirm) Blur() *Confirm {
-	m.focus = false
-	m.model.Blur()
-	return m
-}
-
-func (m *Confirm) Width(w int) *Confirm {
-	m.width = w
-	return m
-}
-
-func (m *Confirm) GetValue() bool {
-	return m.value
-}
-
-func (m *Confirm) SetData(d ExtData) *Confirm {
-	m.data = d
-	return m
-}
-
-func (m *Confirm) GetData() ExtData {
-	return m.data
 }
 
 func (m *Confirm) View() string {
@@ -124,18 +91,10 @@ func (m *Confirm) View() string {
 
 	activeButtonStyle := buttonStyle.
 		Foreground(lipgloss.Color("#FFF7DB")).
-		Background(lipgloss.Color("#F25D94")).
+		Background(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"}).
+		// Background(lipgloss.Color("#F25D94")).
 		// Margin(0, 1).
 		Underline(true)
-
-	// dialogBoxStyle := lipgloss.NewStyle().
-	// Border(lipgloss.RoundedBorder()).
-	// BorderForeground(lipgloss.Color("#874BFD")).
-	// Padding(1, 0).
-	// BorderTop(true).
-	// BorderLeft(true).
-	// BorderRight(true).
-	// BorderBottom(true)
 
 	okButton := buttonStyle.Render("[Y]es")
 	cancelButton := activeButtonStyle.Render("[N]o")
@@ -163,6 +122,45 @@ func (m *Confirm) View() string {
 
 	return dialog
 }
+
+func (m *Confirm) Focused() bool {
+	return m.focus
+}
+
+func (m *Confirm) Focus() *Confirm {
+	m.focus = true
+	m.model.Focus()
+	return m
+}
+func (m *Confirm) Blur() *Confirm {
+	m.focus = false
+	m.model.Blur()
+	return m
+}
+
+func (m *Confirm) Width(w int) *Confirm {
+	m.width = w
+	return m
+}
+
+func (m *Confirm) GetValue() bool {
+	return m.value
+}
+
+func (m *Confirm) Data(d ExtData) *Confirm {
+	m.data = d
+	return m
+}
+
+func (m *Confirm) GetData() ExtData {
+	return m.data
+}
+
+func (m *Confirm) Title(t string) *Confirm {
+	m.model.Title(t)
+	return m
+}
+
 func rainbow(base lipgloss.Style, s string, colors []color.Color) string {
 	var str string
 	for i, ss := range s {
@@ -178,6 +176,7 @@ type ConfirmKeyMap struct {
 	Left    key.Binding
 	Confirm key.Binding
 	Cancel  key.Binding
+	Exit    key.Binding
 }
 
 func DefaultConfirmKeyMap() ConfirmKeyMap {
@@ -201,6 +200,10 @@ func DefaultConfirmKeyMap() ConfirmKeyMap {
 		Cancel: key.NewBinding(
 			key.WithKeys("n", "N"),
 			key.WithHelp("n/N", "取消"),
+		),
+		Exit: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "退出"),
 		),
 	}
 }

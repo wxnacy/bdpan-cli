@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
@@ -19,31 +20,29 @@ import (
 type RunTaskMsg struct {
 	Task *Task
 }
+type ShowConfirmMsg struct {
+	Title string
+	Task  *Task
+}
 
 type GotoMsg struct {
 	Dir string
 }
 
-type ChangeFilesMsg struct {
-	Files []*model.File
-}
-
 type RefreshPanMsg struct{}
 type RefreshUserMsg struct{}
 
+type ChangeFilesMsg struct {
+	Files []*model.File
+}
 type ChangePanMsg struct {
 	Pan *model.Pan
 }
-
 type ChangeUserMsg struct {
 	User *model.User
 }
 
 type MessageTimeoutMsg struct{}
-
-type ChangeMessageMsg struct {
-	Message string
-}
 
 func NewBDPan(dir string) (*BDPan, error) {
 	files, err := handler.GetFileHandler().GetFilesFromDBOrReal(dir, 1)
@@ -101,7 +100,7 @@ type BDPan struct {
 	// quick
 	quicks     []*model.Quick
 	quickKeys  []key.Binding
-	quickModel *wtea.List
+	quickModel *Quick
 
 	// confirm
 	confirmModel *wtea.Confirm
@@ -160,7 +159,7 @@ func (m *BDPan) SetQuicks(q []*model.Quick) {
 		))
 	}
 	m.quickKeys = keys
-	m.quickModel = wtea.NewList("快速访问", model.ToList(m.quicks), baseStyle)
+	m.quickModel = NewQuick("快速访问", m.quicks, baseStyle)
 }
 
 func (m *BDPan) Init() tea.Cmd {
@@ -184,9 +183,9 @@ func (m *BDPan) Init() tea.Cmd {
 			Key:      "b",
 		},
 		{
-			Filename: "bdpan",
-			Path:     "/apps/bdpan",
-			Key:      "b",
+			Filename: "牛津树绘本1-9级",
+			Path:     "/教育/心心英语资料/牛津树绘本1-9级",
+			Key:      "y",
 		},
 	}
 	m.SetQuicks(m.quicks)
@@ -232,6 +231,7 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 	var flag bool = true
+	var err error
 	var cmds []tea.Cmd
 	// var cmd tea.Cmd
 	switch msg := msg.(type) {
@@ -247,7 +247,7 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			Height(m.GetMidHeight())
 		quickModel, cmd := m.quickModel.Update(msg)
 		cmds = append(cmds, cmd)
-		m.quickModel = quickModel.(*wtea.List)
+		m.quickModel = quickModel.(*Quick)
 	case GotoMsg:
 		// 新获取文件列表
 		files, err := m.fileHandler.GetFiles(msg.Dir, 1)
@@ -262,6 +262,12 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 				m.quickModel.SetSelect(i)
 			}
 		}
+	case ShowConfirmMsg:
+		// 展示确认框
+		m.confirmModel = wtea.NewConfirm(msg.Title, baseFocusStyle).
+			Width(m.GetRightWidth()).
+			Data(msg.Task).
+			Focus()
 	case RunTaskMsg:
 		// 运行任务
 		t := msg.Task
@@ -274,7 +280,11 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 				// 删除成功后刷新目录
 				cmds = append(cmds, m.SendGoto(m.Dir))
 			}
-
+		case TypeDownload:
+			req := dto.NewDownloadReq()
+			req.Path = t.File.Path
+			err = m.fileHandler.CmdDownload(req)
+			cmds = append(cmds, m.DoneTask(t, err))
 		}
 	case ChangeFilesMsg:
 		// 异步加载文件列表
@@ -299,9 +309,6 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 	case ChangeUserMsg:
 		// 异步加载 user 信息
 		m.user = msg.User
-	// case ChangeMessageMsg:
-	// 接收信息
-	// m.SetMessage(msg.Message)
 	case MessageTimeoutMsg:
 		// 消息过期
 		m.message = ""
@@ -333,19 +340,16 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.KeyMap.Delete):
 				// 删除
-				m.fileListModel.Blur()
-				if m.FileListModelIsNotNil() {
+				// m.fileListModel.Blur()
+				if m.CanSelectFile() {
 					f, err := m.GetSelectFile()
 					if err != nil {
 						return true, tea.Quit
 					}
-					task := m.AddDeleteTask(f)
-					m.confirmModel = wtea.NewConfirm("确认删除？", baseStyle).
-						Width(m.GetRightWidth()).
-						SetData(task).
-						Focus()
+					task := m.AddFileTask(f, TypeDelete)
+					cmd = m.SendShowConfirm(fmt.Sprintf("确认删除 %s?", f.GetFilename()), task)
+					cmds = append(cmds, cmd)
 				}
-
 			case key.Matches(msg, m.KeyMap.Refresh):
 				// 刷新目录
 				cmds = append(cmds, m.SendGoto(m.Dir))
@@ -353,12 +357,18 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				// 返回目录
 				cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
 			case key.Matches(msg, m.KeyMap.Enter):
-				selectFile, err := m.fileListModel.GetSelectFile()
-				if err != nil {
-					return true, tea.Quit
-				}
-				if selectFile.IsDir() {
-					cmds = append(cmds, m.Goto(selectFile.Path))
+				if m.CanSelectFile() {
+					f, err := m.fileListModel.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					if f.IsDir() {
+						cmds = append(cmds, m.Goto(f.Path))
+					} else {
+						task := m.AddFileTask(f, TypeDownload)
+						cmd = m.SendShowConfirm(fmt.Sprintf("确认下载 %s?", f.GetFilename()), task)
+						cmds = append(cmds, cmd)
+					}
 				}
 			}
 		case m.confirmModel.Focused():
@@ -501,10 +511,6 @@ func (m *BDPan) GetFileListView() string {
 	}
 }
 
-func (m *BDPan) GetConfirmView() string {
-	return m.confirmModel.View()
-}
-
 func (m *BDPan) GetDirView() string {
 	return baseStyle.Width(m.GetMidWidth()-2).Render("当前目录", m.Dir)
 }
@@ -527,7 +533,7 @@ func (m *BDPan) GetMidView() string {
 
 	// fileinfo
 	fileinfoView := m.GetFileInfoView(nil)
-	if m.FileListModelIsNotNil() {
+	if m.FileListModelIsNotNil() && m.FilesIsNotNil() {
 		f, err := m.fileListModel.GetSelectFile()
 		if err != nil {
 			tea.Quit()
@@ -617,7 +623,7 @@ func (m *BDPan) GetStatusView() string {
 
 	// mid
 	fileLineText := ""
-	if m.FileListModelIsNotNil() {
+	if m.FileListModelIsNotNil() && m.FilesIsNotNil() {
 		f, err := m.fileListModel.GetSelectFile()
 		if err != nil {
 			tea.Quit()
@@ -740,12 +746,12 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 			leftStyle.Render("修改时间"),
 			rightStyle.Render(f.GetServerMTime()),
 		))
-	} else {
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Render(""),
-			rightStyle.Render("数据加载中..."),
-		))
+		// } else {
+		// lines = append(lines, lipgloss.JoinHorizontal(
+		// lipgloss.Top,
+		// leftStyle.Render(""),
+		// rightStyle.Render("数据加载中..."),
+		// ))
 	}
 
 	lastBeforeH := lipgloss.Height(strings.Join(lines, "\n"))
@@ -838,12 +844,16 @@ func (m *BDPan) FileListModelIsNil() bool {
 	return m.fileListModel == nil
 }
 
-func (m *BDPan) ConfirmFocused() bool {
-	return m.confirmModel != nil && m.confirmModel.Focused()
+func (m *BDPan) FilesIsNotNil() bool {
+	return m.files != nil && len(m.files) > 0
 }
 
-func (m *BDPan) AddDeleteTask(f *model.File) *Task {
-	task := NewTask(TypeDelete, f)
+func (m *BDPan) CanSelectFile() bool {
+	return m.FilesIsNotNil() && m.FileListModelIsNotNil()
+}
+
+func (m *BDPan) AddFileTask(f *model.File, t TaskType) *Task {
+	task := NewTask(t, f)
 	_, exists := m.taskMap[task.ID]
 	if exists {
 		m.SetSomeTaskMessage()
@@ -862,6 +872,20 @@ func (m *BDPan) GetConfirmTasks() []*Task {
 	}
 	return tasks
 }
+func (m *BDPan) ConfirmFocused() bool {
+	return m.confirmModel != nil && m.confirmModel.Focused()
+}
+func (m *BDPan) GetConfirmView() string {
+	return m.confirmModel.View()
+}
+
+// func (m *BDPan) SetConfirmModel(title string, task *Task) *BDPan {
+// m.confirmModel = wtea.NewConfirm(title, baseFocusStyle).
+// Width(m.GetRightWidth()).
+// Data(task).
+// Focus()
+// return m
+// }
 
 func (m *BDPan) DoneTask(t *Task, err error) tea.Cmd {
 	t.Status = StatusSuccess
@@ -870,14 +894,12 @@ func (m *BDPan) DoneTask(t *Task, err error) tea.Cmd {
 		t.err = err
 	}
 	delete(m.taskMap, t.ID)
-	// m.SetMessage(t.String())
 	return m.SendMessage(t.String())
 }
 
 // 改变显示的目录
 func (m *BDPan) Goto(dir string) tea.Cmd {
 	if m.IsLoadingFileList() {
-		// m.SetLoadingMessage()
 		return m.SendLoadingMessage()
 	}
 
@@ -946,6 +968,16 @@ func (m *BDPan) SendRunTask(t *Task) tea.Cmd {
 		},
 		m.SendMessage(t.String()),
 	)
+}
+
+func (m *BDPan) SendShowConfirm(title string, task *Task) tea.Cmd {
+	m.fileListModel.Blur()
+	return func() tea.Msg {
+		return ShowConfirmMsg{
+			Title: title,
+			Task:  task,
+		}
+	}
 }
 
 // 发送跳转目录的命令

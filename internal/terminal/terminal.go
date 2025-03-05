@@ -78,15 +78,15 @@ func (t *Terminal) listenRefreshFiles() {
 // }
 // }
 
-func (t *Terminal) clearMessage() {
-	// 清理消息
-	for {
-		time.Sleep(time.Duration(2) * time.Second)
-		if t.m.MessageIsNotNil() {
-			t.p.Send(ChangeMessageMsg{Message: ""})
-		}
-	}
-}
+// func (t *Terminal) clearMessage() {
+// // 清理消息
+// for {
+// time.Sleep(time.Duration(2) * time.Second)
+// if t.m.MessageIsNotNil() {
+// t.p.Send(ChangeMessageMsg{Message: ""})
+// }
+// }
+// }
 
 func (t *Terminal) refreshUser() {
 	// 初始化 user 信息

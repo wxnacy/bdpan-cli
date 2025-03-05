@@ -15,6 +15,8 @@ import (
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
+var baseFocusStyle = baseStyle.
+	BorderForeground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"})
 
 func GetBaseStyleWidth() int {
 	return 2
@@ -78,7 +80,11 @@ func (m FileList) View() string {
 	view = m.model.View()
 	viewW, viewH = lipgloss.Size(view)
 	logger.Infof("FileListView Table Size %dx%d", viewW, viewH)
-	view = baseStyle.Render(view)
+	if m.Focused() {
+		view = baseFocusStyle.Render(view)
+	} else {
+		view = baseStyle.Render(view)
+	}
 	viewW, viewH = lipgloss.Size(view)
 	logger.Infof("FileListView Full Size %dx%d", viewW, viewH)
 	return view
@@ -182,6 +188,15 @@ func NewFileList(files []*model.File, width, height int) *FileList {
 				f.GetSize(),
 				f.GetFileType(),
 				f.GetServerMTime(),
+			})
+		}
+		if len(rows) == 0 {
+			rows = append(rows, table.Row{
+				"",
+				"空",
+				"",
+				"",
+				"",
 			})
 		}
 	}
