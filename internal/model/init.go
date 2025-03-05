@@ -2,6 +2,7 @@
 package model
 
 import (
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	log "github.com/wxnacy/bdpan-cli/internal/logger"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"gorm.io/gorm"
 )
 
@@ -45,8 +48,34 @@ func InitSqlite() {
 		ggorm.WithConnMaxLifetime(time.Duration(config.Get().Database.Sqlite.ConnMaxLifetime) * time.Minute),
 	}
 	if config.Get().Database.Sqlite.EnableLog {
+		l := logger.Get()
+		// 配置日志输出到文件
+		encoderConfig := zapcore.EncoderConfig{
+			TimeKey:        "time",
+			LevelKey:       "level",
+			NameKey:        "logger",
+			CallerKey:      "caller",
+			MessageKey:     "msg",
+			StacktraceKey:  "stacktrace",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    zapcore.LowercaseLevelEncoder,
+			EncodeTime:     zapcore.TimeEncoderOfLayout("2006-01-02 15:04:05"),
+			EncodeDuration: zapcore.SecondsDurationEncoder,
+			EncodeCaller:   zapcore.ShortCallerEncoder,
+		}
+		logFile, err := os.OpenFile(config.Get().Logger.LogFileConfig.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModeAppend|os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+		l = l.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			return zapcore.NewCore(
+				zapcore.NewJSONEncoder(encoderConfig),
+				zapcore.AddSync(logFile),
+				zapcore.DebugLevel,
+			)
+		}))
 		opts = append(opts,
-			ggorm.WithLogging(logger.Get()),
+			ggorm.WithLogging(l),
 			ggorm.WithLogRequestIDKey("request_id"),
 		)
 	}
