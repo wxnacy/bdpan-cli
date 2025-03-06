@@ -52,6 +52,15 @@ func (m *FileList) GetSelectFile() (*model.File, error) {
 	return nil, fmt.Errorf("%d not found", fsid)
 }
 
+// 设置光标
+func (m *FileList) Cursor(i int) {
+	m.model.SetCursor(i)
+}
+
+func (m *FileList) GetCursor() int {
+	return m.model.Cursor()
+}
+
 func (m *FileList) Init() tea.Cmd { return nil }
 
 func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {

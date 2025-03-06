@@ -67,6 +67,7 @@ func NewBDPan(dir string) (*BDPan, error) {
 		Dir:             dir,
 		files:           files,
 		filesMap:        make(map[string][]*model.File, 0),
+		fileCursorMap:   make(map[string]int, 0),
 		taskMap:         make(map[int]*Task, 0),
 		quicks:          quicks,
 		messageLifetime: time.Second,
@@ -80,12 +81,9 @@ type BDPan struct {
 	Dir string
 
 	// Data
-	// useCache bool
-	files    []*model.File
-	filesMap map[string][]*model.File
-	taskMap  map[int]*Task
-	pan      *model.Pan
-	user     *model.User
+	taskMap map[int]*Task
+	pan     *model.Pan
+	user    *model.User
 
 	// message
 	message         string
@@ -107,6 +105,9 @@ type BDPan struct {
 	height int
 
 	// filelist
+	files             []*model.File
+	filesMap          map[string][]*model.File // 文件列表缓存
+	fileCursorMap     map[string]int           // 文件光标选择记录
 	fileListModel     *FileList
 	fileListViewState bool
 
@@ -148,6 +149,8 @@ func (m *BDPan) SetFiles(files []*model.File) *BDPan {
 	m.fileListModel = m.NewFileList(m.files)
 	m.DisableLoadingFileList()
 	m.RefreshQuickSelect()
+	// 设置光标位置
+	m.fileListModel.Cursor(m.GetFileListCursor())
 	return m
 }
 
@@ -374,10 +377,13 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			}
 		case m.fileListModel.Focused():
 			// 光标聚焦在文件列表中
-			// 先做原始修改操作
 			if m.FileListModelIsNotNil() {
+				// 先做原始修改操作
 				m.fileListModel, cmd = m.fileListModel.Update(msg)
 				cmds = append(cmds, cmd)
+
+				// 记录光标位置
+				m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
 			}
 			switch {
 			case key.Matches(msg, m.KeyMap.Delete):
@@ -593,6 +599,16 @@ func (m *BDPan) View() string {
 		views...,
 	)
 	return view
+}
+
+// 获取文件光标
+func (m *BDPan) GetFileListCursor() int {
+	i, exists := m.fileCursorMap[m.Dir]
+	if exists {
+		return i
+	} else {
+		return 0
+	}
 }
 
 func (m *BDPan) GetFileListView() string {
