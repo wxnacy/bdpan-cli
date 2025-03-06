@@ -100,14 +100,12 @@ func (m *FileList) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	return flag, cmd
 }
 
-func (m *FileList) Focus() *FileList {
+func (m *FileList) Focus() {
 	m.model.Focus()
-	return m
 }
 
-func (m *FileList) Blur() *FileList {
+func (m *FileList) Blur() {
 	m.model.Blur()
-	return m
 }
 
 func (m FileList) Focused() bool {

@@ -37,7 +37,9 @@ type Confirm struct {
 	value  bool
 	keymap ConfirmKeyMap
 
-	data ExtData
+	// 从哪个模型跳转过来的，可以退出聚焦回原模型
+	fromModel Model
+	data      ExtData
 }
 
 type ExtData interface{}
@@ -120,13 +122,11 @@ func (m *Confirm) Focused() bool {
 	return m.focus
 }
 
-func (m *Confirm) Focus() *Confirm {
+func (m *Confirm) Focus() {
 	m.focus = true
-	return m
 }
-func (m *Confirm) Blur() *Confirm {
+func (m *Confirm) Blur() {
 	m.focus = false
-	return m
 }
 
 func (m *Confirm) Width(w int) *Confirm {
@@ -136,6 +136,11 @@ func (m *Confirm) Width(w int) *Confirm {
 
 func (m *Confirm) GetValue() bool {
 	return m.value
+}
+
+func (m *Confirm) Value(v bool) *Confirm {
+	m.value = v
+	return m
 }
 
 func (m *Confirm) Data(d ExtData) *Confirm {
@@ -150,6 +155,15 @@ func (m *Confirm) GetData() ExtData {
 func (m *Confirm) Title(t string) *Confirm {
 	m.title = t
 	return m
+}
+
+func (m *Confirm) FromModel(model Model) *Confirm {
+	m.fromModel = model
+	return m
+}
+
+func (m *Confirm) GetFromModel() Model {
+	return m.fromModel
 }
 
 func rainbow(base lipgloss.Style, s string, colors []color.Color) string {

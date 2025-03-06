@@ -23,6 +23,7 @@ type RunTaskMsg struct {
 type ShowConfirmMsg struct {
 	Title string
 	Data  wtea.ExtData
+	Model wtea.Model
 }
 
 type GotoMsg struct {
@@ -286,7 +287,9 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		m.confirmModel.
 			Title(msg.Title).
 			Width(m.GetRightWidth()).
+			Value(false).
 			Data(msg.Data).
+			FromModel(msg.Model).
 			Focus()
 	case DeleteQuickMsg:
 		// 删除快捷方式
@@ -386,7 +389,11 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						return true, tea.Quit
 					}
 					task := m.AddFileTask(f, TypeDelete)
-					cmd = m.SendShowConfirm(fmt.Sprintf("确认删除 %s?", f.GetFilename()), task)
+					cmd = m.SendShowConfirm(
+						fmt.Sprintf("确认删除 %s?", f.GetFilename()),
+						task,
+						m.fileListModel,
+					)
 					cmds = append(cmds, cmd)
 				}
 			case key.Matches(msg, m.KeyMap.Refresh):
@@ -405,7 +412,11 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						cmds = append(cmds, m.Goto(f.Path))
 					} else {
 						task := m.AddFileTask(f, TypeDownload)
-						cmd = m.SendShowConfirm(fmt.Sprintf("确认下载 %s?", f.GetFilename()), task)
+						cmd = m.SendShowConfirm(
+							fmt.Sprintf("确认下载 %s?", f.GetFilename()),
+							task,
+							m.fileListModel,
+						)
 						cmds = append(cmds, cmd)
 					}
 				}
@@ -438,7 +449,10 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				m.confirmModel, cmd = m.confirmModel.Update(msg)
 				cmds = append(cmds, cmd)
 				if !m.confirmModel.Focused() {
-					m.fileListModel.Focus()
+					fromModel := m.confirmModel.GetFromModel()
+					if fromModel != nil {
+						fromModel.Focus()
+					}
 				}
 
 				// 执行任务
@@ -465,6 +479,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				cmd = m.SendShowConfirm(
 					fmt.Sprintf("确认删除快速访问 %s?", q.Path),
 					m.SendDeleteQuick(q),
+					m.quickModel,
 				)
 				cmds = append(cmds, cmd)
 			}
@@ -1075,13 +1090,22 @@ func (m *BDPan) SendMsg(msg tea.Msg) tea.Cmd {
 	}
 }
 
-func (m *BDPan) SendShowConfirm(title string, data wtea.ExtData) tea.Cmd {
+// 发送显示确认框消息
+// title 展示标题
+// data 确认框携带的额外信息
+// fromModel 从哪个模型跳转的，方便返回聚焦
+func (m *BDPan) SendShowConfirm(
+	title string,
+	data wtea.ExtData,
+	fromModel wtea.Model,
+) tea.Cmd {
 	m.fileListModel.Blur()
 	m.quickModel.Blur()
 	return func() tea.Msg {
 		return ShowConfirmMsg{
 			Title: title,
 			Data:  data,
+			Model: fromModel,
 		}
 	}
 }

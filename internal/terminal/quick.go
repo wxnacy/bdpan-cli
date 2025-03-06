@@ -99,13 +99,11 @@ func (m *Quick) Focused() bool {
 	return m.focus
 }
 
-func (m *Quick) Focus() *Quick {
+func (m *Quick) Focus() {
 	m.focus = true
-	return m
 }
-func (m *Quick) Blur() *Quick {
+func (m *Quick) Blur() {
 	m.focus = false
-	return m
 }
 
 func NewQuick(title string, items []*model.Quick, opts ...interface{}) *Quick {
@@ -115,6 +113,8 @@ func NewQuick(title string, items []*model.Quick, opts ...interface{}) *Quick {
 		keymap: DefaultQuickKeyMap(),
 	}
 	m.model.Title = title
+	// 不展示帮助信息
+	m.model.SetShowHelp(false)
 	for _, v := range opts {
 		switch v := v.(type) {
 		case lipgloss.Style:
