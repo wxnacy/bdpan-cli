@@ -1,6 +1,8 @@
 package initial
 
 import (
+	"time"
+
 	"github.com/wxnacy/bdpan-cli/configs"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
@@ -15,11 +17,12 @@ var (
 
 // InitApp initial app configuration
 func InitApp() {
+	begin := time.Now()
 	initConfig()
 
 	// initial logger
 	logger.Init(config.Get().Logger.LogFileConfig.Filename)
-	logger.Debugf("Init Config %#v", config.Get())
+	logger.Debugf("Init Config %#v time used %v", config.Get(), time.Now().Sub(begin))
 }
 
 func initConfig() {

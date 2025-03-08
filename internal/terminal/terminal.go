@@ -113,16 +113,6 @@ func (t *Terminal) Run() error {
 	t.p = p
 	t.m = m
 
-	// go t.refreshFiles()
-	// go t.refreshPan()
-	// go t.refreshUser()
-
-	// go t.listenRefreshFiles()
-
-	// go t.listenTasks()
-
-	// go t.clearMessage()
-
 	if _, err := p.Run(); err != nil {
 		return err
 	}

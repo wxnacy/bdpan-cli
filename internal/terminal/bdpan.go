@@ -50,11 +50,7 @@ type ChangeUserMsg struct {
 type MessageTimeoutMsg struct{}
 
 func NewBDPan(dir string) (*BDPan, error) {
-	files, err := handler.GetFileHandler().GetFilesFromDBOrReal(dir, 1)
-	if err != nil {
-		return nil, err
-	}
-
+	begin := time.Now()
 	quicks := []*model.Quick{
 		{
 			Filename: "我的应用数据",
@@ -63,9 +59,9 @@ func NewBDPan(dir string) (*BDPan, error) {
 		},
 	}
 
-	return &BDPan{
+	item := &BDPan{
 		Dir:             dir,
-		files:           files,
+		files:           make([]*model.File, 0),
 		filesMap:        make(map[string][]*model.File, 0),
 		fileCursorMap:   make(map[string]int, 0),
 		taskMap:         make(map[int]*Task, 0),
@@ -74,7 +70,9 @@ func NewBDPan(dir string) (*BDPan, error) {
 		fileHandler:     handler.GetFileHandler(),
 		authHandler:     handler.GetAuthHandler(),
 		KeyMap:          DefaultKeyMap(),
-	}, nil
+	}
+	logger.Infof("NewDBPan time used %v", time.Now().Sub(begin))
+	return item, nil
 }
 
 type BDPan struct {
@@ -404,7 +402,8 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				}
 			case key.Matches(msg, m.KeyMap.Refresh):
 				// 刷新目录
-				cmds = append(cmds, m.SendGoto(m.Dir))
+				// 盘信息
+				cmds = append(cmds, m.SendGoto(m.Dir), m.SendRefreshPan())
 			case key.Matches(msg, m.KeyMap.Back):
 				// 返回目录
 				cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
