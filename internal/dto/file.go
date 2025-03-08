@@ -23,9 +23,8 @@ func NewListReq() *ListReq {
 
 type ListReq struct {
 	GlobalReq
-	Page       int
-	Limit      int32
-	WithoutTui bool
+	Page  int
+	Limit int32
 }
 
 func NewRefreshReq() *RefreshReq {

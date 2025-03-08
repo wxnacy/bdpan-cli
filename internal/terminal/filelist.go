@@ -53,8 +53,9 @@ func (m *FileList) GetSelectFile() (*model.File, error) {
 }
 
 // 设置光标
-func (m *FileList) Cursor(i int) {
+func (m *FileList) Cursor(i int) *FileList {
 	m.model.SetCursor(i)
+	return m
 }
 
 func (m *FileList) GetCursor() int {

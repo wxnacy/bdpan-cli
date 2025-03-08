@@ -277,7 +277,7 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	case GotoMsg:
 		// 新获取文件列表
-		files, err := m.fileHandler.GetFiles(msg.Dir, 1)
+		files, err := m.fileHandler.GetFilesAndSave(msg.Dir, 1)
 		if err != nil {
 			return false, tea.Quit
 		}

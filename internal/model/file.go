@@ -48,6 +48,7 @@ func NewFile(f *bdpan.FileInfo) *File {
 		LocalMTime:     f.LocalMTime,
 		// Thumbs:         fileInfoDto.Thumbs,
 	}
+	file.Init()
 	return &file
 }
 
@@ -74,6 +75,7 @@ type File struct {
 	// custom
 	IsRefresh int `json:"is_refresh"`
 	Level     int `json:"level"`
+	ORMModel
 }
 
 func (File) TableName() string {

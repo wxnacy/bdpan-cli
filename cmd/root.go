@@ -43,7 +43,7 @@ var rootCmd = &cobra.Command{
 	Use:     "bdpan",
 	Short:   "百度网盘命令行工具",
 	Long:    ``,
-	Version: "0.1.0",
+	Version: "0.1.1",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// 初始化应用
 		initial.InitApp()

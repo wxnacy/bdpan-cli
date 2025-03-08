@@ -24,6 +24,7 @@ func GetFileHandler() *FileHandler {
 	if fileHandler == nil {
 		fileHandler = &FileHandler{
 			acceccToken: config.Get().Access.AccessToken,
+			limit:       1000,
 		}
 	}
 	return fileHandler
@@ -31,15 +32,27 @@ func GetFileHandler() *FileHandler {
 
 type FileHandler struct {
 	acceccToken string
+	limit       int32
 }
 
 func (h *FileHandler) GetFiles(dir string, page int) ([]*model.File, error) {
-	req := bdpan.NewGetFileListReq().SetDir(dir).SetPage(page)
+	req := bdpan.NewGetFileListReq().SetDir(dir).SetLimit(h.limit).SetPage(page)
 	res, err := bdpan.GetFileList(h.acceccToken, req)
 	if err != nil {
 		return nil, err
 	}
 	return model.NewFiles(res.List), nil
+}
+
+func (h *FileHandler) GetFilesAndSave(dir string, page int) ([]*model.File, error) {
+	files, err := h.GetFiles(dir, page)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range files {
+		model.Save(v)
+	}
+	return files, nil
 }
 
 func (h *FileHandler) GetFilesFromDBOrReal(dir string, page int) ([]*model.File, error) {
@@ -213,31 +226,6 @@ func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
 	return nil
 }
 
-func (h *FileHandler) CmdList(req *dto.ListReq) error {
-	r := bdpan.NewGetFileListReq()
-	r.Dir = req.Path
-	r.Limit = req.Limit
-	r.SetPage(req.Page)
-	res, err := bdpan.GetFileList(h.acceccToken, r)
-	if err != nil {
-		return err
-	}
-	// pan, err := bdpan.GetPanInfo(h.acceccToken)
-	// if err != nil {
-	// return err
-	// }
-	// fmt.Printf("网盘容量 (%s/%s)\n", tools.FormatSize(pan.GetUsed()), tools.FormatSize(pan.GetTotal()))
-	for _, f := range res.List {
-		size := f.GetSize()
-		file := model.FindFirstByID[model.File](int(f.FSID))
-		if file != nil {
-			size = file.GetSize()
-		}
-		fmt.Printf("%18d\t%s\t%s\t%s\n", f.FSID, f.GetFileType(), size, f.GetFilename())
-	}
-	return nil
-}
-
 func (h *FileHandler) CmdRefresh(req *dto.RefreshReq) error {
 	// model.GetDB().AutoMigrate(&model.File{})
 	path := FormatPath(req.Path)
@@ -306,6 +294,11 @@ func (h *FileHandler) refreshDirSize(dir *model.File) error {
 		res.Error,
 	)
 	return nil
+}
+
+func (h *FileHandler) Limit(l int32) *FileHandler {
+	h.limit = l
+	return h
 }
 
 func FormatPath(path string) string {

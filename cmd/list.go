@@ -5,16 +5,46 @@ doc: https://pan.baidu.com/union/doc/pkuo3snyp
 package cmd
 
 import (
+	"fmt"
+
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/handler"
-)
-
-var (
-	listReq = dto.NewListReq()
+	"github.com/wxnacy/bdpan-cli/internal/terminal"
 )
 
 func init() {
+	var req = dto.NewListReq()
+	run := func(req *dto.ListReq) error {
+		var width, height, maxFilenameW int
+		limit := req.Limit
+		files, err := handler.
+			GetFileHandler().
+			Limit(limit).
+			GetFilesAndSave(req.Path, req.Page)
+		if err != nil {
+			return err
+		}
+
+		// 获取文件名的最大长度
+		for _, v := range files {
+			w := lipgloss.Width(v.GetFilename())
+			if w > maxFilenameW {
+				maxFilenameW = w
+			}
+		}
+
+		// limit + 固定富裕长度
+		height = int(limit) + 5
+		// 最大文件名长度+其他列宽度+固定富裕长度
+		width = maxFilenameW + 40 + 15
+		view := terminal.
+			NewFileList(files, width, height).
+			View()
+		fmt.Println(view)
+		return nil
+	}
 	var cmd = &cobra.Command{
 		Use:                   "list",
 		Short:                 "展示文件",
@@ -22,16 +52,15 @@ func init() {
 		DisableFlagsInUseLine: true,
 		Long:                  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			listReq.GlobalReq = *GetGlobalReq()
+			req.GlobalReq = *GetGlobalReq()
 			if len(args) > 0 {
-				listReq.Path = args[0]
+				req.Path = args[0]
 			}
-			return handler.GetFileHandler().CmdList(listReq)
+			return run(req)
 		},
 	}
 
-	cmd.Flags().IntVarP(&listReq.Page, "page", "P", 1, "页码")
-	cmd.Flags().Int32VarP(&listReq.Limit, "limit", "l", 10, "每页条数")
-	cmd.Flags().BoolVarP(&listReq.WithoutTui, "without-tui", "T", false, "是否用不用 TUI 展示")
+	cmd.Flags().IntVarP(&req.Page, "page", "P", 1, "页码")
+	cmd.Flags().Int32VarP(&req.Limit, "limit", "l", 10, "每页条数")
 	rootCmd.AddCommand(cmd)
 }
