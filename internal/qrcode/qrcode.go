@@ -74,14 +74,14 @@ func ShowByUrl(uri string, timeout time.Duration) error {
 	render()
 
 	// uiEvents := ui.PollEvents()
-	for i := 0; i < int(timeout/time.Second); i++ {
+	for i := range int(timeout / time.Second) {
 		deadline := int(timeout/time.Second) - i
 		logger.Infof("二维码倒计时 %d", deadline)
 		img.Title = fmt.Sprintf("BDPan %d", deadline)
 		// e := <-uiEvents
 		// switch e.ID {
 		// case "q", "<C-c>":
-			// return errors.New("Exit")
+		// return errors.New("Exit")
 		// }
 		render()
 		time.Sleep(1 * time.Second)

@@ -25,6 +25,25 @@ type KeyMap struct {
 	GotoRoot key.Binding
 }
 
+func (k KeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{
+		k.Exit,
+		k.MovePaneLeft,
+		k.MovePaneRight,
+		k.Enter,
+		k.Back,
+	}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (k KeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Enter, k.Back, k.Delete, k.Refresh}, // first column
+		{k.Exit, k.Right, k.Left},              // second column
+	}
+}
+
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		Exit: key.NewBinding(
@@ -33,19 +52,19 @@ func DefaultKeyMap() KeyMap {
 		),
 		Enter: key.NewBinding(
 			key.WithKeys("right", "l", "enter"),
-			key.WithHelp("right/l/enter", "确认/打开"),
+			key.WithHelp("→/l/enter", "确认/打开"),
 		),
 		Right: key.NewBinding(
 			key.WithKeys("right", "l"),
-			key.WithHelp("right/l", "向右"),
+			key.WithHelp("→/l", "向右"),
 		),
 		Left: key.NewBinding(
 			key.WithKeys("left", "h"),
-			key.WithHelp("left/h", "向左"),
+			key.WithHelp("←/h", "向左"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("left", "h"),
-			key.WithHelp("left/h", "退回"),
+			key.WithHelp("←/h", "退回"),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("R"),

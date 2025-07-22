@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -212,6 +213,7 @@ func (m *BDPan) Init() tea.Cmd {
 	begin := time.Now()
 	logger.Infof("BDPan Init begin ============================")
 
+	m.SetFiles(m.files)
 	m.SetQuicks(m.quicks)
 
 	m.confirmModel = wtea.NewConfirm("", baseFocusStyle)
@@ -635,15 +637,7 @@ func (m *BDPan) GetCenterView() string {
 	)
 }
 
-func (m *BDPan) GetMidView() string {
-
-	// quick
-	leftView := m.quickModel.View()
-
-	// filelist
-	centerView := m.GetCenterView()
-
-	// fileinfo
+func (m *BDPan) GetRightView() string {
 	fileinfoView := m.GetFileInfoView(nil)
 	if m.FileListModelIsNotNil() && m.FilesIsNotNil() {
 		f, err := m.fileListModel.GetSelectFile()
@@ -654,15 +648,31 @@ func (m *BDPan) GetMidView() string {
 		fileinfoView = m.GetFileInfoView(f)
 	}
 
-	rightViews := []string{fileinfoView}
+	rightViews := []string{
+		fileinfoView,
+		m.GetHelpView(),
+	}
 	if m.ConfirmFocused() {
 		rightViews = append(rightViews, m.GetConfirmView())
 	}
 
-	rightView := lipgloss.JoinVertical(
+	return lipgloss.JoinVertical(
 		lipgloss.Top,
 		rightViews...,
 	)
+}
+
+func (m *BDPan) GetMidView() string {
+
+	// quick
+	leftView := m.quickModel.View()
+
+	// filelist
+	centerView := m.GetCenterView()
+
+	// right
+	// fileinfo
+	rightView := m.GetRightView()
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -670,6 +680,16 @@ func (m *BDPan) GetMidView() string {
 		centerView,
 		rightView,
 	)
+}
+
+func (m *BDPan) GetHelpView() string {
+	helpModel := help.New()
+	helpModel.Width = m.GetRightWidth()
+	if m.FileListModelIsNotNil() {
+		return baseStyle.Render(m.fileListModel.model.HelpView())
+	} else {
+		return ""
+	}
 }
 
 func (m *BDPan) GetMessageView() string {
@@ -869,6 +889,9 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 	lastBeforeH := lipgloss.Height(strings.Join(lines, "\n"))
 	logger.Infof("lastBeforeH %d", lastBeforeH)
 	lastH := m.GetMidHeight() - lastBeforeH - 2
+	// 减去帮助信息的高度
+	lastH -= lipgloss.Height(m.GetHelpView())
+	// 需要确认框时减去确认框的高度
 	if m.ConfirmFocused() {
 		lastH -= lipgloss.Height(m.GetConfirmView())
 	}

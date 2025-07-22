@@ -42,10 +42,6 @@ func (h *AuthHandler) GetUser() (*model.User, error) {
 	return model.NewUser(info), nil
 }
 
-// func (h *AuthHandler) RefreshUserInfo() (*model.User, error) {
-// return bdpan.GetUserInfo(h.accessToken)
-// }
-
 func (h *AuthHandler) GetPan() (*model.Pan, error) {
 	info, err := bdpan.GetPanInfo(h.accessToken)
 	if err != nil {
@@ -93,14 +89,14 @@ func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
 	}
 
 	// 显示登录信息
-	userInfo, err := auth.GetUserInfo(h.accessToken)
+	userInfo, err := h.GetUser()
 	if err != nil {
 		return err
 	}
 	fmt.Printf("你好, %s(%s)\n", userInfo.BaiduName, userInfo.GetVipName())
 
 	// 显示配额
-	quota, err := auth.GetQuota(h.accessToken)
+	quota, err := h.GetPan()
 	if err != nil {
 		return err
 	}
@@ -118,7 +114,7 @@ func (h *AuthHandler) loginByCredential() error {
 		return errors.New("AppKey 不正确")
 	}
 
-	for i := 0; i < int(10); i++ {
+	for range int(10) {
 		err := qrcode.ShowByUrl(deviceCode.QrcodeURL, 5*time.Second)
 		if err != nil {
 			return err
@@ -131,7 +127,6 @@ func (h *AuthHandler) loginByCredential() error {
 			access.RefreshToken = deviceToken.RefreshToken
 			access.RefreshTimestamp = int(time.Now().Unix()) + access.ExpiresIn
 			// auth 赋值
-			// h.auth.SetAccess(config.ToAuthAccess())
 			h.accessToken = deviceToken.AccessToken
 			// 保存配置
 			config.SaveAccess(access)
