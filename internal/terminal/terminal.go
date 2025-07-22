@@ -25,7 +25,7 @@ type Terminal struct {
 	m *BDPan
 }
 
-func (t *Terminal) Send(second int, send func() interface{}) {
+func (t *Terminal) Send(second int, send func() any) {
 	now := time.Now().Second()
 	if now%second == 0 {
 		// logger.Infof("监听时间并执行发送消息任务 %d", now)
@@ -33,69 +33,6 @@ func (t *Terminal) Send(second int, send func() interface{}) {
 		if m != nil {
 			t.p.Send(m)
 		}
-	}
-}
-
-func (t *Terminal) refreshPan() {
-	// 初始化 pan 信息
-	if t.m.PanIsNil() {
-		pan, err := t.authHandler.GetPan()
-		if err != nil {
-			panic(err)
-		}
-		t.p.Send(ChangePanMsg{Pan: pan})
-	}
-}
-
-func (t *Terminal) refreshFiles() {
-	// 刷新文件列表
-	if t.m.IsLoadingFileList() || t.m.FileListModelIsNil() {
-		files, err := t.fileHandler.GetFiles(t.m.Dir, 1)
-		if err != nil {
-			panic(err)
-		}
-		t.p.Send(ChangeFilesMsg{
-			Files: files,
-		})
-	}
-}
-
-func (t *Terminal) listenRefreshFiles() {
-	// 监听刷新文件列表
-	for {
-		t.refreshFiles()
-	}
-}
-
-// func (t *Terminal) listenTasks() {
-// // 监听任务
-// for {
-// time.Sleep(time.Duration(1) * time.Second)
-// for _, task := range t.m.GetConfirmTasks() {
-// logger.Infof("监听到任务 %v", task)
-// // t.m.DoneTask(task)
-// }
-// }
-// }
-
-// func (t *Terminal) clearMessage() {
-// // 清理消息
-// for {
-// time.Sleep(time.Duration(2) * time.Second)
-// if t.m.MessageIsNotNil() {
-// t.p.Send(ChangeMessageMsg{Message: ""})
-// }
-// }
-// }
-
-func (t *Terminal) refreshUser() {
-	// 初始化 user 信息
-	if t.m.UserIsNil() {
-		user, err := t.authHandler.GetUser()
-		if err != nil {
-			panic(err)
-		}
-		t.p.Send(ChangeUserMsg{User: user})
 	}
 }
 
