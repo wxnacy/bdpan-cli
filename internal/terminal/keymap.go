@@ -4,12 +4,14 @@ import "github.com/charmbracelet/bubbles/key"
 
 type KeyMap struct {
 	Enter   key.Binding
-	Back    key.Binding
-	Delete  key.Binding
-	Refresh key.Binding
 	Exit    key.Binding
+	Back    key.Binding
 	Right   key.Binding
 	Left    key.Binding
+	Refresh key.Binding
+	Delete  key.Binding
+	Cut     key.Binding // 剪切
+	Paste   key.Binding // 黏贴
 
 	// Pane
 	MovePaneLeft  key.Binding
@@ -39,8 +41,8 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // key.Map interface.
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Enter, k.Back, k.Delete, k.Refresh}, // first column
-		{k.Exit, k.Right, k.Left},              // second column
+		{k.Enter, k.Back, k.Delete, k.Refresh},    // first column
+		{k.Exit, k.Right, k.Left, k.Cut, k.Paste}, // second column
 	}
 }
 
@@ -73,6 +75,14 @@ func DefaultKeyMap() KeyMap {
 		Delete: key.NewBinding(
 			key.WithKeys("D"),
 			key.WithHelp("D", "删除"),
+		),
+		Cut: key.NewBinding(
+			key.WithKeys("x"),
+			key.WithHelp("x", "剪切"),
+		),
+		Paste: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "黏贴"),
 		),
 
 		MovePaneLeft: key.NewBinding(

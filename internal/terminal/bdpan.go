@@ -310,6 +310,24 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 				// 删除成功后刷新目录
 				cmds = append(cmds, m.SendGoto(m.Dir))
 			}
+		case TypePaste:
+			// 移动文件
+			var task = m.GetMoveTask()
+			var paths []string
+			for _, f := range task.Files {
+				paths = append(paths, f.Path)
+			}
+			logger.Infof("%v Move to %s", paths, t.File.Dir)
+			_, err := m.fileHandler.MoveFiles(t.File.Dir, paths...)
+			cmds = append(cmds, m.DoneTask(t, err))
+			if err == nil {
+				// 黏贴成功后刷新目录
+				cmds = append(
+					cmds,
+					m.SendGoto(m.Dir),
+					m.SendMessage("黏贴成功 %s", strings.Join(paths, " ")),
+				)
+			}
 		case TypeDownload:
 			req := dto.NewDownloadReq()
 			req.Path = t.File.Path
@@ -388,7 +406,6 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			switch {
 			case key.Matches(msg, m.KeyMap.Delete):
 				// 删除
-				// m.fileListModel.Blur()
 				if m.CanSelectFile() {
 					f, err := m.GetSelectFile()
 					if err != nil {
@@ -401,6 +418,26 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						m.fileListModel,
 					)
 					cmds = append(cmds, cmd)
+				}
+			case key.Matches(msg, m.KeyMap.Cut):
+				// 剪切
+				if m.CanSelectFile() {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					m.AddOrAppendFileTask(f, TypeMove)
+					cmds = append(cmds, m.SendMessage("剪切文件: %s", f.Path))
+				}
+			case key.Matches(msg, m.KeyMap.Paste):
+				// 黏贴
+				if m.CanSelectFile() {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					var task = m.AddFileTask(f, TypePaste)
+					cmds = append(cmds, m.SendRunTask(task))
 				}
 			case key.Matches(msg, m.KeyMap.Refresh):
 				// 刷新目录
@@ -497,8 +534,8 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	return flag, tea.Batch(cmds...)
 }
 
+// ListenCombKeyMsg 监听两个键位的组合
 func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
-	// 监听两个键位的组合键位
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	flag := true
@@ -1007,6 +1044,32 @@ func (m *BDPan) AddFileTask(f *model.File, t TaskType) *Task {
 	return task
 }
 
+func (m *BDPan) AddOrAppendFileTask(f *model.File, tt TaskType) *Task {
+	var task *Task
+	for _, t := range m.taskMap {
+		if t.Type == tt {
+			task = t
+		}
+	}
+	if task == nil {
+		task = m.AddFileTask(f, tt)
+		task.Files = append(task.Files, f)
+	} else {
+		task.Files = append(task.Files, f)
+	}
+	return task
+}
+
+// GetMoveTask 获取移动任务
+func (m *BDPan) GetMoveTask() *Task {
+	for _, t := range m.taskMap {
+		if t.Type == TypeMove && t.File != nil {
+			return t
+		}
+	}
+	return nil
+}
+
 func (m *BDPan) GetConfirmTasks() []*Task {
 	tasks := make([]*Task, 0)
 	for _, t := range m.taskMap {
@@ -1016,6 +1079,7 @@ func (m *BDPan) GetConfirmTasks() []*Task {
 	}
 	return tasks
 }
+
 func (m *BDPan) ConfirmFocused() bool {
 	return m.confirmModel != nil && m.confirmModel.Focused()
 }
@@ -1069,7 +1133,7 @@ func (m *BDPan) Goto(dir string) tea.Cmd {
 }
 
 // 设置消息
-func (m *BDPan) SetMessage(msg string, args ...interface{}) {
+func (m *BDPan) SetMessage(msg string, args ...any) {
 	if len(args) == 0 {
 		m.message = msg
 	} else {
@@ -1129,9 +1193,11 @@ func (m *BDPan) SendMsg(msg tea.Msg) tea.Cmd {
 }
 
 // 发送显示确认框消息
-// title 展示标题
-// data 确认框携带的额外信息
-// fromModel 从哪个模型跳转的，方便返回聚焦
+//
+// 参数:
+//   - title: 展示标题
+//   - data: 确认框携带的额外信息
+//   - fromModel: 从哪个模型跳转的，方便返回聚焦
 func (m *BDPan) SendShowConfirm(
 	title string,
 	data wtea.ExtData,

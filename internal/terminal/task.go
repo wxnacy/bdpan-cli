@@ -14,6 +14,8 @@ type TaskStatus int
 const (
 	TypeDelete TaskType = iota
 	TypeDownload
+	TypeMove
+	TypePaste
 
 	StatusWating TaskStatus = iota
 	StatusRunning
@@ -35,6 +37,8 @@ func NewTask(type_ TaskType, f *model.File) *Task {
 type Task struct {
 	ID        int
 	File      *model.File
+	Files     []*model.File
+	Dir       string
 	Type      TaskType
 	Status    TaskStatus
 	IsConfirm bool
@@ -45,6 +49,10 @@ func (t Task) GetTypeString() string {
 	switch t.Type {
 	case TypeDelete:
 		return "Delete"
+	case TypeMove:
+		return "Move"
+	case TypePaste:
+		return "Paste"
 	case TypeDownload:
 		return "Download"
 	}
