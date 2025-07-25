@@ -317,8 +317,9 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			for _, f := range task.Files {
 				paths = append(paths, f.Path)
 			}
-			logger.Infof("%v Move to %s", paths, t.File.Dir)
-			_, err := m.fileHandler.MoveFiles(t.File.Dir, paths...)
+			var moveDir = t.Dir
+			logger.Infof("%v Move to %s", paths, moveDir)
+			_, err := m.fileHandler.MoveFiles(moveDir, paths...)
 			cmds = append(cmds, m.DoneTask(t, err))
 			if err == nil {
 				// 黏贴成功后刷新目录
@@ -431,14 +432,9 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				}
 			case key.Matches(msg, m.KeyMap.Paste):
 				// 黏贴
-				if m.CanSelectFile() {
-					f, err := m.GetSelectFile()
-					if err != nil {
-						return true, tea.Quit
-					}
-					var task = m.AddFileTask(f, TypePaste)
-					cmds = append(cmds, m.SendRunTask(task))
-				}
+				var task = m.AddFileTask(nil, TypePaste)
+				task.Dir = m.Dir
+				cmds = append(cmds, m.SendRunTask(task))
 			case key.Matches(msg, m.KeyMap.Refresh):
 				// 刷新目录
 				// 盘信息

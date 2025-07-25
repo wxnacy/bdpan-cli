@@ -24,7 +24,11 @@ const (
 )
 
 func NewTask(type_ TaskType, f *model.File) *Task {
-	idStr := fmt.Sprintf("%s%d", common.FormatNumberWithTrailingZeros(int(type_), 3), f.FSID)
+	var fsid uint64
+	if f != nil {
+		fsid = f.FSID
+	}
+	idStr := fmt.Sprintf("%s%d", common.FormatNumberWithTrailingZeros(int(type_), 3), fsid)
 	id, _ := strconv.Atoi(idStr)
 	return &Task{
 		ID:     id,
@@ -78,10 +82,14 @@ func (t Task) String() string {
 	if t.err != nil {
 		err = t.err.Error()
 	}
+	var filename = ""
+	if t.File != nil {
+		filename = t.File.GetFilename()
+	}
 	return fmt.Sprintf(
 		"%s: %s %s %s",
 		t.GetTypeString(),
-		t.File.GetFilename(),
+		filename,
 		t.GetStatusString(),
 		err,
 	)
