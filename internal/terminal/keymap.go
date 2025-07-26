@@ -9,6 +9,7 @@ type KeyMap struct {
 	Right   key.Binding
 	Left    key.Binding
 	Refresh key.Binding
+	Space   key.Binding // 空格，选中
 	Delete  key.Binding
 	Cut     key.Binding // 剪切
 	Paste   key.Binding // 黏贴
@@ -71,6 +72,10 @@ func DefaultKeyMap() KeyMap {
 		Refresh: key.NewBinding(
 			key.WithKeys("R"),
 			key.WithHelp("R", "刷新当前目录"),
+		),
+		Space: key.NewBinding(
+			key.WithKeys(" "),
+			key.WithHelp("Space", "选中"),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("D"),

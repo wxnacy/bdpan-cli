@@ -233,7 +233,7 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	// var err error
-	logger.Infof("Update by msg: %v", msg)
+	logger.Infof("Update by msg: -%v-", msg)
 
 	flag, cmd := m.ListenCombKeyMsg(msg)
 	cmds = append(cmds, cmd)
@@ -304,7 +304,17 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 
 		switch t.Type {
 		case TypeDelete:
-			_, err := m.fileHandler.DeleteFile(t.File.Path)
+			var selectTask = m.GetTaskByType(TypeSelect)
+			var paths []string
+			if selectTask != nil {
+				for _, f := range selectTask.Files {
+					paths = append(paths, f.Path)
+				}
+			} else {
+				paths = append(paths, t.File.Path)
+			}
+
+			_, err := m.fileHandler.DeleteFiles(paths...)
 			cmds = append(cmds, m.DoneTask(t, err))
 			if err == nil {
 				// 删除成功后刷新目录
@@ -398,8 +408,10 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			// 光标聚焦在文件列表中
 			if m.FileListModelIsNotNil() {
 				// 先做原始修改操作
-				m.fileListModel, cmd = m.fileListModel.Update(msg)
-				cmds = append(cmds, cmd)
+				if !key.Matches(msg, m.KeyMap.Space) {
+					m.fileListModel, cmd = m.fileListModel.Update(msg)
+					cmds = append(cmds, cmd)
+				}
 
 				// 记录光标位置
 				m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
@@ -419,6 +431,18 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						m.fileListModel,
 					)
 					cmds = append(cmds, cmd)
+				}
+			case key.Matches(msg, m.KeyMap.Space):
+				// 选中
+				if m.CanSelectFile() {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					m.AddOrAppendFileTask(f, TypeSelect)
+					cmds = append(cmds, m.SendMessage("选中文件: %s", f.Path))
+					// 选中后向下移动一行
+					m.fileListModel.model.MoveDown(1)
 				}
 			case key.Matches(msg, m.KeyMap.Cut):
 				// 剪切
@@ -1054,6 +1078,16 @@ func (m *BDPan) AddOrAppendFileTask(f *model.File, tt TaskType) *Task {
 		task.Files = append(task.Files, f)
 	}
 	return task
+}
+
+// 获取指定类型任务
+func (m *BDPan) GetTaskByType(tt TaskType) *Task {
+	for _, t := range m.taskMap {
+		if t.Type == tt && t.File != nil {
+			return t
+		}
+	}
+	return nil
 }
 
 // GetMoveTask 获取移动任务

@@ -93,8 +93,8 @@ func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
 	return totalList, nil
 }
 
-func (h *FileHandler) DeleteFile(path string) (*bdpan.ManageFileRes, error) {
-	return bdpan.DeleteFile(h.acceccToken, path)
+func (h *FileHandler) DeleteFiles(paths ...string) (*bdpan.ManageFileRes, error) {
+	return bdpan.DeleteFiles(h.acceccToken, paths...)
 }
 
 func (h *FileHandler) MoveFiles(dir string, paths ...string) (*bdpan.ManageFileRes, error) {
@@ -219,7 +219,7 @@ func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
 		}
 	}
 	var path = info.Path
-	res, err := bdpan.DeleteFile(h.acceccToken, path)
+	res, err := bdpan.DeleteFiles(h.acceccToken, path)
 	if err != nil {
 		return err
 	}
