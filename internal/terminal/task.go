@@ -14,7 +14,6 @@ type TaskStatus int
 const (
 	TypeDelete TaskType = iota
 	TypeDownload
-	TypeSelect
 	TypeMove
 	TypePaste
 
@@ -60,8 +59,6 @@ func (t Task) GetTypeString() string {
 		return "Paste"
 	case TypeDownload:
 		return "Download"
-	case TypeSelect:
-		return "Select"
 	}
 	panic("unkown type")
 }

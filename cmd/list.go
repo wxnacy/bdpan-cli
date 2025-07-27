@@ -40,7 +40,7 @@ func init() {
 		// 最大文件名长度+其他列宽度+固定富裕长度
 		width = maxFilenameW + 40 + 15
 		view := terminal.
-			NewFileList(files, width, height).
+			NewFileList(files, width, height, []string{}).
 			View()
 		fmt.Println(view)
 		return nil

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
+	"github.com/wxnacy/go-tools"
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -126,7 +127,9 @@ func (m FileList) GetKeyMap() FileListKeyMap {
 	return m.keymap
 }
 
-func NewFileList(files []*model.File, width, height int) *FileList {
+func NewFileList(
+	files []*model.File, width, height int, selectors []string,
+) *FileList {
 	var sizeW int = 10
 	var typeW int = 10
 	var timeW int = 20
@@ -151,9 +154,16 @@ func NewFileList(files []*model.File, width, height int) *FileList {
 		})
 	} else {
 		for _, f := range files {
+			var selectIcon = ""
+			if tools.ArrayContainsString(selectors, f.Path) {
+				selectIcon = " "
+			}
+			// if f.IsSelect {
+			// selectIcon = " "
+			// }
 			rows = append(rows, table.Row{
 				fmt.Sprintf("%d", f.FSID),
-				fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()),
+				fmt.Sprintf("%s%s %s", selectIcon, f.GetFileTypeEmoji(), f.GetFilename()),
 				f.GetSize(),
 				f.GetFileType(),
 				f.GetServerMTime(),

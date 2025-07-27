@@ -66,6 +66,7 @@ func NewBDPan(dir string) (*BDPan, error) {
 		filesMap:        make(map[string][]*model.File, 0),
 		fileCursorMap:   make(map[string]int, 0),
 		taskMap:         make(map[int]*Task, 0),
+		selectFileMap:   make(map[string]*model.File, 0),
 		quicks:          quicks,
 		messageLifetime: time.Second,
 		fileHandler:     handler.GetFileHandler(),
@@ -80,9 +81,10 @@ type BDPan struct {
 	Dir string
 
 	// Data
-	taskMap map[int]*Task
-	pan     *model.Pan
-	user    *model.User
+	taskMap       map[int]*Task
+	pan           *model.Pan
+	user          *model.User
+	selectFileMap map[string]*model.File // 选中的文件集合
 
 	// message
 	message         string
@@ -137,6 +139,25 @@ func (m *BDPan) GetHeight() int {
 	return h
 }
 
+// 获取选中文件的地址列表
+func (m *BDPan) GetSelectFilePaths() []string {
+	var paths []string
+	for path, _ := range m.selectFileMap {
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+// 清空选中文件集合
+func (m *BDPan) ClearSelectFileMap() {
+	m.selectFileMap = make(map[string]*model.File, 0)
+}
+
+// 是否有选中的文件
+func (m *BDPan) HasSelectFile() bool {
+	return len(m.selectFileMap) > 0
+}
+
 func (m *BDPan) getFiles(dir string) []*model.File {
 	files, _ := m.filesMap[dir]
 	return files
@@ -148,6 +169,7 @@ func (m *BDPan) SetFiles(files []*model.File) *BDPan {
 	m.fileListModel = m.NewFileList(m.files)
 	m.DisableLoadingFileList()
 	m.RefreshQuickSelect()
+	// TODO: 已经在 fileListModel 渲染之前设置光标，理论上可以删除这里的设置
 	// 设置光标位置
 	m.fileListModel.Cursor(m.GetFileListCursor())
 	return m
@@ -304,12 +326,11 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 
 		switch t.Type {
 		case TypeDelete:
-			var selectTask = m.GetTaskByType(TypeSelect)
 			var paths []string
-			if selectTask != nil {
-				for _, f := range selectTask.Files {
-					paths = append(paths, f.Path)
-				}
+			if m.HasSelectFile() {
+				// 有选中文件时使用集合删除
+				paths = m.GetSelectFilePaths()
+				m.ClearSelectFileMap()
 			} else {
 				paths = append(paths, t.File.Path)
 			}
@@ -408,6 +429,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			// 光标聚焦在文件列表中
 			if m.FileListModelIsNotNil() {
 				// 先做原始修改操作
+				// 空格操作不使用原始操作
 				if !key.Matches(msg, m.KeyMap.Space) {
 					m.fileListModel, cmd = m.fileListModel.Update(msg)
 					cmds = append(cmds, cmd)
@@ -439,10 +461,20 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					if err != nil {
 						return true, tea.Quit
 					}
-					m.AddOrAppendFileTask(f, TypeSelect)
+					var path = f.Path
+					_, exist := m.selectFileMap[path]
+					if exist {
+						delete(m.selectFileMap, path)
+					} else {
+						m.selectFileMap[path] = f
+					}
 					cmds = append(cmds, m.SendMessage("选中文件: %s", f.Path))
 					// 选中后向下移动一行
 					m.fileListModel.model.MoveDown(1)
+					// 记录光标位置
+					m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
+					// 重新设置文件列表，带有选中效果
+					m.fileListModel = m.NewFileList(m.files)
 				}
 			case key.Matches(msg, m.KeyMap.Cut):
 				// 剪切
@@ -672,10 +704,13 @@ func (m *BDPan) GetFileListCursor() int {
 func (m *BDPan) GetFileListView() string {
 	if !m.IsLoadingFileList() && m.FileListModelIsNotNil() {
 		// 尺寸改变重新加载
+		// 有多选时也重新加载
 		if m.changeWindowSizeState {
 			m.fileListModel = m.NewFileList(m.files)
 			m.changeWindowSizeState = false
 		}
+		// 渲染之前设置光标位置
+		m.fileListModel.Cursor(m.GetFileListCursor())
 		return m.fileListModel.View()
 	} else {
 		return m.NewFileList(nil).View()
@@ -1006,8 +1041,14 @@ func (m *BDPan) NewFileList(files []*model.File) *FileList {
 	if m.FileListModelIsNotNil() {
 		focused = m.fileListModel.Focused()
 	}
+	// 高度
 	var h = m.GetMidHeight() - lipgloss.Height(m.GetDirView())
-	model := NewFileList(files, m.GetMidWidth(), h)
+	// 是否有多选文件
+	var selectors = m.GetSelectFilePaths()
+
+	model := NewFileList(
+		files, m.GetMidWidth(), h, selectors,
+	)
 	// 检查之前是否聚焦
 	if !focused {
 		model.Blur()

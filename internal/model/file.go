@@ -73,8 +73,9 @@ type File struct {
 	LocalMTime      int64  `json:"local_mtime"`
 
 	// custom
-	IsRefresh int `json:"is_refresh"`
-	Level     int `json:"level"`
+	IsRefresh int  `json:"is_refresh"`
+	Level     int  `json:"level"`
+	IsSelect  bool `gorm:"-" json:"is_select"` // 是否选中，tui 表格使用
 	ORMModel
 }
 
