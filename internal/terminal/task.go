@@ -14,7 +14,6 @@ type TaskStatus int
 const (
 	TypeDelete TaskType = iota
 	TypeDownload
-	TypeMove
 	TypePaste
 
 	StatusWating TaskStatus = iota
@@ -53,8 +52,6 @@ func (t Task) GetTypeString() string {
 	switch t.Type {
 	case TypeDelete:
 		return "Delete"
-	case TypeMove:
-		return "Move"
 	case TypePaste:
 		return "Paste"
 	case TypeDownload:

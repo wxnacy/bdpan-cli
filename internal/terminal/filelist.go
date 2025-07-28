@@ -31,6 +31,111 @@ var (
 	baseStyleHeight int
 )
 
+type FileListArgType int
+
+const (
+	FLTypeSelect FileListArgType = iota
+	FLTypeSelectCut
+)
+
+type FileListArg struct {
+	Type  FileListArgType
+	Files []*model.File
+}
+
+func NewFileList(
+	files []*model.File, width, height int, selectors []string,
+	args ...FileListArg,
+) *FileList {
+	var sizeW int = 10
+	var typeW int = 10
+	var timeW int = 20
+	// 8 是为了和传进来的width保持一致设定的数字
+	var filenameW int = width - sizeW - typeW - timeW - GetBaseStyleWidth() - 8
+	columns := []table.Column{
+		{Title: "FSID", Width: 0},
+		{Title: "文件名", Width: filenameW},
+		{Title: "大小", Width: sizeW},
+		{Title: "类型", Width: typeW},
+		{Title: "修改时间", Width: timeW},
+	}
+
+	// 剪切选中集合
+	var cutSelectors []string
+	for _, arg := range args {
+		switch arg.Type {
+		case FLTypeSelectCut:
+			for _, f := range arg.Files {
+				cutSelectors = append(cutSelectors, f.Path)
+			}
+		}
+	}
+
+	rows := make([]table.Row, 0)
+	if files == nil {
+		rows = append(rows, table.Row{
+			"",
+			"数据加载中...",
+			"",
+			"",
+			"",
+		})
+	} else {
+		for _, f := range files {
+			var selectIcon = ""
+			if tools.ArrayContainsString(selectors, f.Path) {
+				selectIcon = " "
+			}
+			if tools.ArrayContainsString(cutSelectors, f.Path) {
+				selectIcon = " "
+			}
+			logger.Infof("NewFileList file %#v", f)
+			rows = append(rows, table.Row{
+				fmt.Sprintf("%d", f.FSID),
+				fmt.Sprintf("%s%s %s", selectIcon, f.GetFileTypeEmoji(), f.GetFilename()),
+				f.GetSize(),
+				f.GetFileType(),
+				f.GetServerMTime(),
+			})
+		}
+		if len(rows) == 0 {
+			rows = append(rows, table.Row{
+				"",
+				"空",
+				"",
+				"",
+				"",
+			})
+		}
+	}
+
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(height-4),
+	)
+	logger.Infof("Table height %d", t.Height())
+
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderBottom(true).
+		Bold(false)
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
+	t.SetStyles(s)
+
+	return &FileList{
+		model:  t,
+		files:  files,
+		keymap: DefaultFileListKeyMap(),
+	}
+}
+
 type FileList struct {
 	model  table.Model
 	files  []*model.File
@@ -125,86 +230,6 @@ func (m FileList) Focused() bool {
 
 func (m FileList) GetKeyMap() FileListKeyMap {
 	return m.keymap
-}
-
-func NewFileList(
-	files []*model.File, width, height int, selectors []string,
-) *FileList {
-	var sizeW int = 10
-	var typeW int = 10
-	var timeW int = 20
-	// 8 是为了和传进来的width保持一致设定的数字
-	var filenameW int = width - sizeW - typeW - timeW - GetBaseStyleWidth() - 8
-	columns := []table.Column{
-		{Title: "FSID", Width: 0},
-		{Title: "文件名", Width: filenameW},
-		{Title: "大小", Width: sizeW},
-		{Title: "类型", Width: typeW},
-		{Title: "修改时间", Width: timeW},
-	}
-
-	rows := make([]table.Row, 0)
-	if files == nil {
-		rows = append(rows, table.Row{
-			"",
-			"数据加载中...",
-			"",
-			"",
-			"",
-		})
-	} else {
-		for _, f := range files {
-			var selectIcon = ""
-			if tools.ArrayContainsString(selectors, f.Path) {
-				selectIcon = " "
-			}
-			// if f.IsSelect {
-			// selectIcon = " "
-			// }
-			rows = append(rows, table.Row{
-				fmt.Sprintf("%d", f.FSID),
-				fmt.Sprintf("%s%s %s", selectIcon, f.GetFileTypeEmoji(), f.GetFilename()),
-				f.GetSize(),
-				f.GetFileType(),
-				f.GetServerMTime(),
-			})
-		}
-		if len(rows) == 0 {
-			rows = append(rows, table.Row{
-				"",
-				"空",
-				"",
-				"",
-				"",
-			})
-		}
-	}
-
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height-4),
-	)
-	logger.Infof("Table height %d", t.Height())
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(false)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
-
-	return &FileList{
-		model:  t,
-		files:  files,
-		keymap: DefaultFileListKeyMap(),
-	}
 }
 
 type FileListKeyMap struct {

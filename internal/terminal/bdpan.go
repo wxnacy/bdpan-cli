@@ -61,17 +61,18 @@ func NewBDPan(dir string) (*BDPan, error) {
 	}
 
 	item := &BDPan{
-		Dir:             dir,
-		files:           make([]*model.File, 0),
-		filesMap:        make(map[string][]*model.File, 0),
-		fileCursorMap:   make(map[string]int, 0),
-		taskMap:         make(map[int]*Task, 0),
-		selectFileMap:   make(map[string]*model.File, 0),
-		quicks:          quicks,
-		messageLifetime: time.Second,
-		fileHandler:     handler.GetFileHandler(),
-		authHandler:     handler.GetAuthHandler(),
-		KeyMap:          DefaultKeyMap(),
+		Dir:              dir,
+		files:            make([]*model.File, 0),
+		filesMap:         make(map[string][]*model.File, 0),
+		fileCursorMap:    make(map[string]int, 0),
+		taskMap:          make(map[int]*Task, 0),
+		selectFileMap:    make(map[string]*model.File, 0),
+		cutSelectFileMap: make(map[string]*model.File, 0),
+		quicks:           quicks,
+		messageLifetime:  time.Second,
+		fileHandler:      handler.GetFileHandler(),
+		authHandler:      handler.GetAuthHandler(),
+		KeyMap:           DefaultKeyMap(),
 	}
 	logger.Infof("NewDBPan time used %v", time.Now().Sub(begin))
 	return item, nil
@@ -81,10 +82,11 @@ type BDPan struct {
 	Dir string
 
 	// Data
-	taskMap       map[int]*Task
-	pan           *model.Pan
-	user          *model.User
-	selectFileMap map[string]*model.File // 选中的文件集合
+	taskMap          map[int]*Task
+	pan              *model.Pan
+	user             *model.User
+	selectFileMap    map[string]*model.File // 选中的文件集合
+	cutSelectFileMap map[string]*model.File // 剪切选中的文件集合
 
 	// message
 	message         string
@@ -142,7 +144,7 @@ func (m *BDPan) GetHeight() int {
 // 获取选中文件的地址列表
 func (m *BDPan) GetSelectFilePaths() []string {
 	var paths []string
-	for path, _ := range m.selectFileMap {
+	for path := range m.selectFileMap {
 		paths = append(paths, path)
 	}
 	return paths
@@ -156,6 +158,27 @@ func (m *BDPan) ClearSelectFileMap() {
 // 是否有选中的文件
 func (m *BDPan) HasSelectFile() bool {
 	return len(m.selectFileMap) > 0
+}
+
+// 获取剪切选中文件的地址列表
+func (m *BDPan) GetCutSelectFilePaths() []string {
+	var paths []string
+	for path := range m.cutSelectFileMap {
+		paths = append(paths, path)
+	}
+	return paths
+}
+func (m *BDPan) GetCutSelectFiles() []*model.File {
+	var files []*model.File
+	for _, f := range m.cutSelectFileMap {
+		files = append(files, f)
+	}
+	return files
+}
+
+// 清空剪切选中文件集合
+func (m *BDPan) ClearCutSelectFileMap() {
+	m.cutSelectFileMap = make(map[string]*model.File, 0)
 }
 
 func (m *BDPan) getFiles(dir string) []*model.File {
@@ -343,22 +366,21 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			}
 		case TypePaste:
 			// 移动文件
-			var task = m.GetMoveTask()
-			var paths []string
-			for _, f := range task.Files {
-				paths = append(paths, f.Path)
-			}
-			var moveDir = t.Dir
-			logger.Infof("%v Move to %s", paths, moveDir)
-			_, err := m.fileHandler.MoveFiles(moveDir, paths...)
-			cmds = append(cmds, m.DoneTask(t, err))
-			if err == nil {
-				// 黏贴成功后刷新目录
-				cmds = append(
-					cmds,
-					m.SendGoto(m.Dir),
-					m.SendMessage("黏贴成功 %s", strings.Join(paths, " ")),
-				)
+			var cutPaths = m.GetCutSelectFilePaths()
+			if len(cutPaths) > 0 {
+				var moveDir = t.Dir
+				logger.Infof("%v Move to %s", cutPaths, moveDir)
+				_, err := m.fileHandler.MoveFiles(moveDir, cutPaths...)
+				m.ClearCutSelectFileMap()
+				cmds = append(cmds, m.DoneTask(t, err))
+				if err == nil {
+					// 黏贴成功后刷新目录
+					cmds = append(
+						cmds,
+						m.SendGoto(m.Dir),
+						m.SendMessage("黏贴成功 %s", strings.Join(cutPaths, " ")),
+					)
+				}
 			}
 		case TypeDownload:
 			req := dto.NewDownloadReq()
@@ -479,12 +501,24 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			case key.Matches(msg, m.KeyMap.Cut):
 				// 剪切
 				if m.CanSelectFile() {
-					f, err := m.GetSelectFile()
-					if err != nil {
-						return true, tea.Quit
+					// 确认剪切文件
+					if m.HasSelectFile() {
+						m.ClearCutSelectFileMap()
+						m.cutSelectFileMap = m.selectFileMap
+						m.ClearSelectFileMap()
+					} else {
+						f, err := m.GetSelectFile()
+						if err != nil {
+							return true, tea.Quit
+						}
+						m.cutSelectFileMap[f.Path] = f
 					}
-					m.AddOrAppendFileTask(f, TypeMove)
-					cmds = append(cmds, m.SendMessage("剪切文件: %s", f.Path))
+					// 重新设置文件列表，带有选中效果
+					m.fileListModel = m.NewFileList(m.files)
+					cmds = append(cmds, m.SendMessage(
+						"剪切文件: %s",
+						strings.Join(m.GetCutSelectFilePaths(), " "),
+					))
 				}
 			case key.Matches(msg, m.KeyMap.Paste):
 				// 黏贴
@@ -1048,6 +1082,10 @@ func (m *BDPan) NewFileList(files []*model.File) *FileList {
 
 	model := NewFileList(
 		files, m.GetMidWidth(), h, selectors,
+		FileListArg{
+			Type:  FLTypeSelectCut,
+			Files: m.GetCutSelectFiles(),
+		},
 	)
 	// 检查之前是否聚焦
 	if !focused {
@@ -1132,14 +1170,14 @@ func (m *BDPan) GetTaskByType(tt TaskType) *Task {
 }
 
 // GetMoveTask 获取移动任务
-func (m *BDPan) GetMoveTask() *Task {
-	for _, t := range m.taskMap {
-		if t.Type == TypeMove && t.File != nil {
-			return t
-		}
-	}
-	return nil
-}
+// func (m *BDPan) GetMoveTask() *Task {
+// for _, t := range m.taskMap {
+// if t.Type == TypeMove && t.File != nil {
+// return t
+// }
+// }
+// return nil
+// }
 
 func (m *BDPan) GetConfirmTasks() []*Task {
 	tasks := make([]*Task, 0)
