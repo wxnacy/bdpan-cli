@@ -46,6 +46,11 @@ func CreateQRCodeImage(text string, size int, filename string) error {
 }
 
 func ShowByUrl(uri string, timeout time.Duration) error {
+	return ShowByUrlWithSize(uri, timeout, 100, 50)
+}
+
+// ShowByUrlWithSize 显示二维码，可以自定义显示大小
+func ShowByUrlWithSize(uri string, timeout time.Duration, width, height int) error {
 	var images []image.Image
 	resp, err := http.Get(uri)
 	if err != nil {
@@ -63,7 +68,7 @@ func ShowByUrl(uri string, timeout time.Duration) error {
 	defer ui.Close()
 
 	img := widgets.NewImage(nil)
-	img.SetRect(0, 0, 100, 50)
+	img.SetRect(0, 0, width, height)
 	index := 0
 	render := func() {
 		img.Image = images[index]

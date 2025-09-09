@@ -115,7 +115,7 @@ func (h *AuthHandler) loginByCredential() error {
 	}
 
 	for range int(10) {
-		err := qrcode.ShowByUrl(deviceCode.QrcodeURL, 5*time.Second)
+		err := qrcode.ShowByUrlWithSize(deviceCode.QrcodeURL, 5*time.Second, 60, 30)
 		if err != nil {
 			return err
 		}
