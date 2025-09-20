@@ -51,7 +51,7 @@ func (m *Quick) Update(msg tea.Msg) (*Quick, tea.Cmd) {
 func (m Quick) View() string {
 	begin := time.Now()
 	var viewW, viewH int
-	var view = m.model.View()
+	view := m.model.View()
 	viewW, viewH = lipgloss.Size(view)
 	logger.Infof("ListView Size %dx%d", viewW, viewH)
 	if m.Focused() {
@@ -102,11 +102,12 @@ func (m *Quick) Focused() bool {
 func (m *Quick) Focus() {
 	m.focus = true
 }
+
 func (m *Quick) Blur() {
 	m.focus = false
 }
 
-func NewQuick(title string, items []*model.Quick, opts ...interface{}) *Quick {
+func NewQuick(title string, items []*model.Quick, opts ...any) *Quick {
 	m := &Quick{
 		model: list.New(
 			model.ToList(items), list.NewDefaultDelegate(), 0, 0),
@@ -137,8 +138,8 @@ func DefaultQuickKeyMap() QuickKeyMap {
 			key.WithHelp("esc", "退出"),
 		),
 		Enter: key.NewBinding(
-			key.WithKeys("o", "enter"),
-			key.WithHelp("o/enter", "确认/打开"),
+			key.WithKeys("o", "enter", "l"),
+			key.WithHelp("o/enter/l", "确认/打开"),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("D"),
