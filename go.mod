@@ -19,11 +19,11 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.19.0
-	github.com/wxnacy/bdpan v0.3.3
-	github.com/wxnacy/dler v0.7.2
+	github.com/wxnacy/bdpan v0.5.2
+	github.com/wxnacy/dler v0.8.3
 	github.com/wxnacy/dler/godler v0.0.0-20230502090212-1854c87e8009
 	github.com/wxnacy/go-bdpan v0.0.1
-	github.com/wxnacy/go-tools v0.0.9
+	github.com/wxnacy/go-tools v0.0.10
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	gorm.io/gorm v1.25.11
@@ -34,6 +34,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/catppuccin/go v0.2.0 // indirect
+	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20241101155414-3df16cb7eefd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
@@ -98,7 +99,7 @@ require (
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.2.3 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelsql v0.2.3 // indirect
 	github.com/wxnacy/go-pretty v0.0.1 // indirect
-	github.com/wxnacy/go-tasker v0.0.6 // indirect
+	github.com/wxnacy/go-tasker v1.0.0 // indirect
 	github.com/wxnacy/gotool v0.0.5 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
@@ -124,12 +125,12 @@ require (
 	gorm.io/plugin/dbresolver v1.5.1 // indirect
 )
 
-replace github.com/wxnacy/bdpan => ../bdpan
+// replace github.com/wxnacy/bdpan => ../bdpan
 
-replace github.com/wxnacy/go-bdpan => ../go-bdpan
+// replace github.com/wxnacy/go-bdpan => ../go-bdpan
 
-replace github.com/wxnacy/dler => /Users/wxnacy/Documents/Projects/wxnacy/dler
+// replace github.com/wxnacy/dler => /Users/wxnacy/Documents/Projects/wxnacy/dler
 
-replace github.com/wxnacy/go-tools => /Users/wxnacy/Documents/Projects/wxnacy/gotool
+// replace github.com/wxnacy/go-tools => /Users/wxnacy/Documents/Projects/wxnacy/gotool
 
-replace github.com/wxnacy/go-tasker => /Users/wxnacy/Documents/Projects/wxnacy/go-tasker
+// replace github.com/wxnacy/go-tasker => /Users/wxnacy/Documents/Projects/wxnacy/go-tasker
