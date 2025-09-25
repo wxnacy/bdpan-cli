@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/tasker"
+	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
 	"github.com/wxnacy/dler"
 	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
@@ -23,7 +23,7 @@ var fileHandler *FileHandler
 func GetFileHandler() *FileHandler {
 	if fileHandler == nil {
 		fileHandler = &FileHandler{
-			acceccToken: config.Get().Access.AccessToken,
+			accessToken: config.Get().Access.AccessToken,
 			limit:       1000,
 		}
 	}
@@ -31,13 +31,13 @@ func GetFileHandler() *FileHandler {
 }
 
 type FileHandler struct {
-	acceccToken string
+	accessToken string
 	limit       int32
 }
 
 func (h *FileHandler) GetFiles(dir string, page int) ([]*model.File, error) {
 	req := bdpan.NewGetFileListReq().SetDir(dir).SetLimit(h.limit).SetPage(page)
-	res, err := bdpan.GetFileList(h.acceccToken, req)
+	res, err := bdpan.GetFileList(h.accessToken, req)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
 	page := 1
 	for {
 		req.SetPage(page)
-		res, err := bdpan.GetFileList(h.acceccToken, req)
+		res, err := bdpan.GetFileList(h.accessToken, req)
 		if err != nil {
 			return nil, err
 		}
@@ -94,11 +94,11 @@ func (h *FileHandler) GetDirAllFiles(dir string) ([]*bdpan.FileInfo, error) {
 }
 
 func (h *FileHandler) DeleteFiles(paths ...string) (*bdpan.ManageFileRes, error) {
-	return bdpan.DeleteFiles(h.acceccToken, paths...)
+	return bdpan.DeleteFiles(h.accessToken, paths...)
 }
 
 func (h *FileHandler) MoveFiles(dir string, paths ...string) (*bdpan.ManageFileRes, error) {
-	return bdpan.MoveFiles(h.acceccToken, dir, paths...)
+	return bdpan.MoveFiles(h.accessToken, dir, paths...)
 }
 
 func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
@@ -136,55 +136,7 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 // 根据地址查找文件
 // 在文件目录中循环查找是否有该名称文件
 func (h *FileHandler) GetFileByPath(path string) (*bdpan.FileInfo, error) {
-
-	getFileByPage := func(dir, name string, page int) (*bdpan.FileInfo, bool, error) {
-		req := bdpan.NewGetFileListReq()
-		req.Dir = dir
-		req.SetPage(page)
-		res, err := bdpan.GetFileList(h.acceccToken, req)
-		// fmt.Println(req)
-		// fmt.Println(page, res, err)
-		if err != nil {
-			return nil, false, err
-		}
-		// 返回是否有下一页
-		if len(res.List) == 0 {
-			return nil, false, nil
-		}
-		// 过滤文件
-		for _, f := range res.List {
-			if f.GetFilename() == name {
-				return f, false, nil
-			}
-		}
-		return nil, true, nil
-	}
-	dir, name := filepath.Split(path)
-	// 10万页循环
-	for i := 0; i < 100000; i++ {
-		f, hasMove, err := getFileByPage(dir, name, i+1)
-		if err != nil {
-			return nil, err
-		}
-		if f != nil {
-			req := bdpan.NewGetFileInfoReq(f.FSID)
-
-			// 获取带有下载地址的文件详情
-			infoRes, err := bdpan.GetFileInfo(h.acceccToken, req)
-			if err != nil {
-				return nil, err
-			}
-			info := &infoRes.FileInfo
-			info.Dlink = fmt.Sprintf("%s&access_token=%s", info.Dlink, h.acceccToken)
-			return info, nil
-		} else {
-			// 判断是否有下一页，没有直接返回
-			if !hasMove {
-				break
-			}
-		}
-	}
-	return nil, errors.New("file not found")
+	return bdtools.GetFileByPath(h.accessToken, path)
 }
 
 func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
@@ -192,7 +144,7 @@ func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
 	var err error
 	if req.FSID > 0 {
 		fmt.Println("通过 FSID 查询文件")
-		info, err = api.GetFileInfo(h.acceccToken, req.FSID)
+		info, err = api.GetFileInfo(h.accessToken, req.FSID)
 	} else {
 		fmt.Println("通过 Path 查询文件")
 		info, err = h.GetFileByPath(req.Path)
@@ -218,8 +170,8 @@ func (h *FileHandler) CmdDelete(req *dto.DeleteReq) error {
 			}
 		}
 	}
-	var path = info.Path
-	res, err := bdpan.DeleteFiles(h.acceccToken, path)
+	path := info.Path
+	res, err := bdpan.DeleteFiles(h.accessToken, path)
 	if err != nil {
 		return err
 	}
@@ -250,7 +202,7 @@ func (h *FileHandler) CmdRefresh(req *dto.RefreshReq) error {
 				h.refreshFiles(f.Path)
 				f.IsRefresh = 1
 				f.Save()
-				timeUsed := time.Now().Sub(begin)
+				timeUsed := time.Since(begin)
 				fmt.Printf("[%d/%d]Saved path: %s time used: %v\n", i, total, f.Path, timeUsed)
 			}
 		}
