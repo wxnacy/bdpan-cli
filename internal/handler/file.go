@@ -10,11 +10,13 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/api"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/tasker"
 	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
 	"github.com/wxnacy/dler"
 	"github.com/wxnacy/go-bdpan"
+	gotasker "github.com/wxnacy/go-tasker"
 	"github.com/wxnacy/go-tools"
 )
 
@@ -255,6 +257,24 @@ func (h *FileHandler) refreshDirSize(dir *model.File) error {
 func (h *FileHandler) Limit(l int32) *FileHandler {
 	h.limit = l
 	return h
+}
+
+func (h *FileHandler) CmdUpload(req *dto.UploadReq) error {
+	logger.Printf("上传文件 %s => %s", req.Local, req.Path)
+	file, err := bdtools.UploadFile(
+		h.accessToken,
+		req.Local,
+		req.Path,
+		gotasker.NewBubblesProgressBar(),
+		bdtools.Printf(logger.Infof),
+		bdtools.IsRewrite(req.IsRewrite),
+	)
+	if err != nil {
+		return err
+	}
+	logger.Printf("上传文件成功")
+	bdtools.PrintFileInfo(file)
+	return nil
 }
 
 func FormatPath(path string) string {

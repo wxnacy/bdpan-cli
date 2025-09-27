@@ -45,3 +45,13 @@ type DeleteReq struct {
 	FSID uint64
 	Yes  bool
 }
+
+func NewUploadReq() *UploadReq {
+	return &UploadReq{}
+}
+
+type UploadReq struct {
+	GlobalReq
+	Local     string
+	IsRewrite bool
+}

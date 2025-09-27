@@ -89,8 +89,9 @@ func GetFileByPath(accessToken, path string) (*bdpan.FileInfo, error) {
 	return nil, errors.New("file not found")
 }
 
-func PrintFileInfo(f *bdpan.FileInfo, height int) error {
+func PrintFileInfo(f *bdpan.FileInfo) error {
 	valueW := 50
+	height := 9
 	columns := []table.Column{
 		{Title: "字段", Width: 10},
 		{Title: "详情", Width: valueW},
@@ -126,6 +127,10 @@ func PrintFileInfo(f *bdpan.FileInfo, height int) error {
 		f.Path,
 	})
 	rows = append(rows, table.Row{
+		"MD5",
+		f.MD5,
+	})
+	rows = append(rows, table.Row{
 		"创建时间",
 		f.GetServerCTime(),
 	})
@@ -133,6 +138,8 @@ func PrintFileInfo(f *bdpan.FileInfo, height int) error {
 		"修改时间",
 		f.GetServerMTime(),
 	})
+
+	height = len(rows) + 1
 
 	t := table.New(
 		table.WithColumns(columns),
