@@ -3,6 +3,7 @@ package bdtools
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -10,6 +11,56 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/go-bdpan"
 )
+
+func GetFileInfo(token string, fsid uint64) (*bdpan.FileInfo, error) {
+	req := bdpan.NewGetFileInfoReq(fsid)
+	infoRes, err := bdpan.GetFileInfo(token, req)
+	if err != nil {
+		return nil, err
+	}
+	info := &infoRes.FileInfo
+	info.Dlink = fmt.Sprintf("%s&access_token=%s", info.Dlink, token)
+	return info, nil
+}
+
+// 获取文件的真实md5
+func GetFileContentMD5(file *bdpan.FileInfo) (string, error) {
+	if file.Dlink == "" {
+		return "", fmt.Errorf("file %s not found Dlink", file.Path)
+	}
+	// 创建一个HTTP客户端，允许重定向
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// 允许重定向，但限制重定向次数
+			if len(via) >= 10 {
+				return errors.New("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
+
+	// 发送HEAD请求以获取文件头信息，而不下载整个文件
+	resp, err := client.Head(file.Dlink)
+	if err != nil {
+		return "", fmt.Errorf("HEAD request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	// 尝试从响应头中获取Content-MD5
+	contentMD5 := resp.Header.Get("Content-MD5")
+	if contentMD5 != "" {
+		return contentMD5, nil
+	}
+
+	// 如果响应头中没有Content-MD5，记录一条日志并返回空字符串
+	logger.Debugf("Content-MD5 not found in headers for file: %s", file.GetFilename())
+	return "", nil
+}
 
 // GetDirAllFiles 获取目录下的所有文件（通过轮询方式）
 func GetDirAllFiles(accessToken, dir string) ([]*bdpan.FileInfo, error) {
@@ -69,15 +120,10 @@ func GetFileByPath(accessToken, path string) (*bdpan.FileInfo, error) {
 			return nil, err
 		}
 		if f != nil {
-			req := bdpan.NewGetFileInfoReq(f.FSID)
-
-			// 获取带有下载地址的文件详情
-			infoRes, err := bdpan.GetFileInfo(accessToken, req)
+			info, err := GetFileInfo(accessToken, f.FSID)
 			if err != nil {
 				return nil, err
 			}
-			info := &infoRes.FileInfo
-			info.Dlink = fmt.Sprintf("%s&access_token=%s", info.Dlink, accessToken)
 			return info, nil
 		} else {
 			// 判断是否有下一页，没有直接返回
