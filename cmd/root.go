@@ -43,7 +43,7 @@ var rootCmd = &cobra.Command{
 	Use:     "bdpan",
 	Short:   "百度网盘命令行工具",
 	Long:    ``,
-	Version: "0.1.1",
+	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// 初始化应用
 		initial.InitApp()
@@ -58,7 +58,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// handleCmdErr(bdpanCommand.Exec(args))
 		req := GetGlobalReq()
-		var path = req.Path
+		path := req.Path
 		if len(args) > 0 {
 			path = args[0]
 		}
@@ -77,8 +77,8 @@ func handleCmdErr(err error) {
 			fmt.Println("GoodBye")
 			return
 		}
+		logger.Printf("Error: %v", err)
 		Log.Errorf("Error: %v", err)
-		fmt.Printf("Error: %v\n", err)
 	}
 }
 
@@ -98,7 +98,7 @@ func init() {
 
 	// root 参数
 	// rootCmd.PersistentFlags().StringVarP(&bdpanCommand.Path, "path", "p", "/", "直接查看文件")
-	rootCmd.PersistentFlags().StringVarP(&globalArg.Path, "path", "p", "/", "直接查看文件")
+	rootCmd.PersistentFlags().StringVarP(&globalArg.Path, "path", "p", "/", "网盘文件地址")
 	// rootCmd.PersistentFlags().IntVarP(&rootCommand.Limit, "limit", "l", 10, "查询数目")
 	// 运行前全局命令
 	cobra.OnInitialize(func() {
