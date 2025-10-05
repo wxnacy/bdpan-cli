@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -259,12 +260,73 @@ func (h *FileHandler) Limit(l int32) *FileHandler {
 	return h
 }
 
-func (h *FileHandler) CmdUpload(req *dto.UploadReq) error {
-	logger.Printf("上传文件 %s => %s", req.Local, req.Path)
+// 上传文件夹
+func (h *FileHandler) UploadDir(req *dto.UploadReq, fromDir, toDir string) error {
+	logger.Printf("上传文件夹 %s => %s", fromDir, toDir)
+	infos, err := os.ReadDir(fromDir)
+	if err != nil {
+		return err
+	}
+
+	existFiles, err := bdtools.GetDirAllFiles(h.accessToken, toDir)
+	if err != nil {
+		return err
+	}
+	logger.Printf("当前目录已存在文件数量: %d", len(existFiles))
+	existFileMap := make(map[string]*bdpan.FileInfo, 0)
+	for _, f := range existFiles {
+		existFileMap[f.Path] = f
+	}
+	for _, info := range infos {
+		fromPath := filepath.Join(fromDir, info.Name())
+		toPath := filepath.Join(toDir, info.Name())
+		if info.IsDir() {
+			// 递归遍历上传文件夹
+			err = h.UploadDir(req, fromPath, toPath)
+			if err != nil {
+				return err
+			}
+		} else {
+			existFile, exist := existFileMap[toPath]
+			if exist {
+				existFile, err = bdtools.GetFileInfo(h.accessToken, existFile.FSID)
+				if err != nil {
+					return err
+				}
+			}
+			err = h.UploadFile(req, fromPath, toPath, existFile)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// 上传文件
+func (h *FileHandler) UploadFile(req *dto.UploadReq, fromPath, toPath string, toFile *bdpan.FileInfo) error {
+	logger.Printf("上传文件 %s => %s", fromPath, toPath)
+	fileMD5, err := tools.Md5File(fromPath)
+	if err != nil {
+		return err
+	}
+	logger.Infof("File MD5: %s", fileMD5)
+	if toFile != nil {
+		existsMD5, err := bdtools.GetFileContentMD5(toFile)
+		if err != nil {
+			return err
+		}
+		logger.Infof("Exists File MD5: %s", existsMD5)
+		if fileMD5 == existsMD5 {
+			logger.Printf("文件已存在: %s", toPath)
+			return nil
+		}
+	}
 	file, err := bdtools.UploadFile(
 		h.accessToken,
-		req.Local,
-		req.Path,
+		fromPath,
+		toPath,
 		gotasker.NewBubblesProgressBar(),
 		bdtools.Printf(logger.Infof),
 		bdtools.IsRewrite(req.IsRewrite),
@@ -275,6 +337,21 @@ func (h *FileHandler) CmdUpload(req *dto.UploadReq) error {
 	logger.Printf("上传文件成功")
 	bdtools.PrintFileInfo(file)
 	return nil
+}
+
+func (h *FileHandler) CmdUpload(req *dto.UploadReq) error {
+	fromPath := req.Local
+	toPath := req.Path
+	if tools.FileExists(fromPath) {
+		// 上传文件
+		toFile, _ := bdtools.GetFileByPath(h.accessToken, toPath)
+		return h.UploadFile(req, fromPath, toPath, toFile)
+	} else if tools.DirExists(fromPath) {
+		// 上传文件夹
+		return h.UploadDir(req, fromPath, toPath)
+	} else {
+		return fmt.Errorf("文件不存在: %s", fromPath)
+	}
 }
 
 func FormatPath(path string) string {

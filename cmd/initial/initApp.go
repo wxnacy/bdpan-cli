@@ -9,19 +9,13 @@ import (
 	"github.com/wxnacy/go-tools"
 )
 
-var (
-	version            string
-	configFile         string
-	enableConfigCenter bool
-)
-
 // InitApp initial app configuration
 func InitApp() {
 	begin := time.Now()
 	initConfig()
 
 	// initial logger
-	logger.Init(config.Get().Logger.LogFileConfig.Filename)
+	logger.Init()
 	logger.Debugf("Init Config %#v time used %v", config.Get(), time.Now().Sub(begin))
 }
 

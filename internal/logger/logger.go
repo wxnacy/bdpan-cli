@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 	"github.com/wxnacy/go-bdpan"
 )
@@ -23,4 +25,9 @@ func Infoln(args ...interface{}) {
 
 func Errorf(format string, args ...interface{}) {
 	GetLogger().Errorf(format, args...)
+}
+
+func Printf(format string, args ...any) {
+	fmt.Printf(format+"\n", args...)
+	Infof(format, args...)
 }
