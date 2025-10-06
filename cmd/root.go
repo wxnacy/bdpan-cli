@@ -10,7 +10,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/wxnacy/bdpan-cli/cli"
 	"github.com/wxnacy/bdpan-cli/cmd/initial"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
@@ -60,11 +59,13 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var ErrQuit = errors.New("quit bdpan")
+
 func handleCmdErr(err error) {
 	if err != nil {
 		if err.Error() == "^D" ||
 			err.Error() == "^C" ||
-			err == cli.ErrQuit {
+			err == ErrQuit {
 			fmt.Println("GoodBye")
 			return
 		}
