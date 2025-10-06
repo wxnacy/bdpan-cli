@@ -55,3 +55,12 @@ type UploadReq struct {
 	Local     string
 	IsRewrite bool
 }
+
+func NewBackupReq() *BackupReq {
+	return &BackupReq{}
+}
+
+type BackupReq struct {
+	GlobalReq
+	Local string
+}

@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -294,7 +296,7 @@ func (h *FileHandler) UploadDir(req *dto.UploadReq, fromDir, toDir string) error
 					return err
 				}
 			}
-			err = h.UploadFile(req, fromPath, toPath, existFile)
+			err = h.UploadFile(req, fromPath, toPath, existFile, false)
 			if err != nil {
 				return err
 			}
@@ -305,7 +307,12 @@ func (h *FileHandler) UploadDir(req *dto.UploadReq, fromDir, toDir string) error
 }
 
 // 上传文件
-func (h *FileHandler) UploadFile(req *dto.UploadReq, fromPath, toPath string, toFile *bdpan.FileInfo) error {
+func (h *FileHandler) UploadFile(
+	req *dto.UploadReq,
+	fromPath, toPath string,
+	toFile *bdpan.FileInfo,
+	printFile bool,
+) error {
 	logger.Printf("上传文件 %s => %s", fromPath, toPath)
 	fileMD5, err := tools.Md5File(fromPath)
 	if err != nil {
@@ -335,7 +342,9 @@ func (h *FileHandler) UploadFile(req *dto.UploadReq, fromPath, toPath string, to
 		return err
 	}
 	logger.Printf("上传文件成功")
-	bdtools.PrintFileInfo(file)
+	if printFile {
+		bdtools.PrintFileInfo(file)
+	}
 	return nil
 }
 
@@ -345,13 +354,34 @@ func (h *FileHandler) CmdUpload(req *dto.UploadReq) error {
 	if tools.FileExists(fromPath) {
 		// 上传文件
 		toFile, _ := bdtools.GetFileByPath(h.accessToken, toPath)
-		return h.UploadFile(req, fromPath, toPath, toFile)
+		return h.UploadFile(req, fromPath, toPath, toFile, true)
 	} else if tools.DirExists(fromPath) {
 		// 上传文件夹
 		return h.UploadDir(req, fromPath, toPath)
 	} else {
 		return fmt.Errorf("文件不存在: %s", fromPath)
 	}
+}
+
+func (h *FileHandler) CmdBackup(req *dto.BackupReq) error {
+	fromDir := req.Local
+	if !tools.FileExists(fromDir) && !tools.DirExists(fromDir) {
+		return fmt.Errorf("本地文件夹不存在: %s", fromDir)
+	}
+	if tools.FileExists(fromDir) {
+		return errors.New("文件上传请直接调用 upload 命令")
+	}
+
+	backupName := time.Now().Format("2006-01-02-150405")
+	backupDir := path.Join(req.Path, "Backups", backupName)
+	uploadReq := dto.NewUploadReq()
+	uploadReq.IsRewrite = true
+	err := h.UploadDir(uploadReq, fromDir, backupDir)
+	if err != nil {
+		return err
+	}
+	logger.Printf("%s 已经成功备份到 %s 中", fromDir, backupDir)
+	return nil
 }
 
 func FormatPath(path string) string {
