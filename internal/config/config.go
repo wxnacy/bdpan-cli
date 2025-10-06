@@ -2,11 +2,13 @@ package config
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -60,6 +62,10 @@ func InitConfig(configFile string) error {
 			return err
 		}
 	}
+	err := FormatConfig(config)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -70,15 +76,38 @@ func InitConfigByCode() error {
 	if err != nil {
 		return err
 	}
-	if config != nil {
-		if strings.HasPrefix(config.Database.Sqlite.DBFile, "~/") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return err
-			}
-			config.Database.Sqlite.DBFile = filepath.Join(home, config.Database.Sqlite.DBFile[2:])
-		}
+	err = FormatConfig(config)
+	if err != nil {
+		return err
 	}
+	return nil
+}
+
+func FormatConfig(config *Config) error {
+	if config == nil {
+		return fmt.Errorf("config not found")
+
+		// if strings.HasPrefix(config.Database.Sqlite.DBFile, "~/") {
+		// home, err := os.UserHomeDir()
+		// if err != nil {
+		// return err
+		// }
+		// config.Database.Sqlite.DBFile = filepath.Join(home, config.Database.Sqlite.DBFile[2:])
+		// }
+	}
+	var path string
+	var err error
+	path, err = homedir.Expand(config.Database.Sqlite.DBFile)
+	if err != nil {
+		return err
+	}
+	config.Database.Sqlite.DBFile = path
+
+	path, err = homedir.Expand(config.Logger.LogFileConfig.Filename)
+	if err != nil {
+		return err
+	}
+	config.Logger.LogFileConfig.Filename = path
 	return nil
 }
 
