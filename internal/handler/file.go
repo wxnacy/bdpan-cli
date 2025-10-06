@@ -26,7 +26,7 @@ var fileHandler *FileHandler
 func GetFileHandler() *FileHandler {
 	if fileHandler == nil {
 		fileHandler = &FileHandler{
-			accessToken: config.Get().Access.AccessToken,
+			accessToken: config.GetAccessToken(),
 			limit:       1000,
 		}
 	}

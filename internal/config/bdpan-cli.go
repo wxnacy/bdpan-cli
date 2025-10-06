@@ -29,18 +29,10 @@ func Set(conf *Config) {
 }
 
 type Config struct {
-	Access     Access     `yaml:"access" json:"access"`
 	App        App        `yaml:"app" json:"app"`
 	Credential Credential `yaml:"credential" json:"credential"`
 	Database   Database   `yaml:"database" json:"database"`
 	Logger     Logger     `yaml:"logger" json:"logger"`
-}
-
-type Access struct {
-	AccessToken      string `yaml:"accessToken" json:"accessToken"`
-	ExpiresIn        int    `yaml:"expiresIn" json:"expiresIn"`
-	RefreshTimestamp int    `yaml:"refreshTimestamp" json:"refreshTimestamp"`
-	RefreshToken     string `yaml:"refreshToken" json:"refreshToken"`
 }
 
 type Credential struct {
@@ -75,6 +67,7 @@ type Logger struct {
 }
 
 type App struct {
-	Name  string `yaml:"name" json:"name"`
-	Scope string `yaml:"scope" json:"scope"`
+	Name       string `yaml:"name" json:"name"`
+	Scope      string `yaml:"scope" json:"scope"`
+	AccessPath string `yaml:"accessPath" json:"accessPath"`
 }

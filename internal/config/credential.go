@@ -1,7 +1,10 @@
 package config
 
 import (
+	"path/filepath"
+
 	"github.com/spf13/viper"
+	"github.com/wxnacy/go-tools"
 )
 
 func (c *Credential) IsNil() bool {
@@ -15,5 +18,11 @@ func (c *Credential) IsNil() bool {
 
 func SaveCredential(c Credential) error {
 	viper.Set("credential", c)
-	return viper.WriteConfigAs(GetConfigPath())
+	path := GetConfigPath()
+	configDir := filepath.Dir(path)
+	err := tools.DirExistsOrCreate(configDir)
+	if err != nil {
+		return err
+	}
+	return viper.WriteConfigAs(path)
 }

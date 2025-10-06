@@ -21,7 +21,7 @@ func DownloadFile(f *bdpan.FileInfo, path string) {
 	tasker.BeforeRun()
 	tasker.Run(tasker.RunTask)
 	tasker.AfterRun()
-	out := fmt.Sprintf("下载完成，耗时：%v", time.Now().Sub(begin))
+	out := fmt.Sprintf("下载完成，耗时：%v", time.Since(begin))
 	fmt.Println(out)
 }
 
@@ -43,7 +43,7 @@ func NewDownloadTasker(f *bdpan.FileInfo, path string) *DownloadTasker {
 	t := DownloadTasker{Tasker: godler.NewTasker(godler.NewTaskerConfig())}
 	t.File = f
 	t.To = path
-	t.Token = config.Get().Access.AccessToken
+	t.Token = config.GetAccessToken()
 	return &t
 }
 
@@ -51,7 +51,7 @@ func (m *DownloadTasker) AfterRun() {
 }
 
 func (m *DownloadTasker) BuildTasks() {
-	token := config.Get().Access.AccessToken
+	token := config.GetAccessToken()
 	if m.File.IsDir() {
 		files, err := api.GetAllFileList(token, m.File.Path)
 		if err != nil {
@@ -80,7 +80,7 @@ func (m DownloadTasker) RunTask(task *godler.Task) error {
 
 func (m *DownloadTasker) BeforeRun() {
 	if m.File.IsDir() {
-		err := os.MkdirAll(m.To, 0755)
+		err := os.MkdirAll(m.To, 0o755)
 		if err != nil {
 			panic(err)
 		}

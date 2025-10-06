@@ -34,7 +34,6 @@ type AuthHandler struct {
 }
 
 func (h *AuthHandler) GetUser() (*model.User, error) {
-
 	info, err := bdpan.GetUserInfo(h.accessToken)
 	if err != nil {
 		return nil, err
@@ -74,18 +73,27 @@ func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
 	if c.IsNil() {
 		c = *getCredentialByInut()
 		if c.IsNil() {
-			return errors.New(fmt.Sprintf("请正确输入 Credential 信息"))
+			return fmt.Errorf("请正确输入 Credential 信息")
 		}
 		// 保存配置
-		config.SaveCredential(c)
+		err := config.SaveCredential(c)
+		if err != nil {
+			return err
+		}
+		config.ReInitConfig()
+		if err != nil {
+			return err
+		}
 	}
 
-	access := conf.Access
-	if access.IsExpired() {
+	access, err := config.GetAccess()
+	if err != nil || access.IsExpired() {
 		err := h.loginByCredential()
 		if err != nil {
 			return err
 		}
+	} else {
+		h.accessToken = access.AccessToken
 	}
 
 	// 显示登录信息
@@ -138,7 +146,6 @@ func (h *AuthHandler) loginByCredential() error {
 
 // 从输入中创建用户信息
 func getCredentialByInut() *config.Credential {
-
 	item := &config.Credential{}
 
 	appId := ""

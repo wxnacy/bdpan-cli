@@ -8,4 +8,5 @@ type GlobalReq struct {
 	AppId     string
 	IsVerbose bool
 	Path      string
+	Config    string
 }

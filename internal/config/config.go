@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -10,9 +11,26 @@ import (
 )
 
 var (
-	configYml = []byte(`
+	configPath string
+	configYml  = []byte(`
 app:
-  name: "bdpan"
+    name: bdpan-cli
+    scope: basic,netdisk
+    accessPath: ""
+database:
+    driver: sqlite
+    sqlite:
+        connMaxLifetime: 60
+        dbFile: ~/.config/bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc
+        enableLog: false
+        maxIdleConns: 10
+        maxOpenConns: 100
+logger:
+    format: console
+    isSave: false
+    level: info
+    logFileConfig:
+        filename: bdpan-cli.log
 `)
 )
 
@@ -48,9 +66,42 @@ func InitConfig(configFile string) error {
 func InitConfigByCode() error {
 	viper.SetConfigType("yaml")
 	viper.ReadConfig(bytes.NewBuffer(configYml))
-	return viper.Unmarshal(&config)
+	err := viper.Unmarshal(&config)
+	if err != nil {
+		return err
+	}
+	if config != nil {
+		if strings.HasPrefix(config.Database.Sqlite.DBFile, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			config.Database.Sqlite.DBFile = filepath.Join(home, config.Database.Sqlite.DBFile[2:])
+		}
+	}
+	return nil
+}
+
+func ReInitConfig() error {
+	config = nil
+	configPath := GetConfigPath()
+	return InitConfig(configPath)
+}
+
+func SetConfigPath(path string) {
+	// logger.Debugf("set config path: %s", path)
+	configPath = path
 }
 
 func GetConfigPath() string {
-	return "/Users/wxnacy/Documents/Configs/bdpan-cli/config/bdpan-cli.yml"
+	// logger.Debugf("config path: %s", configPath)
+	return configPath
+}
+
+func GetDefaultConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config", "bdpan-cli", "config.yml"), nil
 }
