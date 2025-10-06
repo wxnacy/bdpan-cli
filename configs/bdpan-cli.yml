@@ -1,1 +1,22 @@
-/Users/wxnacy/Documents/Configs/bdpan-cli/config/bdpan-cli.yml
+app:
+    name: bdpan-cli
+    scope: basic,netdisk
+credential:
+    appId: 0
+    appKey: ""
+    secretKey: ""
+    signKey: ""
+database:
+    driver: sqlite
+    sqlite:
+        connmaxlifetime: 60
+        dbfile: ""
+        enablelog: false
+        maxidleconns: 10
+        maxopenconns: 100
+logger:
+    format: console
+    issave: false
+    level: info
+    logfileconfig:
+        filename: bdpan-cli.log
