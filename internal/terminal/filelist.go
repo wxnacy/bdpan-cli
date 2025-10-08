@@ -16,12 +16,14 @@ import (
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
+
 var baseFocusStyle = baseStyle.
 	BorderForeground(lipgloss.AdaptiveColor{Light: "#EE6FF8", Dark: "#EE6FF8"})
 
 func GetBaseStyleWidth() int {
 	return 2
 }
+
 func GetBaseStyleHeight() int {
 	return 2
 }
@@ -82,7 +84,7 @@ func NewFileList(
 		})
 	} else {
 		for _, f := range files {
-			var selectIcon = ""
+			selectIcon := ""
 			if tools.ArrayContainsString(selectors, f.Path) {
 				selectIcon = " "
 			}

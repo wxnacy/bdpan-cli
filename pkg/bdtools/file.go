@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
+	"github.com/wxnacy/bdpan-cli/pkg/whitetea"
 	"github.com/wxnacy/go-bdpan"
 	"golang.org/x/term"
 )
@@ -186,60 +187,125 @@ func GetFileByPath(accessToken, path string) (*bdpan.FileInfo, error) {
 	return nil, errors.New("file not found")
 }
 
-func PrintFileInfo(f *bdpan.FileInfo) error {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		width = 80 // Default width on error
+func GetFileInfoView(f *bdpan.FileInfo, args ...any) (string, error) {
+	width := 100
+	var height int
+
+	for _, arg := range args {
+		switch val := arg.(type) {
+		case whitetea.Width:
+			width = int(val)
+		case whitetea.Height:
+			height = int(val)
+		}
 	}
 
 	keyW := 12
-	valueW := width - keyW - 3 // Adjust for padding
+	valueW := width - keyW
 
-	keyStyle := lipgloss.NewStyle().Bold(true).Width(keyW)
-	valueStyle := lipgloss.NewStyle().Width(valueW)
+	// keyStyle := lipgloss.NewStyle().Bold(true).Width(keyW)
+	// valueStyle := lipgloss.NewStyle().Width(valueW)
+	keyStyle := lipgloss.NewStyle().
+		// BorderStyle(lipgloss.NormalBorder()).
+		// BorderForeground(lipgloss.Color("240")).
+		// BorderLeft(true).
+		Align(lipgloss.Left).
+		// Foreground(lipgloss.Color("#FAFAFA")).
+		// Background(lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}).
+		// Margin(1, 3, 0, 0).
+		Padding(0, 1).
+		Height(1).
+		Width(keyW)
+	valueStyle := lipgloss.NewStyle().
+		// BorderStyle(lipgloss.NormalBorder()).
+		// BorderForeground(lipgloss.Color("240")).
+		// BorderRight(true).
+		Align(lipgloss.Left).
+		// Foreground(lipgloss.Color("#FAFAFA")).
+		// Background(lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}).
+		// Margin(1, 3, 0, 0).
+		Padding(0, 1).
+		Height(1).
+		Width(valueW)
 
 	var rows []string
 
 	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("FSID"),
-		valueStyle.Render(fmt.Sprintf("%d", f.FSID)),
+		keyStyle.Height(2).Render("字段名"),
+		valueStyle.Height(2).Render("内容"),
 	))
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("文件名"),
-		valueStyle.Render(fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename())),
-	))
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("大小"),
-		valueStyle.Render(f.GetSize()),
-	))
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("类型"),
-		valueStyle.Render(f.GetFileType()),
-	))
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("地址"),
-		valueStyle.Render(f.Path),
-	))
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("MD5"),
-		valueStyle.Render(f.MD5),
-	))
-	if f.Dlink != "" {
+	if f != nil {
+
 		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-			keyStyle.Render("DLink"),
-			valueStyle.Render(f.Dlink),
+			keyStyle.Render("FSID"),
+			valueStyle.Render(fmt.Sprintf("%d", f.FSID)),
+		))
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("文件名"),
+			valueStyle.Render(fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename())),
+		))
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("大小"),
+			valueStyle.Render(f.GetSize()),
+		))
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("类型"),
+			valueStyle.Render(f.GetFileType()),
+		))
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("地址"),
+			valueStyle.Render(f.Path),
+		))
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("MD5"),
+			valueStyle.Render(f.MD5),
+		))
+		if f.Dlink != "" {
+			rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+				keyStyle.Render("下载地址"),
+				valueStyle.Render(f.Dlink),
+			))
+		}
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("创建时间"),
+			valueStyle.Render(f.GetServerCTime()),
+		))
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("修改时间"),
+			valueStyle.Render(f.GetServerMTime()),
+		))
+	} else {
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("空"),
+			valueStyle.Render("空"),
 		))
 	}
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("创建时间"),
-		valueStyle.Render(f.GetServerCTime()),
-	))
-	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-		keyStyle.Render("修改时间"),
-		valueStyle.Render(f.GetServerMTime()),
-	))
 
-	fmt.Println(lipgloss.JoinVertical(lipgloss.Left, rows...))
+	curHeight := lipgloss.Height(lipgloss.JoinVertical(lipgloss.Left, rows...))
+	if height > curHeight {
+		blankH := height - curHeight
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Height(blankH).Render(""),
+			valueStyle.Height(blankH).Render(""),
+		))
 
-	return nil
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, rows...), nil
+}
+
+func PrintFileInfo(f *bdpan.FileInfo, args ...any) error {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	width /= 2
+	if width < 100 {
+		width = 100
+	}
+	width -= 2
+	view, err := GetFileInfoView(f, whitetea.Width(width))
+	baseStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240"))
+	view = baseStyle.Render(view)
+	logger.Printf("%s", view)
+	return err
 }

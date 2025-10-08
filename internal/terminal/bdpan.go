@@ -15,7 +15,10 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
+	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
+	"github.com/wxnacy/bdpan-cli/pkg/whitetea"
 	wtea "github.com/wxnacy/bdpan-cli/pkg/whitetea"
+	"github.com/wxnacy/go-bdpan"
 )
 
 type RunTaskMsg struct {
@@ -31,12 +34,14 @@ type GotoMsg struct {
 	Dir string
 }
 
-type RefreshPanMsg struct{}
-type RefreshUserMsg struct{}
-type RefreshQuickMsg struct{}
-type DeleteQuickMsg struct {
-	Quick *model.Quick
-}
+type (
+	RefreshPanMsg   struct{}
+	RefreshUserMsg  struct{}
+	RefreshQuickMsg struct{}
+	DeleteQuickMsg  struct {
+		Quick *model.Quick
+	}
+)
 
 type ChangeFilesMsg struct {
 	Files []*model.File
@@ -124,7 +129,7 @@ type BDPan struct {
 }
 
 func (m *BDPan) GetWidth() int {
-	var w = 100
+	w := 100
 	if m.width > 0 {
 		w = m.width
 	}
@@ -133,7 +138,7 @@ func (m *BDPan) GetWidth() int {
 }
 
 func (m *BDPan) GetHeight() int {
-	var h = 20
+	h := 20
 	if m.height > 0 {
 		h = m.height
 	}
@@ -168,6 +173,7 @@ func (m *BDPan) GetCutSelectFilePaths() []string {
 	}
 	return paths
 }
+
 func (m *BDPan) GetCutSelectFiles() []*model.File {
 	var files []*model.File
 	for _, f := range m.cutSelectFileMap {
@@ -201,6 +207,7 @@ func (m *BDPan) SetFiles(files []*model.File) *BDPan {
 func (m *BDPan) GetQuickKeys() []key.Binding {
 	return m.quickKeys
 }
+
 func (m *BDPan) GetQuickByKeyStr(k string) *model.Quick {
 	for _, v := range m.quicks {
 		if k == v.Key {
@@ -209,6 +216,7 @@ func (m *BDPan) GetQuickByKeyStr(k string) *model.Quick {
 	}
 	return nil
 }
+
 func (m *BDPan) GetQuickByPath(p string) *model.Quick {
 	for _, v := range m.quicks {
 		if p == v.Path {
@@ -217,6 +225,7 @@ func (m *BDPan) GetQuickByPath(p string) *model.Quick {
 	}
 	return nil
 }
+
 func (m *BDPan) SetQuicks(q []*model.Quick) {
 	if q != nil && len(q) > 0 {
 		m.quicks = q
@@ -244,6 +253,7 @@ func (m *BDPan) SetQuicks(q []*model.Quick) {
 		m.quickModel.Focus()
 	}
 }
+
 func (m *BDPan) RefreshQuickSelect() *BDPan {
 	// 定位快速访问
 	for i, v := range m.quicks {
@@ -366,9 +376,9 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			}
 		case TypePaste:
 			// 移动文件
-			var cutPaths = m.GetCutSelectFilePaths()
+			cutPaths := m.GetCutSelectFilePaths()
 			if len(cutPaths) > 0 {
-				var moveDir = t.Dir
+				moveDir := t.Dir
 				logger.Infof("%v Move to %s", cutPaths, moveDir)
 				_, err := m.fileHandler.MoveFiles(moveDir, cutPaths...)
 				m.ClearCutSelectFileMap()
@@ -483,7 +493,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					if err != nil {
 						return true, tea.Quit
 					}
-					var path = f.Path
+					path := f.Path
 					_, exist := m.selectFileMap[path]
 					if exist {
 						delete(m.selectFileMap, path)
@@ -522,7 +532,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				}
 			case key.Matches(msg, m.KeyMap.Paste):
 				// 黏贴
-				var task = m.AddFileTask(nil, TypePaste)
+				task := m.AddFileTask(nil, TypePaste)
 				task.Dir = m.Dir
 				cmds = append(cmds, m.SendRunTask(task))
 			case key.Matches(msg, m.KeyMap.Refresh):
@@ -776,11 +786,11 @@ func (m *BDPan) GetRightView() string {
 
 	rightViews := []string{
 		fileinfoView,
-		m.GetHelpView(),
 	}
 	if m.ConfirmFocused() {
 		rightViews = append(rightViews, m.GetConfirmView())
 	}
+	rightViews = append(rightViews, m.GetHelpView())
 
 	return lipgloss.JoinVertical(
 		lipgloss.Top,
@@ -789,7 +799,6 @@ func (m *BDPan) GetRightView() string {
 }
 
 func (m *BDPan) GetMidView() string {
-
 	// quick
 	leftView := m.quickModel.View()
 
@@ -809,10 +818,10 @@ func (m *BDPan) GetMidView() string {
 }
 
 func (m *BDPan) GetHelpView() string {
-	helpModel := help.New()
-	helpModel.Width = m.GetRightWidth()
 	if m.FileListModelIsNotNil() {
-		return baseStyle.Render(m.fileListModel.model.HelpView())
+		helpModel := help.New()
+		helpModel.ShowAll = true
+		return baseStyle.Render(helpModel.View(m.fileListModel.model.KeyMap))
 	} else {
 		return ""
 	}
@@ -902,147 +911,166 @@ func (m *BDPan) GetStatusView() string {
 }
 
 func (m *BDPan) GetFileInfoView(f *model.File) string {
-
-	var leftW = 10
+	// leftW := 10
 	// 2 是边框的长度
-	var rightW = m.GetRightWidth() - leftW - 2
+	// rightW := m.GetRightWidth() - leftW - 2
 
-	leftStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderLeft(true).
-		Align(lipgloss.Left).
-		// Foreground(lipgloss.Color("#FAFAFA")).
-		// Background(lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}).
-		// Margin(1, 3, 0, 0).
-		Padding(0, 1).
-		Height(1).
-		Width(leftW)
-
-	rightStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderRight(true).
-		Align(lipgloss.Left).
-		// Foreground(lipgloss.Color("#FAFAFA")).
-		// Background(lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}).
-		// Margin(1, 3, 0, 0).
-		Padding(0, 1).
-		Height(1).
-		Width(rightW)
-
-	lines := make([]string, 0)
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.
-			// Border(fieldBorder).
-			BorderTop(true).
-			Render("字段"),
-		rightStyle.
-			BorderTop(true).
-			// Border(contentBorder).
-			Render("详情"),
-	))
-
+	var fileInfo *bdpan.FileInfo
 	if f != nil {
-
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.
-				BorderTop(true).
-				Render("FSID"),
-			rightStyle.
-				BorderTop(true).
-				Render(fmt.Sprintf("%d", f.FSID)),
-		))
-
-		filename := fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()) + "\n"
-		nameStr := rightStyle.Render(filename)
-		nameH := lipgloss.Height(nameStr)
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Height(nameH).Render("文件名"),
-			nameStr,
-		))
-
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Render("大小"),
-			rightStyle.Render(f.GetSize()),
-		))
-
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Render("类型"),
-			rightStyle.Render(f.GetFileType()),
-		))
-
-		pathStr := rightStyle.Render(f.Path)
-		pathH := lipgloss.Height(pathStr)
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Height(pathH).Render("地址"),
-			pathStr,
-		))
-
-		if !f.IsDir() {
-			lines = append(lines, lipgloss.JoinHorizontal(
-				lipgloss.Top,
-				leftStyle.Render("MD5"),
-				rightStyle.Render(f.MD5),
-			))
-		}
-
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Render("创建时间"),
-			rightStyle.Render(f.GetServerCTime()),
-		))
-
-		lines = append(lines, lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			leftStyle.Render("修改时间"),
-			rightStyle.Render(f.GetServerMTime()),
-		))
-		// } else {
-		// lines = append(lines, lipgloss.JoinHorizontal(
-		// lipgloss.Top,
-		// leftStyle.Render(""),
-		// rightStyle.Render("数据加载中..."),
-		// ))
+		fileInfo = f.FileInfo
 	}
-
-	lastBeforeH := lipgloss.Height(strings.Join(lines, "\n"))
-	logger.Infof("lastBeforeH %d", lastBeforeH)
-	lastH := m.GetMidHeight() - lastBeforeH - 2
+	width := m.GetRightWidth()
+	height := m.GetMidHeight() - 4
 	// 减去帮助信息的高度
-	lastH -= lipgloss.Height(m.GetHelpView())
+	height -= lipgloss.Height(m.GetHelpView())
 	// 需要确认框时减去确认框的高度
 	if m.ConfirmFocused() {
-		lastH -= lipgloss.Height(m.GetConfirmView())
+		height -= lipgloss.Height(m.GetConfirmView())
 	}
 
-	lines = append(lines, lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		leftStyle.
-			Height(lastH).
-			BorderBottom(true).
-			Render(""),
-		rightStyle.
-			Height(lastH).
-			BorderBottom(true).
-			Render(""),
-	))
-
-	var view = lipgloss.JoinVertical(
-		lipgloss.Top,
-		lines...,
+	views, _ := bdtools.GetFileInfoView(
+		fileInfo,
+		whitetea.Width(width),
+		whitetea.Height(height),
 	)
-	var viewW, viewH int
-	viewW, viewH = lipgloss.Size(view)
-	logger.Infof("FileInfoView Full Size %dx%d", viewW, viewH)
-	return view
 
+	return baseStyle.Render(views) + "\n"
+
+	// leftStyle := lipgloss.NewStyle().
+	// BorderStyle(lipgloss.NormalBorder()).
+	// BorderForeground(lipgloss.Color("240")).
+	// BorderLeft(true).
+	// Align(lipgloss.Left).
+	// // Foreground(lipgloss.Color("#FAFAFA")).
+	// // Background(lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}).
+	// // Margin(1, 3, 0, 0).
+	// Padding(0, 1).
+	// Height(1).
+	// Width(leftW)
+
+	// rightStyle := lipgloss.NewStyle().
+	// BorderStyle(lipgloss.NormalBorder()).
+	// BorderForeground(lipgloss.Color("240")).
+	// BorderRight(true).
+	// Align(lipgloss.Left).
+	// // Foreground(lipgloss.Color("#FAFAFA")).
+	// // Background(lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}).
+	// // Margin(1, 3, 0, 0).
+	// Padding(0, 1).
+	// Height(1).
+	// Width(rightW)
+
+	// lines := make([]string, 0)
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.
+	// // Border(fieldBorder).
+	// BorderTop(true).
+	// Render("字段"),
+	// rightStyle.
+	// BorderTop(true).
+	// // Border(contentBorder).
+	// Render("详情"),
+	// ))
+
+	// if f != nil {
+
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.
+	// BorderTop(true).
+	// Render("FSID"),
+	// rightStyle.
+	// BorderTop(true).
+	// Render(fmt.Sprintf("%d", f.FSID)),
+	// ))
+
+	// filename := fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()) + "\n"
+	// nameStr := rightStyle.Render(filename)
+	// nameH := lipgloss.Height(nameStr)
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Height(nameH).Render("文件名"),
+	// nameStr,
+	// ))
+
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Render("大小"),
+	// rightStyle.Render(f.GetSize()),
+	// ))
+
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Render("类型"),
+	// rightStyle.Render(f.GetFileType()),
+	// ))
+
+	// pathStr := rightStyle.Render(f.Path)
+	// pathH := lipgloss.Height(pathStr)
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Height(pathH).Render("地址"),
+	// pathStr,
+	// ))
+
+	// if !f.IsDir() {
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Render("MD5"),
+	// rightStyle.Render(f.MD5),
+	// ))
+	// }
+
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Render("创建时间"),
+	// rightStyle.Render(f.GetServerCTime()),
+	// ))
+
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.Render("修改时间"),
+	// rightStyle.Render(f.GetServerMTime()),
+	// ))
+	// // } else {
+	// // lines = append(lines, lipgloss.JoinHorizontal(
+	// // lipgloss.Top,
+	// // leftStyle.Render(""),
+	// // rightStyle.Render("数据加载中..."),
+	// // ))
+	// }
+
+	// lastBeforeH := lipgloss.Height(strings.Join(lines, "\n"))
+	// logger.Infof("lastBeforeH %d", lastBeforeH)
+	// lastH := m.GetMidHeight() - lastBeforeH - 2
+	// // 减去帮助信息的高度
+	// lastH -= lipgloss.Height(m.GetHelpView())
+	// // 需要确认框时减去确认框的高度
+	// if m.ConfirmFocused() {
+	// lastH -= lipgloss.Height(m.GetConfirmView())
+	// }
+
+	// lines = append(lines, lipgloss.JoinHorizontal(
+	// lipgloss.Top,
+	// leftStyle.
+	// Height(lastH).
+	// BorderBottom(true).
+	// Render(""),
+	// rightStyle.
+	// Height(lastH).
+	// BorderBottom(true).
+	// Render(""),
+	// ))
+
+	// view := lipgloss.JoinVertical(
+	// lipgloss.Top,
+	// lines...,
+	// )
+	// var viewW, viewH int
+	// viewW, viewH = lipgloss.Size(view)
+	// logger.Infof("FileInfoView Full Size %dx%d", viewW, viewH)
+	// return view
 }
 
 func (m *BDPan) GetMidWidth() int {
@@ -1058,14 +1086,14 @@ func (m *BDPan) GetMidHeight() int {
 }
 
 func (m *BDPan) GetLeftWidth() int {
-	var w = int(float32(m.GetWidth()) * 0.16)
+	w := int(float32(m.GetWidth()) * 0.16)
 	logger.Infof("View GetLeftWidth %d", w)
 	return w
 }
 
 func (m *BDPan) GetRightWidth() int {
 	// 1 是因为 Left 会多出一个长度
-	var w = m.GetWidth() - m.GetMidWidth() - m.GetLeftWidth() - 1
+	w := m.GetWidth() - m.GetMidWidth() - m.GetLeftWidth() - 1
 	logger.Infof("View GetRightWidth %d", w)
 	return w
 }
@@ -1076,9 +1104,9 @@ func (m *BDPan) NewFileList(files []*model.File) *FileList {
 		focused = m.fileListModel.Focused()
 	}
 	// 高度
-	var h = m.GetMidHeight() - lipgloss.Height(m.GetDirView())
+	h := m.GetMidHeight() - lipgloss.Height(m.GetDirView())
 	// 是否有多选文件
-	var selectors = m.GetSelectFilePaths()
+	selectors := m.GetSelectFilePaths()
 
 	model := NewFileList(
 		files, m.GetMidWidth(), h, selectors,
@@ -1192,6 +1220,7 @@ func (m *BDPan) GetConfirmTasks() []*Task {
 func (m *BDPan) ConfirmFocused() bool {
 	return m.confirmModel != nil && m.confirmModel.Focused()
 }
+
 func (m *BDPan) GetConfirmView() string {
 	return m.confirmModel.View()
 }
