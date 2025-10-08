@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/go-bdpan"
+	"golang.org/x/term"
 )
 
 func GetFileInfo(token string, fsid uint64) (*bdpan.FileInfo, error) {
@@ -21,6 +22,33 @@ func GetFileInfo(token string, fsid uint64) (*bdpan.FileInfo, error) {
 	info := &infoRes.FileInfo
 	info.Dlink = fmt.Sprintf("%s&access_token=%s", info.Dlink, token)
 	return info, nil
+}
+
+func BatchGetFileInfos(accessToken string, fsids []uint64) ([]*bdpan.FileInfo, error) {
+	chunkSize := 100
+	var allBatchFiles []*bdpan.FileInfo
+	for i := 0; i < len(fsids); i += chunkSize {
+		end := i + chunkSize
+		if end > len(fsids) {
+			end = len(fsids)
+		}
+		chunk := fsids[i:end]
+
+		batchReq := &bdpan.BatchGetFileInfoReq{
+			FSIds: chunk,
+			Dlink: 1,
+		}
+		batchRes, err := bdpan.BatchGetFileInfo(accessToken, batchReq)
+		if err != nil {
+			return nil, err // Or handle error more gracefully
+		}
+		for _, info := range batchRes.List {
+			info.Dlink = fmt.Sprintf("%s&access_token=%s", info.Dlink, accessToken)
+			allBatchFiles = append(allBatchFiles, info)
+		}
+		// allBatchFiles = append(allBatchFiles, batchRes.List...)
+	}
+	return allBatchFiles, nil
 }
 
 // 获取文件的真实md5
@@ -64,27 +92,50 @@ func GetFileContentMD5(file *bdpan.FileInfo) (string, error) {
 
 // GetDirAllFiles 获取目录下的所有文件（通过轮询方式）
 func GetDirAllFiles(accessToken, dir string) ([]*bdpan.FileInfo, error) {
-	req := bdpan.NewGetFileListReq()
-	req.Dir = dir
-	totalList := []*bdpan.FileInfo{}
-	fileList := []*bdpan.FileInfo{}
-	page := 1
+	// req := bdpan.NewGetFileListReq()
+	// req.Dir = dir
+	// totalList := []*bdpan.FileInfo{}
+	// fileList := []*bdpan.FileInfo{}
+	// page := 1
+
+	// for {
+	// req.SetPage(page)
+	// res, err := bdpan.GetFileList(accessToken, req)
+	// if err != nil {
+	// return nil, err
+	// }
+	// fileList = res.List
+	// totalList = append(totalList, fileList...)
+
+	// if len(fileList) <= 0 || len(fileList) < int(req.Limit) {
+	// break
+	// }
+	// page++
+	// }
+
+	req := bdpan.NewGetFileListAllReq(dir)
+
+	var allFiles []*bdpan.FileInfo
 
 	for {
-		req.SetPage(page)
-		res, err := bdpan.GetFileList(accessToken, req)
+		res, err := bdpan.GetFileListAll(accessToken, req)
 		if err != nil {
 			return nil, err
 		}
-		fileList = res.List
-		totalList = append(totalList, fileList...)
 
-		if len(fileList) <= 0 || len(fileList) < int(req.Limit) {
+		if res.IsError() {
+			return nil, res
+		}
+
+		allFiles = append(allFiles, res.List...)
+
+		if res.HasMore == 0 {
 			break
 		}
-		page++
+		req.Start = res.Cursor
 	}
-	return totalList, nil
+
+	return allFiles, nil
 }
 
 // 根据地址查找文件
@@ -136,74 +187,59 @@ func GetFileByPath(accessToken, path string) (*bdpan.FileInfo, error) {
 }
 
 func PrintFileInfo(f *bdpan.FileInfo) error {
-	valueW := 50
-	height := 9
-	columns := []table.Column{
-		{Title: "字段", Width: 10},
-		{Title: "详情", Width: valueW},
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		width = 80 // Default width on error
 	}
 
-	rows := make([]table.Row, 0)
-	rows = append(rows, table.Row{
-		"FSID",
-		fmt.Sprintf("%d", f.FSID),
-	})
-	filename := fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()) + "\n"
-	// newfilename := ""
-	// for _, s := range filename {
-	// w, _ := lipgloss.Size(newfilename)
-	// }
-	nameW, nameH := lipgloss.Size(filename)
-	logger.Infof("名称尺寸 %dx%d", nameW, nameH)
-	rows = append(rows, table.Row{
-		"文件名",
-		fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename()),
-		// "你好\nss",
-	})
-	rows = append(rows, table.Row{
-		"大小",
-		f.GetSize(),
-	})
-	rows = append(rows, table.Row{
-		"类型",
-		f.GetFileType(),
-	})
-	rows = append(rows, table.Row{
-		"地址",
-		f.Path,
-	})
-	rows = append(rows, table.Row{
-		"MD5",
-		f.MD5,
-	})
-	rows = append(rows, table.Row{
-		"创建时间",
-		f.GetServerCTime(),
-	})
-	rows = append(rows, table.Row{
-		"修改时间",
-		f.GetServerMTime(),
-	})
+	keyW := 12
+	valueW := width - keyW - 3 // Adjust for padding
 
-	height = len(rows) + 1
+	keyStyle := lipgloss.NewStyle().Bold(true).Width(keyW)
+	valueStyle := lipgloss.NewStyle().Width(valueW)
 
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithHeight(height),
-	)
+	var rows []string
 
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(false)
-	// s.Selected = s.Selected.
-	// Foreground(lipgloss.Color("229")).
-	// Background(lipgloss.Color("57")).
-	// Bold(false)
-	t.SetStyles(s)
-	fmt.Println(t.View())
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("FSID"),
+		valueStyle.Render(fmt.Sprintf("%d", f.FSID)),
+	))
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("文件名"),
+		valueStyle.Render(fmt.Sprintf("%s %s", f.GetFileTypeEmoji(), f.GetFilename())),
+	))
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("大小"),
+		valueStyle.Render(f.GetSize()),
+	))
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("类型"),
+		valueStyle.Render(f.GetFileType()),
+	))
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("地址"),
+		valueStyle.Render(f.Path),
+	))
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("MD5"),
+		valueStyle.Render(f.MD5),
+	))
+	if f.Dlink != "" {
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+			keyStyle.Render("DLink"),
+			valueStyle.Render(f.Dlink),
+		))
+	}
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("创建时间"),
+		valueStyle.Render(f.GetServerCTime()),
+	))
+	rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
+		keyStyle.Render("修改时间"),
+		valueStyle.Render(f.GetServerMTime()),
+	))
+
+	fmt.Println(lipgloss.JoinVertical(lipgloss.Left, rows...))
+
 	return nil
 }

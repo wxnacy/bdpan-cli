@@ -40,6 +40,10 @@ type FileHandler struct {
 	limit       int32
 }
 
+func (h *FileHandler) GetAccessToken() string {
+	return h.accessToken
+}
+
 func (h *FileHandler) GetFiles(dir string, page int) ([]*model.File, error) {
 	req := bdpan.NewGetFileListReq().SetDir(dir).SetLimit(h.limit).SetPage(page)
 	res, err := bdpan.GetFileList(h.accessToken, req)
@@ -265,71 +269,132 @@ func (h *FileHandler) Limit(l int32) *FileHandler {
 // 上传文件夹
 func (h *FileHandler) UploadDir(req *dto.UploadReq, fromDir, toDir string) error {
 	logger.Printf("上传文件夹 %s => %s", fromDir, toDir)
-	infos, err := os.ReadDir(fromDir)
+	req.IsRewrite = true
+
+	begin := time.Now()
+	existFiles, err := bdtools.GetDirAllFiles(h.accessToken, toDir)
+	if err != nil && err.Error() != bdpan.ErrFilenameNotFound.Error() {
+		return err
+	}
+	logger.Infof("获取已存在文件耗时: %v", time.Since(begin))
+	fsids := make([]uint64, 0)
+	for _, f := range existFiles {
+		fsids = append(fsids, f.FSID)
+	}
+
+	begin = time.Now()
+	allBatchFiles, err := bdtools.BatchGetFileInfos(h.accessToken, fsids)
+	if err != nil {
+		return err
+	}
+	logger.Infof("获取已存在文件详情耗时: %v", time.Since(begin))
+	logger.Printf("当前目录已存在文件数量: %d", len(allBatchFiles))
+
+	// 将批量获取到的文件信息更新到 existFileMap 中
+	existFileMap := make(map[string]*bdpan.FileInfo, 0)
+	for _, f := range allBatchFiles {
+		existFileMap[f.Path] = f
+	}
+
+	fromPaths := make([]any, 0)
+	err = filepath.Walk(fromDir,
+		func(pathStr string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			// 不处理文件夹
+			if info.IsDir() {
+				return nil
+			}
+			fromPaths = append(fromPaths, pathStr)
+			return nil
+		})
 	if err != nil {
 		return err
 	}
 
-	existFiles, err := bdtools.GetDirAllFiles(h.accessToken, toDir)
-	if err != nil {
-		return err
-	}
-	logger.Printf("当前目录已存在文件数量: %d", len(existFiles))
-	existFileMap := make(map[string]*bdpan.FileInfo, 0)
-	for _, f := range existFiles {
-		existFileMap[f.Path] = f
-	}
-	for _, info := range infos {
-		fromPath := filepath.Join(fromDir, info.Name())
-		toPath := filepath.Join(toDir, info.Name())
-		if info.IsDir() {
-			// 递归遍历上传文件夹
-			err = h.UploadDir(req, fromPath, toPath)
-			if err != nil {
-				return err
-			}
-		} else {
-			existFile, exist := existFileMap[toPath]
-			if exist {
-				existFile, err = bdtools.GetFileInfo(h.accessToken, existFile.FSID)
-				if err != nil {
-					return err
-				}
-			}
-			err = h.UploadFile(req, fromPath, toPath, existFile, false)
-			if err != nil {
-				return err
-			}
-		}
-	}
+	tools.ExecLoop(fromPaths, len(fromPaths), func(total, index int, item any) error {
+		fromPath := item.(string)
+		// logger.Printf("[%4d/%d] %s", index, total, fromPath)
+		toPath := path.Join(toDir, strings.ReplaceAll(fromPath, fromDir, ""))
+		toFile := existFileMap[toPath]
+		return h.UploadFile(
+			req,
+			fromPath,
+			toPath,
+			toFile,
+			false,
+			tools.Printf(logger.Infof),
+		)
+	},
+		tools.Printf(logger.Infof),
+		gotasker.NewBubblesProgressBar(),
+	)
 
 	return nil
 }
 
 // 上传文件
+// 上传之前查看上传记录
+//
+//	如果有记录直接对比两次文件的远程 md5 是否相同
+//	如果没有记录，则需要对比本地和远程记录，较慢
+//
+// req.IsRewrite = true 时，直接执行覆盖上传
+// req.IsRewrite = false 时
+//
+//	如果本地文件和远程文件md5相同，打印信息直接返回
+//	如果本地文件和远程文件md5不相同，则询问是否覆盖
+//
+// 上传成功后需要保存上传记录
 func (h *FileHandler) UploadFile(
 	req *dto.UploadReq,
 	fromPath, toPath string,
 	toFile *bdpan.FileInfo,
 	printFile bool,
+	args ...any,
 ) error {
-	logger.Printf("上传文件 %s => %s", fromPath, toPath)
+	uPrintf := logger.Printf
+	for _, arg := range args {
+		switch val := arg.(type) {
+		case tools.Printf:
+			uPrintf = val
+		}
+	}
+
+	uPrintf("上传文件 %s => %s", fromPath, toPath)
 	fileMD5, err := tools.Md5File(fromPath)
 	if err != nil {
 		return err
 	}
 	logger.Infof("File MD5: %s", fileMD5)
 	if toFile != nil {
-		logger.Debugf("file url %s", toFile.Dlink)
-		existsMD5, err := bdtools.GetFileContentMD5(toFile)
-		if err != nil {
-			return err
-		}
-		logger.Infof("Exists File MD5: %s", existsMD5)
-		if fileMD5 == existsMD5 && !req.IsRewrite {
-			logger.Printf("文件已存在: %s", toPath)
-			return nil
+		// 查找上传记录，直接比对 md5
+		logger.Infof("通过文件 md5 查找上传记录: %s", fileMD5)
+		existHistory := model.FindUploadHistoryByLocalMD5(fileMD5)
+		if existHistory == nil {
+			// 如果没有上传记录直接获取远程 md5 和本地进行对比
+			logger.Infof("通过文件地址获取 md5: %s", toFile.Dlink)
+			remoteMD5, err := bdtools.GetFileContentMD5(toFile)
+			if err != nil {
+				return err
+			}
+			logger.Infof("Remote File MD5: %s", remoteMD5)
+			if fileMD5 == remoteMD5 {
+				uPrintf("文件已存在: %s", toPath)
+				return nil
+			}
 		} else {
+			// 有上传记录使用两个远程对比
+			logger.Infof("获取到上次上传记录 FSID: %d md5: %s", existHistory.FSID, existHistory.MD5)
+			if existHistory.MD5 == toFile.MD5 {
+				uPrintf("文件已存在: %s", toPath)
+				return nil
+			}
+
+		}
+
+		if !req.IsRewrite {
 			var confirm bool
 			err = huh.NewConfirm().
 				Title("文件已存在，是否覆盖？").
@@ -340,13 +405,13 @@ func (h *FileHandler) UploadFile(
 				return err
 			}
 			if !confirm {
-				logger.Printf("取消上传: %s", toPath)
+				uPrintf("取消上传: %s", toPath)
 				return nil
 			}
 			req.IsRewrite = true
 		}
 	}
-	file, err := bdtools.UploadFile(
+	createFileRes, err := bdtools.UploadFile(
 		h.accessToken,
 		fromPath,
 		toPath,
@@ -357,8 +422,27 @@ func (h *FileHandler) UploadFile(
 	if err != nil {
 		return err
 	}
-	logger.Printf("上传文件成功")
+	uPrintf("上传文件成功")
+	// 保存上传记录
+	saveHistory := &model.UploadHistory{
+		FSID:           createFileRes.FSId,
+		Path:           createFileRes.Path,
+		Size:           createFileRes.Size,
+		Category:       createFileRes.Category,
+		ServerFilename: createFileRes.ServerFilename,
+		MD5:            createFileRes.Md5,
+		LocalMD5:       fileMD5,
+		CTime:          createFileRes.Ctime,
+		MTime:          createFileRes.Mtime,
+	}
+	saveHistory.Init()
+	model.Save(saveHistory)
+
 	if printFile {
+		file, err := bdtools.GetFileInfo(h.accessToken, createFileRes.FSId)
+		if err != nil {
+			return err
+		}
 		bdtools.PrintFileInfo(file)
 	}
 	return nil

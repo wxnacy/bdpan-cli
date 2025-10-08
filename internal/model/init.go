@@ -18,12 +18,10 @@ import (
 	"gorm.io/gorm"
 )
 
-var (
-	// ErrCacheNotFound No hit cache
+// ErrCacheNotFound No hit cache
 
-	// ErrRecordNotFound no records found
-	ErrRecordNotFound = gorm.ErrRecordNotFound
-)
+// ErrRecordNotFound no records found
+var ErrRecordNotFound = gorm.ErrRecordNotFound
 
 var (
 	db    *gorm.DB
@@ -86,7 +84,7 @@ func InitSqlite() {
 	// }
 
 	var err error
-	var dbFile = utils.AdaptiveSqlite(config.Get().Database.Sqlite.DBFile)
+	dbFile := utils.AdaptiveSqlite(config.Get().Database.Sqlite.DBFile)
 	dbFile, _ = homedir.Expand(dbFile)
 	db, err = ggorm.InitSqlite(dbFile, opts...)
 	if err != nil {
@@ -95,9 +93,10 @@ func InitSqlite() {
 
 	// 初始化表格
 	begin := time.Now()
+	db.AutoMigrate(&UploadHistory{})
 	db.AutoMigrate(&File{})
 	db.AutoMigrate(&Quick{})
-	log.Debugf("DB AutoMigrate time used %v", time.Now().Sub(begin))
+	log.Debugf("DB AutoMigrate time used %v", time.Since(begin))
 }
 
 // GetDB get db

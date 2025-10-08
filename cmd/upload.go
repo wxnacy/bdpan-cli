@@ -29,6 +29,6 @@ bdpan upload --local 本地文件夹 --path 网盘目录
 
 func init() {
 	uploadCmd.Flags().StringVarP(&uploadReq.Local, "local", "l", "", "本地文件")
-	uploadCmd.Flags().BoolVarP(&uploadReq.IsRewrite, "rewrite", "r", false, "是否覆盖同名文件")
+	uploadCmd.Flags().BoolVarP(&uploadReq.IsRewrite, "rewrite", "r", false, "是否覆盖同名文件，上传文件夹时不可指定，一直是 true")
 	rootCmd.AddCommand(uploadCmd)
 }

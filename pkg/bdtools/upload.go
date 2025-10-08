@@ -24,7 +24,7 @@ type (
 )
 
 // uploadFile 实现文件上传的完整流程
-func UploadFile(accessToken, localFilePath, remoteFilePath string, args ...any) (*bdpan.FileInfo, error) {
+func UploadFile(accessToken, localFilePath, remoteFilePath string, args ...any) (*bdpan.CreateFileRes, error) {
 	uPrintf := log.Printf
 	var progressBar tools.ProgressBar
 	var isRewrite IsRewrite
@@ -190,14 +190,8 @@ func UploadFile(accessToken, localFilePath, remoteFilePath string, args ...any) 
 		progressBar.Finish()
 	}
 
-	uPrintf("文件创建成功，fs_id: %d", createFileRes.FsId)
-
-	file_res, err := bdpan.GetFileInfo(accessToken, bdpan.NewGetFileInfoReq(createFileRes.FsId))
-	if err != nil {
-		return nil, fmt.Errorf("获取文件失败: %w", err)
-	}
-	uPrintf("文件名称: %s", file_res.GetFilename())
-	return &file_res.FileInfo, nil
+	uPrintf("文件创建成功，fs_id: %d name: %s", createFileRes.FSId, createFileRes.ServerFilename)
+	return createFileRes, nil
 }
 
 // calculateBlockList 计算文件的MD5分块列表
