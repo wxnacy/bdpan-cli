@@ -2,17 +2,26 @@ package terminal
 
 import "github.com/charmbracelet/bubbles/key"
 
+var KeyEnter = key.NewBinding(
+	key.WithKeys("right", "l", "enter"),
+	key.WithHelp("→/l/enter", "确认/打开"),
+)
+
+var KeyDelete = key.NewBinding(
+	key.WithKeys("D"),
+	key.WithHelp("D", "删除"),
+)
+
 type KeyMap struct {
-	Enter   key.Binding
-	Exit    key.Binding
-	Back    key.Binding
-	Right   key.Binding
-	Left    key.Binding
+	Exit key.Binding
+	Back key.Binding
+	// Right   key.Binding
+	// Left    key.Binding
 	Refresh key.Binding
-	Space   key.Binding // 空格，选中
-	Delete  key.Binding
-	Cut     key.Binding // 剪切
-	Paste   key.Binding // 黏贴
+	// Space   key.Binding // 空格，选中
+	Delete key.Binding
+	// Cut     key.Binding // 剪切
+	Help key.Binding // 帮助
 
 	// Pane
 	MovePaneLeft  key.Binding
@@ -33,8 +42,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 		k.Exit,
 		k.MovePaneLeft,
 		k.MovePaneRight,
-		k.Enter,
-		k.Back,
+		k.Help,
 	}
 }
 
@@ -42,8 +50,8 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // key.Map interface.
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Enter, k.Back, k.Delete, k.Refresh},    // first column
-		{k.Exit, k.Right, k.Left, k.Cut, k.Paste}, // second column
+		{k.Back, k.Delete, k.Refresh}, // first column
+		{k.Exit},                      // second column
 	}
 }
 
@@ -53,18 +61,14 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("q", "ctrl+c"),
 			key.WithHelp("q/ctrl+c", "退出"),
 		),
-		Enter: key.NewBinding(
-			key.WithKeys("right", "l", "enter"),
-			key.WithHelp("→/l/enter", "确认/打开"),
-		),
-		Right: key.NewBinding(
-			key.WithKeys("right", "l"),
-			key.WithHelp("→/l", "向右"),
-		),
-		Left: key.NewBinding(
-			key.WithKeys("left", "h"),
-			key.WithHelp("←/h", "向左"),
-		),
+		// Right: key.NewBinding(
+		// key.WithKeys("right", "l"),
+		// key.WithHelp("→/l", "向右"),
+		// ),
+		// Left: key.NewBinding(
+		// key.WithKeys("left", "h"),
+		// key.WithHelp("←/h", "向左"),
+		// ),
 		Back: key.NewBinding(
 			key.WithKeys("left", "h"),
 			key.WithHelp("←/h", "退回"),
@@ -73,21 +77,21 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("R"),
 			key.WithHelp("R", "刷新当前目录"),
 		),
-		Space: key.NewBinding(
-			key.WithKeys(" "),
-			key.WithHelp("Space", "选中"),
-		),
+		// Space: key.NewBinding(
+		// key.WithKeys(" "),
+		// key.WithHelp("Space", "选中"),
+		// ),
 		Delete: key.NewBinding(
 			key.WithKeys("D"),
 			key.WithHelp("D", "删除"),
 		),
-		Cut: key.NewBinding(
-			key.WithKeys("x"),
-			key.WithHelp("x", "剪切"),
-		),
-		Paste: key.NewBinding(
-			key.WithKeys("p"),
-			key.WithHelp("p", "黏贴"),
+		// Cut: key.NewBinding(
+		// key.WithKeys("x"),
+		// key.WithHelp("x", "剪切"),
+		// ),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "帮助"),
 		),
 
 		MovePaneLeft: key.NewBinding(

@@ -15,7 +15,7 @@ type Quick struct {
 	model         list.Model
 	width, height int
 	baseStyle     lipgloss.Style
-	keymap        QuickKeyMap
+	KeyMap        QuickKeyMap
 	focus         bool
 }
 
@@ -25,10 +25,6 @@ func (m Quick) Init() tea.Cmd {
 
 func (m *Quick) Update(msg tea.Msg) (*Quick, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
-			return m, tea.Quit
-		}
 	case tea.WindowSizeMsg:
 		// h, v := m.baseStyle.GetFrameSize()
 		_w := msg.Width
@@ -61,7 +57,7 @@ func (m Quick) View() string {
 	}
 	viewW, viewH = lipgloss.Size(view)
 	logger.Infof("ListView Full Size %dx%d", viewW, viewH)
-	logger.Infof("ListView time used %v", time.Now().Sub(begin))
+	logger.Infof("ListView time used %v", time.Since(begin))
 	return view
 }
 
@@ -92,7 +88,7 @@ func (m *Quick) Height(h int) *Quick {
 }
 
 func (m *Quick) GetKeyMap() QuickKeyMap {
-	return m.keymap
+	return m.KeyMap
 }
 
 func (m *Quick) Focused() bool {
@@ -111,7 +107,7 @@ func NewQuick(title string, items []*model.Quick, opts ...any) *Quick {
 	m := &Quick{
 		model: list.New(
 			model.ToList(items), list.NewDefaultDelegate(), 0, 0),
-		keymap: DefaultQuickKeyMap(),
+		KeyMap: DefaultQuickKeyMap(),
 	}
 	m.model.Title = title
 	// 不展示帮助信息
@@ -127,23 +123,12 @@ func NewQuick(title string, items []*model.Quick, opts ...any) *Quick {
 
 type QuickKeyMap struct {
 	Enter  key.Binding
-	Exit   key.Binding
 	Delete key.Binding
 }
 
 func DefaultQuickKeyMap() QuickKeyMap {
 	return QuickKeyMap{
-		Exit: key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "退出"),
-		),
-		Enter: key.NewBinding(
-			key.WithKeys("o", "enter", "l"),
-			key.WithHelp("o/enter/l", "确认/打开"),
-		),
-		Delete: key.NewBinding(
-			key.WithKeys("D"),
-			key.WithHelp("D", "删除"),
-		),
+		Enter:  KeyEnter,
+		Delete: KeyDelete,
 	}
 }

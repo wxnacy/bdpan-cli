@@ -28,11 +28,6 @@ func GetBaseStyleHeight() int {
 	return 2
 }
 
-var (
-	baseStyleWidth  int
-	baseStyleHeight int
-)
-
 type FileListArgType int
 
 const (
@@ -49,11 +44,11 @@ func NewFileList(
 	files []*model.File, width, height int, selectors []string,
 	args ...FileListArg,
 ) *FileList {
-	var sizeW int = 10
-	var typeW int = 10
-	var timeW int = 20
+	sizeW := 10
+	typeW := 10
+	timeW := 20
 	// 8 是为了和传进来的width保持一致设定的数字
-	var filenameW int = width - sizeW - typeW - timeW - GetBaseStyleWidth() - 8
+	filenameW := width - sizeW - typeW - timeW - GetBaseStyleWidth() - 8
 	columns := []table.Column{
 		{Title: "FSID", Width: 0},
 		{Title: "文件名", Width: filenameW},
@@ -134,14 +129,14 @@ func NewFileList(
 	return &FileList{
 		model:  t,
 		files:  files,
-		keymap: DefaultFileListKeyMap(),
+		KeyMap: DefaultFileListKeyMap(),
 	}
 }
 
 type FileList struct {
 	model  table.Model
 	files  []*model.File
-	keymap FileListKeyMap
+	KeyMap FileListKeyMap
 }
 
 func (m *FileList) GetSelectFile() (*model.File, error) {
@@ -180,8 +175,8 @@ func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	logger.Infof("光标移动后的对象: %v", m.model.SelectedRow())
 
-	_, cmd = m.ListenKeyMsg(msg)
-	cmds = append(cmds, cmd)
+	// _, cmd = m.ListenKeyMsg(msg)
+	// cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -202,21 +197,21 @@ func (m FileList) View() string {
 	return view
 }
 
-func (m *FileList) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
-	flag := true
-	var cmd tea.Cmd
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.keymap.Exit):
-			// 退出程序
-			return true, tea.Quit
-		}
-	default:
-		flag = false
-	}
-	return flag, cmd
-}
+// func (m *FileList) ListenKeyMsg(msg tea.Msg, mainM *BDPan) (bool, tea.Cmd) {
+// flag := true
+// var cmd tea.Cmd
+// switch msg := msg.(type) {
+// case tea.KeyMsg:
+// switch {
+// case key.Matches(msg, m.KeyMap.Exit):
+// // 退出程序
+// return true, tea.Quit
+// }
+// default:
+// flag = false
+// }
+// return flag, cmd
+// }
 
 func (m *FileList) Focus() {
 	m.model.Focus()
@@ -231,19 +226,60 @@ func (m FileList) Focused() bool {
 }
 
 func (m FileList) GetKeyMap() FileListKeyMap {
-	return m.keymap
+	return m.KeyMap
 }
 
 type FileListKeyMap struct {
+	table.KeyMap
 	Exit     key.Binding
+	Enter    key.Binding
+	Back     key.Binding
+	Refresh  key.Binding
+	Space    key.Binding // 空格，选中
+	Delete   key.Binding
+	Cut      key.Binding // 剪切
+	Paste    key.Binding // 黏贴
 	AddQuick key.Binding
+}
+
+// ShortHelp implements the KeyMap interface.
+func (km FileListKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{km.LineUp, km.LineDown, km.Back, km.Enter}
+}
+
+// FullHelp implements the KeyMap interface.
+func (km FileListKeyMap) FullHelp() [][]key.Binding {
+	return km.KeyMap.FullHelp()
 }
 
 func DefaultFileListKeyMap() FileListKeyMap {
 	return FileListKeyMap{
+		KeyMap: table.DefaultKeyMap(),
 		Exit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
 			key.WithHelp("q/ctrl+c", "退出"),
+		),
+		Enter: KeyEnter,
+		Back: key.NewBinding(
+			key.WithKeys("left", "h"),
+			key.WithHelp("←/h", "退回"),
+		),
+		Refresh: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "刷新当前目录"),
+		),
+		Space: key.NewBinding(
+			key.WithKeys(" "),
+			key.WithHelp("Space", "选中"),
+		),
+		Delete: KeyDelete,
+		Cut: key.NewBinding(
+			key.WithKeys("x"),
+			key.WithHelp("x", "剪切"),
+		),
+		Paste: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "黏贴"),
 		),
 		AddQuick: key.NewBinding(
 			key.WithKeys("m"),

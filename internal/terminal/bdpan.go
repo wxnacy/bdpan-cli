@@ -78,8 +78,9 @@ func NewBDPan(dir string) (*BDPan, error) {
 		fileHandler:      handler.GetFileHandler(),
 		authHandler:      handler.GetAuthHandler(),
 		KeyMap:           DefaultKeyMap(),
+		helpModel:        help.New(),
 	}
-	logger.Infof("NewDBPan time used %v", time.Now().Sub(begin))
+	logger.Infof("NewDBPan time used %v", time.Since(begin))
 	return item, nil
 }
 
@@ -97,6 +98,9 @@ type BDPan struct {
 	message         string
 	messageTimer    *time.Timer
 	messageLifetime time.Duration // 消息生命周期
+
+	// help
+	helpModel help.Model
 
 	// state
 	// 改变窗口尺寸
@@ -273,7 +277,7 @@ func (m *BDPan) Init() tea.Cmd {
 
 	m.confirmModel = wtea.NewConfirm("", baseFocusStyle)
 
-	logger.Infof("BDPan Init time used %v ====================", time.Now().Sub(begin))
+	logger.Infof("BDPan Init time used %v ====================", time.Since(begin))
 	return tea.Batch(
 		m.SendRefreshQuick(),
 		m.SendGoto(m.Dir),
@@ -309,7 +313,7 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	logger.Infof("记录最后的键位是 %v", m.lastKey)
-	logger.Infof("BDPan Update time used %v ==================", time.Now().Sub(begin))
+	logger.Infof("BDPan Update time used %v ==================", time.Since(begin))
 	return m, cmd
 }
 
@@ -436,6 +440,136 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 	return flag, tea.Batch(cmds...)
 }
 
+func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
+	flag := true
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		// 光标聚焦在文件列表中
+		if m.FileListModelIsNotNil() {
+			// 先做原始修改操作
+			// 空格操作不使用原始操作
+			if !key.Matches(msg, m.fileListModel.KeyMap.Space) {
+				m.fileListModel, cmd = m.fileListModel.Update(msg)
+				cmds = append(cmds, cmd)
+			}
+
+			// 记录光标位置
+			m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
+		}
+		switch {
+		case key.Matches(msg, m.fileListModel.KeyMap.Delete):
+			// 删除
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				task := m.AddFileTask(f, TypeDelete)
+				cmd = m.SendShowConfirm(
+					fmt.Sprintf("确认删除 %s?", f.GetFilename()),
+					task,
+					m.fileListModel,
+				)
+				cmds = append(cmds, cmd)
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Space):
+			// 选中
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				path := f.Path
+				_, exist := m.selectFileMap[path]
+				if exist {
+					delete(m.selectFileMap, path)
+				} else {
+					m.selectFileMap[path] = f
+				}
+				cmds = append(cmds, m.SendMessage("选中文件: %s", f.Path))
+				// 选中后向下移动一行
+				m.fileListModel.model.MoveDown(1)
+				// 记录光标位置
+				m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
+				// 重新设置文件列表，带有选中效果
+				m.fileListModel = m.NewFileList(m.files)
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Cut):
+			// 剪切
+			if m.CanSelectFile() {
+				// 确认剪切文件
+				if m.HasSelectFile() {
+					m.ClearCutSelectFileMap()
+					m.cutSelectFileMap = m.selectFileMap
+					m.ClearSelectFileMap()
+				} else {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					m.cutSelectFileMap[f.Path] = f
+				}
+				// 重新设置文件列表，带有选中效果
+				m.fileListModel = m.NewFileList(m.files)
+				cmds = append(cmds, m.SendMessage(
+					"剪切文件: %s",
+					strings.Join(m.GetCutSelectFilePaths(), " "),
+				))
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Paste):
+			// 黏贴
+			task := m.AddFileTask(nil, TypePaste)
+			task.Dir = m.Dir
+			cmds = append(cmds, m.SendRunTask(task))
+		case key.Matches(msg, m.fileListModel.KeyMap.Back):
+			// 返回目录
+			cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
+		case key.Matches(msg, m.fileListModel.KeyMap.Enter):
+			if m.CanSelectFile() {
+				f, err := m.fileListModel.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				if f.IsDir() {
+					cmds = append(cmds, m.Goto(f.Path))
+				} else {
+					task := m.AddFileTask(f, TypeDownload)
+					cmd = m.SendShowConfirm(
+						fmt.Sprintf("确认下载 %s?", f.GetFilename()),
+						task,
+						m.fileListModel,
+					)
+					cmds = append(cmds, cmd)
+				}
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.AddQuick):
+			// 添加快速访问
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				if f.IsDir() {
+					q := m.GetQuickByPath(f.Path)
+					if q != nil {
+						cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
+					} else {
+						q := f.ToQuick()
+						model.Save(q)
+						cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
+					}
+
+				} else {
+					cmds = append(cmds, m.SendMessage("文件不支持添加快速访问"))
+				}
+			}
+		}
+	}
+	return flag, tea.Batch(cmds...)
+}
+
 func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 	flag := true
 	var cmds []tea.Cmd
@@ -446,6 +580,9 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.Exit):
 			// 退出程序
 			return true, tea.Quit
+		case key.Matches(msg, m.KeyMap.Help):
+			// 退出程序
+			m.helpModel.ShowAll = !m.helpModel.ShowAll
 		case key.Matches(msg, m.KeyMap.MovePaneLeft):
 			// 向左移动面板
 			if m.fileListModel.Focused() {
@@ -457,131 +594,142 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			if m.quickModel.Focused() {
 				m.FileListFocus()
 			}
+		case key.Matches(msg, m.KeyMap.Refresh):
+			// 刷新目录
+			// 盘信息
+			cmds = append(cmds, m.SendGoto(m.Dir), m.SendRefreshPan())
 		case m.fileListModel.Focused():
+			return m.ListenFileListKeyMsg(msg)
 			// 光标聚焦在文件列表中
-			if m.FileListModelIsNotNil() {
-				// 先做原始修改操作
-				// 空格操作不使用原始操作
-				if !key.Matches(msg, m.KeyMap.Space) {
-					m.fileListModel, cmd = m.fileListModel.Update(msg)
-					cmds = append(cmds, cmd)
-				}
+			// if m.FileListModelIsNotNil() {
+			// // 先做原始修改操作
+			// // 空格操作不使用原始操作
+			// if !key.Matches(msg, m.KeyMap.Space) {
+			// m.fileListModel, cmd = m.fileListModel.Update(msg)
+			// cmds = append(cmds, cmd)
+			// }
 
-				// 记录光标位置
-				m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
-			}
-			switch {
-			case key.Matches(msg, m.KeyMap.Delete):
-				// 删除
-				if m.CanSelectFile() {
-					f, err := m.GetSelectFile()
-					if err != nil {
-						return true, tea.Quit
-					}
-					task := m.AddFileTask(f, TypeDelete)
-					cmd = m.SendShowConfirm(
-						fmt.Sprintf("确认删除 %s?", f.GetFilename()),
-						task,
-						m.fileListModel,
-					)
-					cmds = append(cmds, cmd)
-				}
-			case key.Matches(msg, m.KeyMap.Space):
-				// 选中
-				if m.CanSelectFile() {
-					f, err := m.GetSelectFile()
-					if err != nil {
-						return true, tea.Quit
-					}
-					path := f.Path
-					_, exist := m.selectFileMap[path]
-					if exist {
-						delete(m.selectFileMap, path)
-					} else {
-						m.selectFileMap[path] = f
-					}
-					cmds = append(cmds, m.SendMessage("选中文件: %s", f.Path))
-					// 选中后向下移动一行
-					m.fileListModel.model.MoveDown(1)
-					// 记录光标位置
-					m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
-					// 重新设置文件列表，带有选中效果
-					m.fileListModel = m.NewFileList(m.files)
-				}
-			case key.Matches(msg, m.KeyMap.Cut):
-				// 剪切
-				if m.CanSelectFile() {
-					// 确认剪切文件
-					if m.HasSelectFile() {
-						m.ClearCutSelectFileMap()
-						m.cutSelectFileMap = m.selectFileMap
-						m.ClearSelectFileMap()
-					} else {
-						f, err := m.GetSelectFile()
-						if err != nil {
-							return true, tea.Quit
-						}
-						m.cutSelectFileMap[f.Path] = f
-					}
-					// 重新设置文件列表，带有选中效果
-					m.fileListModel = m.NewFileList(m.files)
-					cmds = append(cmds, m.SendMessage(
-						"剪切文件: %s",
-						strings.Join(m.GetCutSelectFilePaths(), " "),
-					))
-				}
-			case key.Matches(msg, m.KeyMap.Paste):
-				// 黏贴
-				task := m.AddFileTask(nil, TypePaste)
-				task.Dir = m.Dir
-				cmds = append(cmds, m.SendRunTask(task))
-			case key.Matches(msg, m.KeyMap.Refresh):
-				// 刷新目录
-				// 盘信息
-				cmds = append(cmds, m.SendGoto(m.Dir), m.SendRefreshPan())
-			case key.Matches(msg, m.KeyMap.Back):
-				// 返回目录
-				cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
-			case key.Matches(msg, m.KeyMap.Enter):
-				if m.CanSelectFile() {
-					f, err := m.fileListModel.GetSelectFile()
-					if err != nil {
-						return true, tea.Quit
-					}
-					if f.IsDir() {
-						cmds = append(cmds, m.Goto(f.Path))
-					} else {
-						task := m.AddFileTask(f, TypeDownload)
-						cmd = m.SendShowConfirm(
-							fmt.Sprintf("确认下载 %s?", f.GetFilename()),
-							task,
-							m.fileListModel,
-						)
-						cmds = append(cmds, cmd)
-					}
-				}
-			case key.Matches(msg, m.fileListModel.GetKeyMap().AddQuick):
-				// 添加快速访问
-				if m.CanSelectFile() {
-					f, err := m.GetSelectFile()
-					if err != nil {
-						return true, tea.Quit
-					}
-					if f.IsDir() {
-						q := m.GetQuickByPath(f.Path)
-						if q != nil {
-							cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
-						} else {
-							q := f.ToQuick()
-							model.Save(q)
-							cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
-						}
+			// // 记录光标位置
+			// m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
 
-					} else {
-						cmds = append(cmds, m.SendMessage("文件不支持添加快速访问"))
-					}
-				}
-			}
+			// // 监听焦点 key
+			// // flag, cmd = m.fileListModel.ListenKeyMsg(msg, m)
+			// // if flag {
+			// // return flag, cmd
+			// // }
+			// }
+			// switch {
+			// case key.Matches(msg, m.KeyMap.Delete):
+			// // 删除
+			// if m.CanSelectFile() {
+			// f, err := m.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// task := m.AddFileTask(f, TypeDelete)
+			// cmd = m.SendShowConfirm(
+			// fmt.Sprintf("确认删除 %s?", f.GetFilename()),
+			// task,
+			// m.fileListModel,
+			// )
+			// cmds = append(cmds, cmd)
+			// }
+			// case key.Matches(msg, m.KeyMap.Space):
+			// // 选中
+			// if m.CanSelectFile() {
+			// f, err := m.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// path := f.Path
+			// _, exist := m.selectFileMap[path]
+			// if exist {
+			// delete(m.selectFileMap, path)
+			// } else {
+			// m.selectFileMap[path] = f
+			// }
+			// cmds = append(cmds, m.SendMessage("选中文件: %s", f.Path))
+			// // 选中后向下移动一行
+			// m.fileListModel.model.MoveDown(1)
+			// // 记录光标位置
+			// m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
+			// // 重新设置文件列表，带有选中效果
+			// m.fileListModel = m.NewFileList(m.files)
+			// }
+			// case key.Matches(msg, m.KeyMap.Cut):
+			// // 剪切
+			// if m.CanSelectFile() {
+			// // 确认剪切文件
+			// if m.HasSelectFile() {
+			// m.ClearCutSelectFileMap()
+			// m.cutSelectFileMap = m.selectFileMap
+			// m.ClearSelectFileMap()
+			// } else {
+			// f, err := m.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// m.cutSelectFileMap[f.Path] = f
+			// }
+			// // 重新设置文件列表，带有选中效果
+			// m.fileListModel = m.NewFileList(m.files)
+			// cmds = append(cmds, m.SendMessage(
+			// "剪切文件: %s",
+			// strings.Join(m.GetCutSelectFilePaths(), " "),
+			// ))
+			// }
+			// case key.Matches(msg, m.KeyMap.Paste):
+			// // 黏贴
+			// task := m.AddFileTask(nil, TypePaste)
+			// task.Dir = m.Dir
+			// cmds = append(cmds, m.SendRunTask(task))
+			// case key.Matches(msg, m.KeyMap.Refresh):
+			// // 刷新目录
+			// // 盘信息
+			// cmds = append(cmds, m.SendGoto(m.Dir), m.SendRefreshPan())
+			// case key.Matches(msg, m.KeyMap.Back):
+			// // 返回目录
+			// cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
+			// case key.Matches(msg, m.KeyMap.Enter):
+			// if m.CanSelectFile() {
+			// f, err := m.fileListModel.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// if f.IsDir() {
+			// cmds = append(cmds, m.Goto(f.Path))
+			// } else {
+			// task := m.AddFileTask(f, TypeDownload)
+			// cmd = m.SendShowConfirm(
+			// fmt.Sprintf("确认下载 %s?", f.GetFilename()),
+			// task,
+			// m.fileListModel,
+			// )
+			// cmds = append(cmds, cmd)
+			// }
+			// }
+			// case key.Matches(msg, m.fileListModel.GetKeyMap().AddQuick):
+			// // 添加快速访问
+			// if m.CanSelectFile() {
+			// f, err := m.GetSelectFile()
+			// if err != nil {
+			// return true, tea.Quit
+			// }
+			// if f.IsDir() {
+			// q := m.GetQuickByPath(f.Path)
+			// if q != nil {
+			// cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
+			// } else {
+			// q := f.ToQuick()
+			// model.Save(q)
+			// cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
+			// }
+
+			// } else {
+			// cmds = append(cmds, m.SendMessage("文件不支持添加快速访问"))
+			// }
+			// }
+			// }
 
 		case m.ConfirmFocused():
 			// 光标聚焦在确认框中
@@ -818,13 +966,23 @@ func (m *BDPan) GetMidView() string {
 }
 
 func (m *BDPan) GetHelpView() string {
-	if m.FileListModelIsNotNil() {
-		helpModel := help.New()
-		helpModel.ShowAll = true
-		return baseStyle.Render(helpModel.View(m.fileListModel.model.KeyMap))
-	} else {
-		return ""
+	var keymap help.KeyMap
+	switch {
+	case m.fileListModel.Focused():
+		if m.FileListModelIsNotNil() {
+			keymap = m.fileListModel.KeyMap
+		}
 	}
+	style := baseStyle.Padding(0, 1)
+	// 焦点帮助
+	var focusedView string
+	if keymap != nil {
+		focusedView = style.Render(m.helpModel.View(keymap))
+	}
+	// 全局帮助
+	view := style.Render(m.helpModel.View(m.KeyMap))
+	// 拼接全局帮助信息
+	return focusedView + "\n" + view
 }
 
 func (m *BDPan) GetMessageView() string {
