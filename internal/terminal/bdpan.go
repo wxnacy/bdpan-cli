@@ -1013,13 +1013,6 @@ func (m *BDPan) GetStatusView() string {
 		Foreground(lipgloss.AdaptiveColor{Light: "#343433", Dark: "#C1C6B2"}).
 		Background(lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"})
 
-	statusStyle := lipgloss.NewStyle().
-		Inherit(statusBarStyle).
-		Foreground(lipgloss.Color("#FFFDF5")).
-		Background(lipgloss.Color("#FF5F87")).
-		Padding(0, 1).
-		MarginRight(1)
-
 	encodingStyle := statusNugget.
 		Background(lipgloss.Color("#A550DF")).
 		Align(lipgloss.Right)
@@ -1028,14 +1021,46 @@ func (m *BDPan) GetStatusView() string {
 
 	fishCakeStyle := statusNugget.Background(lipgloss.Color("#6124DF"))
 
-	// left
-	used := "-/-"
+	usedText := "-/-"
+	capacityStyle := lipgloss.NewStyle().
+		Inherit(statusBarStyle).
+		Foreground(lipgloss.Color("#FFFDF5")).
+		Padding(0, 1).
+		MarginRight(1)
+	// Set a default background color
+	capacityStyle = capacityStyle.Background(lipgloss.Color("#874BFD"))
+
 	if m.pan != nil {
-		used = fmt.Sprintf("%s/%s", m.pan.GetUsedStr(), m.pan.GetTotalStr())
+		usedText = fmt.Sprintf("%s/%s", m.pan.GetUsedStr(), m.pan.GetTotalStr())
+
+		p := float64(0)
+		if m.pan.Total > 0 {
+			p = float64(m.pan.Used) / float64(m.pan.Total)
+		}
+		if p < 0 {
+			p = 0
+		}
+		if p > 1 {
+			p = 1
+		}
+
+		// Progress bar
+		barWidth := 10
+		filledWidth := int(p * float64(barWidth))
+		bar := strings.Repeat("■", filledWidth) + strings.Repeat("□", barWidth-filledWidth)
+		usedText = fmt.Sprintf("%s %s", usedText, bar)
+
+		// Gradient from Green to Red
+		r := int(255 * p)
+		g := int(255 * (1 - p))
+		b := 0
+		bgColor := lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+		capacityStyle = capacityStyle.Background(bgColor)
 	}
-	statusKey := statusStyle.Render(fmt.Sprintf(
+	// 展示容量
+	capacity := capacityStyle.Render(fmt.Sprintf(
 		"容量 %s",
-		used,
+		usedText,
 	))
 
 	// right
@@ -1057,11 +1082,11 @@ func (m *BDPan) GetStatusView() string {
 		fileLineText = fmt.Sprintf("%s", f.Path)
 	}
 	statusVal := statusText.
-		Width(m.GetWidth() - w(statusKey) - w(encoding) - w(fishCake)).
+		Width(m.GetWidth() - w(capacity) - w(encoding) - w(fishCake)).
 		Render(fileLineText)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top,
-		statusKey,
+		capacity,
 		statusVal,
 		encoding,
 		fishCake,
