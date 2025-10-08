@@ -320,14 +320,30 @@ func (h *FileHandler) UploadFile(
 	}
 	logger.Infof("File MD5: %s", fileMD5)
 	if toFile != nil {
+		logger.Debugf("file url %s", toFile.Dlink)
 		existsMD5, err := bdtools.GetFileContentMD5(toFile)
 		if err != nil {
 			return err
 		}
 		logger.Infof("Exists File MD5: %s", existsMD5)
-		if fileMD5 == existsMD5 {
+		if fileMD5 == existsMD5 && !req.IsRewrite {
 			logger.Printf("文件已存在: %s", toPath)
 			return nil
+		} else {
+			var confirm bool
+			err = huh.NewConfirm().
+				Title("文件已存在，是否覆盖？").
+				Affirmative("Yes!").
+				Negative("No.").
+				Value(&confirm).WithTheme(huh.ThemeCatppuccin()).Run()
+			if err != nil {
+				return err
+			}
+			if !confirm {
+				logger.Printf("取消上传: %s", toPath)
+				return nil
+			}
+			req.IsRewrite = true
 		}
 	}
 	file, err := bdtools.UploadFile(
