@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/wxnacy/bdpan-cli/cmd/initial"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/terminal"
 	"github.com/wxnacy/go-bdpan"
@@ -21,10 +23,19 @@ import (
 var (
 	globalReq = dto.NewGlobalReq()
 	Log       = bdpan.GetLogger()
+	startTime time.Time
 )
 
 func GetGlobalReq() *dto.GlobalReq {
 	return globalReq
+}
+
+func GetRootCmd() *cobra.Command {
+	return rootCmd
+}
+
+func GetFileHandler() *handler.FileHandler {
+	return handler.GetFileHandler()
 }
 
 // rootCmd represents the base command when called without any subcommands
@@ -34,6 +45,7 @@ var rootCmd = &cobra.Command{
 	Long:    ``,
 	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		startTime = time.Now()
 		// 初始化应用
 		initial.InitApp(globalReq)
 		// 检查是否登录
@@ -45,8 +57,11 @@ var rootCmd = &cobra.Command{
 		}
 		return nil
 	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		duration := time.Since(startTime)
+		fmt.Printf("命令执行耗时: %v\n", duration)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
-		// handleCmdErr(bdpanCommand.Exec(args))
 		req := GetGlobalReq()
 		path := req.Path
 		if len(args) > 0 {
