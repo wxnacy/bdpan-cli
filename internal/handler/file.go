@@ -110,6 +110,10 @@ func (h *FileHandler) MoveFiles(dir string, paths ...string) (*bdpan.ManageFileR
 	return bdpan.MoveFiles(h.accessToken, dir, paths...)
 }
 
+func (h *FileHandler) RenameFile(pathS, newName string) (*bdpan.ManageFileRes, error) {
+	return bdpan.RenameFiles(h.accessToken, bdpan.NewFileManager(pathS, "", newName))
+}
+
 func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 	fmt.Printf("查找文件地址: %s\n", req.Path)
 	f, err := h.GetFileByPath(req.Path)
@@ -489,4 +493,9 @@ func FormatPath(path string) string {
 		path += "/"
 	}
 	return path
+}
+
+func PrintFileInfo(file *bdpan.FileInfo) {
+	logger.Printf("文件详情")
+	bdtools.PrintFileInfo(file)
 }
