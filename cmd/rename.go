@@ -12,20 +12,17 @@ import (
 
 func init() {
 	cmd := &cobra.Command{
-		Use:                   "rename",
+		Use:                   "rename [path] [newname]",
 		Short:                 "重命名",
-		Example:               ``,
+		Example:               `bdpan rename /apps/test/a.txt b.txt`,
 		DisableFlagsInUseLine: true,
-		Long: `
-bdpan rename {path} {newname}
-		`,
+		Long:                  ``,
+		Args:                  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
 			path := args[0]
 			name := args[1]
 			res, err := GetFileHandler().RenameFile(path, name)
-			if err != nil {
-				handleCmdErr(err)
-			}
+			handleCmdErr(err)
 
 			resInfo := res.Infos[0]
 			if resInfo.IsError() {
@@ -34,9 +31,7 @@ bdpan rename {path} {newname}
 			newPath := resInfo.ToPath
 			logger.Printf("修改成功，新地址: %s", newPath)
 			file, err := GetFileHandler().GetFileByPath(newPath)
-			if err != nil {
-				handleCmdErr(err)
-			}
+			handleCmdErr(err)
 			handler.PrintFileInfo(file)
 		},
 	}
