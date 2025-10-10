@@ -972,6 +972,8 @@ func (m *BDPan) GetHelpView() string {
 		if m.FileListModelIsNotNil() {
 			keymap = m.fileListModel.KeyMap
 		}
+	case m.quickModel.Focused():
+		keymap = m.quickModel.KeyMap
 	}
 	style := baseStyle.Padding(0, 1)
 	// 焦点帮助

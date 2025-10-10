@@ -122,8 +122,22 @@ func NewQuick(title string, items []*model.Quick, opts ...any) *Quick {
 }
 
 type QuickKeyMap struct {
+	list.KeyMap
 	Enter  key.Binding
 	Delete key.Binding
+}
+
+// ShortHelp implements the KeyMap interface.
+func (km QuickKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{km.Enter, km.Delete}
+}
+
+// FullHelp implements the KeyMap interface.
+func (km QuickKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{km.CursorUp, km.CursorDown, km.Enter, km.Delete},
+		{km.GoToStart, km.GoToEnd, km.Filter, km.ClearFilter},
+	}
 }
 
 func DefaultQuickKeyMap() QuickKeyMap {

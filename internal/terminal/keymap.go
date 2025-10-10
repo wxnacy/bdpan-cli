@@ -19,7 +19,7 @@ type KeyMap struct {
 	// Left    key.Binding
 	Refresh key.Binding
 	// Space   key.Binding // 空格，选中
-	Delete key.Binding
+	// Delete key.Binding
 	// Cut     key.Binding // 剪切
 	Help key.Binding // 帮助
 
@@ -50,8 +50,8 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // key.Map interface.
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Back, k.Delete, k.Refresh}, // first column
-		{k.Exit},                      // second column
+		{k.Exit, k.Refresh},               // first column
+		{k.MovePaneLeft, k.MovePaneRight}, // second column
 	}
 }
 
@@ -77,18 +77,6 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("R"),
 			key.WithHelp("R", "刷新当前目录"),
 		),
-		// Space: key.NewBinding(
-		// key.WithKeys(" "),
-		// key.WithHelp("Space", "选中"),
-		// ),
-		Delete: key.NewBinding(
-			key.WithKeys("D"),
-			key.WithHelp("D", "删除"),
-		),
-		// Cut: key.NewBinding(
-		// key.WithKeys("x"),
-		// key.WithHelp("x", "剪切"),
-		// ),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
 			key.WithHelp("?", "帮助"),
