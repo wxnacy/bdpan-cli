@@ -208,6 +208,12 @@ func (m *BDPan) SetFiles(files []*model.File) *BDPan {
 	return m
 }
 
+func (m *BDPan) SetFilesAndFocus(files []*model.File) *BDPan {
+	m.SetFiles(files)
+	m.FileListFocus()
+	return m
+}
+
 func (m *BDPan) GetQuickKeys() []key.Binding {
 	return m.quickKeys
 }
@@ -337,13 +343,14 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		m.quickModel, cmd = m.quickModel.Update(msg)
 		cmds = append(cmds, cmd)
 	case GotoMsg:
+		// 跳转指定目录，一般指使用远程获取
 		// 新获取文件列表
 		files, err := m.fileHandler.GetFilesAndSave(msg.Dir, 1)
 		if err != nil {
 			return false, tea.Quit
 		}
 		m.Dir = msg.Dir
-		m.SetFiles(files)
+		m.SetFilesAndFocus(files)
 	case ShowConfirmMsg:
 		// 展示确认框
 		m.confirmModel.
@@ -404,6 +411,7 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		}
 	case ChangeFilesMsg:
 		// 异步加载文件列表
+		// TODO: 可以删除的地方
 		m.SetFiles(msg.Files)
 	case RefreshPanMsg:
 		// 刷新网盘信息
@@ -758,8 +766,7 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			m.quickModel, cmd = m.quickModel.Update(msg)
 			switch {
 			case key.Matches(msg, m.quickModel.GetKeyMap().Enter):
-				m.quickModel.Blur()
-				m.fileListModel.Focus()
+				m.FileListFocus()
 				q := m.quickModel.GetSelect()
 				cmds = append(cmds, m.SendGoto(q.Path))
 			case key.Matches(msg, m.quickModel.GetKeyMap().Delete):
@@ -1419,14 +1426,6 @@ func (m *BDPan) FileListFocus() *BDPan {
 	return m
 }
 
-// func (m *BDPan) SetConfirmModel(title string, task *Task) *BDPan {
-// m.confirmModel = wtea.NewConfirm(title, baseFocusStyle).
-// Width(m.GetRightWidth()).
-// Data(task).
-// Focus()
-// return m
-// }
-
 func (m *BDPan) DoneTask(t *Task, err error) tea.Cmd {
 	t.Status = StatusSuccess
 	if err != nil {
@@ -1450,7 +1449,8 @@ func (m *BDPan) Goto(dir string) tea.Cmd {
 		m.EnableLoadingFileList()
 		return m.SendGoto(dir)
 	} else {
-		m.SetFiles(files)
+		// 快速切换
+		m.SetFilesAndFocus(files)
 	}
 	return nil
 }
