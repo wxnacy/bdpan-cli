@@ -114,6 +114,33 @@ func (h *FileHandler) RenameFile(pathS, newName string) (*bdpan.ManageFileRes, e
 	return bdpan.RenameFiles(h.accessToken, bdpan.NewFileManager(pathS, "", newName))
 }
 
+// 批量重命名文件列表
+func (h *FileHandler) BatchRenameFiles(files []*model.File) (*bdpan.ManageFileRes, error) {
+	// 获取要修改的名字
+	names := make([]string, 0)
+	for _, file := range files {
+		names = append(names, file.GetFilename())
+	}
+
+	newName, err := tools.EditTextInEditer("nvim", strings.Join(names, "\n"))
+	if err != nil {
+		logger.Errorf("读取修改后的名字失败: %v", err)
+		return nil, err
+	}
+	newName = strings.Trim(newName, "\n")
+	newNames := strings.Split(newName, "\n")
+	if len(names) != len(newNames) {
+		return nil, fmt.Errorf("名称不批量，修改失败: %s", newName)
+	}
+
+	reqManagers := make([]*bdpan.FileManager, 0)
+	for i, f := range files {
+		reqManagers = append(reqManagers, bdpan.NewFileManager(f.Path, "", newNames[i]))
+	}
+	logger.Infof("BatchRenameFiles req: %#v", reqManagers)
+	return bdpan.RenameFiles(h.accessToken, reqManagers...)
+}
+
 func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 	fmt.Printf("查找文件地址: %s\n", req.Path)
 	f, err := h.GetFileByPath(req.Path)

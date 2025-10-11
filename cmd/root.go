@@ -59,7 +59,7 @@ var rootCmd = &cobra.Command{
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		duration := time.Since(startTime)
-		fmt.Printf("命令执行耗时: %v\n", duration)
+		logger.Infof("命令执行耗时: %v\n", duration)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		req := GetGlobalReq()
@@ -82,10 +82,11 @@ func handleCmdErr(err error) {
 			err.Error() == "^C" ||
 			err == ErrQuit {
 			fmt.Println("GoodBye")
-			return
+			os.Exit(0)
 		}
 		logger.Printf("Error: %v", err)
 		Log.Errorf("Error: %v", err)
+		os.Exit(0)
 	}
 }
 

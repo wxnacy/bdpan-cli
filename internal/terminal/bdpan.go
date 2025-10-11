@@ -181,6 +181,21 @@ func (m *BDPan) HasSelectFile() bool {
 	return len(m.selectFileMap) > 0
 }
 
+func (m *BDPan) GetSelectFiles() []*model.File {
+	files := make([]*model.File, 0)
+	for _, file := range m.selectFileMap {
+		files = append(files, file)
+	}
+	return files
+}
+
+func (m *BDPan) GetSelectFile() (*model.File, error) {
+	if m.FileListModelIsNotNil() {
+		return m.fileListModel.GetSelectFile()
+	}
+	return nil, fmt.Errorf("not found select file")
+}
+
 // 获取剪切选中文件的地址列表
 func (m *BDPan) GetCutSelectFilePaths() []string {
 	var paths []string
@@ -630,17 +645,29 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 		case key.Matches(msg, m.fileListModel.KeyMap.Rename):
 			// 重命名
 			if m.CanSelectFile() {
-				f, err := m.GetSelectFile()
-				if err != nil {
-					return true, tea.Quit
+				if m.HasSelectFile() {
+					// 批量
+					files := m.GetSelectFiles()
+					_, err := m.fileHandler.BatchRenameFiles(files)
+					if err != nil {
+						cmds = append(cmds, m.SendMessage("重命名失败: %s", err.Error()))
+					} else {
+						cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
+					}
+				} else {
+					// 单个
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					filename := f.GetFilename()
+					task := m.AddFileTask(f, TypeRename)
+					cmds = append(cmds, m.SendShowInput(
+						"请输入新名称", filename,
+						task,
+						m.fileListModel,
+					))
 				}
-				filename := f.GetFilename()
-				task := m.AddFileTask(f, TypeRename)
-				cmds = append(cmds, m.SendShowInput(
-					"请输入新名称", filename,
-					task,
-					m.fileListModel,
-				))
 			}
 		}
 	}
@@ -1614,13 +1641,6 @@ func (m *BDPan) SendRefreshUser() tea.Cmd {
 	return func() tea.Msg {
 		return RefreshUserMsg{}
 	}
-}
-
-func (m *BDPan) GetSelectFile() (*model.File, error) {
-	if m.FileListModelIsNotNil() {
-		return m.fileListModel.GetSelectFile()
-	}
-	return nil, fmt.Errorf("not found select file")
 }
 
 func (m *BDPan) SetLastKey(msg tea.KeyMsg) *BDPan {
