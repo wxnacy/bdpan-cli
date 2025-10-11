@@ -8,13 +8,17 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/model"
 )
 
-type TaskType int
-type TaskStatus int
+type (
+	TaskType   int
+	TaskStatus int
+)
+type Ext any
 
 const (
 	TypeDelete TaskType = iota
 	TypeDownload
 	TypePaste
+	TypeRename
 
 	StatusWating TaskStatus = iota
 	StatusRunning
@@ -46,6 +50,7 @@ type Task struct {
 	Status    TaskStatus
 	IsConfirm bool
 	err       error
+	Ext       Ext
 }
 
 func (t Task) GetTypeString() string {
@@ -56,6 +61,8 @@ func (t Task) GetTypeString() string {
 		return "Paste"
 	case TypeDownload:
 		return "Download"
+	case TypeRename:
+		return "Rename"
 	}
 	panic("unkown type")
 }
@@ -79,7 +86,7 @@ func (t Task) String() string {
 	if t.err != nil {
 		err = t.err.Error()
 	}
-	var filename = ""
+	filename := ""
 	if t.File != nil {
 		filename = t.File.GetFilename()
 	}

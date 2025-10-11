@@ -24,9 +24,17 @@ import (
 type RunTaskMsg struct {
 	Task *Task
 }
+
 type ShowConfirmMsg struct {
 	Title string
 	Data  wtea.ExtData
+	Model wtea.Model
+}
+
+type ShowInputMsg struct {
+	Title string
+	Text  string
+	Data  Ext
 	Model wtea.Model
 }
 
@@ -101,6 +109,10 @@ type BDPan struct {
 
 	// help
 	helpModel help.Model
+
+	// input
+	inputModel *Input
+	inputTask  *Task
 
 	// state
 	// 改变窗口尺寸
@@ -360,6 +372,10 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			Data(msg.Data).
 			FromModel(msg.Model).
 			Focus()
+	case ShowInputMsg:
+		// 展示输入框
+		m.inputModel = NewInput(msg.Title, msg.Text)
+		m.inputModel.SetFromModel(msg.Model)
 	case DeleteQuickMsg:
 		// 删除快捷方式
 		model.DeleteById[model.Quick](int(msg.Quick.ID))
@@ -369,6 +385,13 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		t := msg.Task
 
 		switch t.Type {
+		case TypeRename:
+			_, err := m.fileHandler.RenameFile(t.File.Path, t.Ext.(string))
+			cmds = append(cmds, m.DoneTask(t, err))
+			if err == nil {
+				// 删除成功后刷新目录
+				cmds = append(cmds, m.SendGoto(m.Dir))
+			}
 		case TypeDelete:
 			var paths []string
 			if m.HasSelectFile() {
@@ -467,6 +490,10 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
 		}
 		switch {
+		case key.Matches(msg, m.KeyMap.MovePaneLeft):
+			// 向左移动面板
+			m.quickModel.Focus()
+			m.fileListModel.Blur()
 		case key.Matches(msg, m.fileListModel.KeyMap.Delete):
 			// 删除
 			if m.CanSelectFile() {
@@ -573,6 +600,22 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					cmds = append(cmds, m.SendMessage("文件不支持添加快速访问"))
 				}
 			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Rename):
+			// 重命名
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				filename := f.GetFilename()
+				task := m.AddFileTask(f, TypeRename)
+				m.inputTask = task
+				cmds = append(cmds, m.SendShowInput(
+					"请输入新名称", filename,
+					task,
+					m.fileListModel,
+				))
+			}
 		}
 	}
 	return flag, tea.Batch(cmds...)
@@ -591,12 +634,12 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 		case key.Matches(msg, m.KeyMap.Help):
 			// 退出程序
 			m.helpModel.ShowAll = !m.helpModel.ShowAll
-		case key.Matches(msg, m.KeyMap.MovePaneLeft):
-			// 向左移动面板
-			if m.fileListModel.Focused() {
-				m.quickModel.Focus()
-				m.fileListModel.Blur()
-			}
+		// case key.Matches(msg, m.KeyMap.MovePaneLeft):
+		// // 向左移动面板
+		// if m.fileListModel.Focused() {
+		// m.quickModel.Focus()
+		// m.fileListModel.Blur()
+		// }
 		case key.Matches(msg, m.KeyMap.MovePaneRight):
 			// 向右移动面板
 			if m.quickModel.Focused() {
@@ -760,6 +803,19 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						cmds = append(cmds, d)
 					}
 				}
+			}
+		case m.InputFocused():
+			// 监听输入框
+			_, cmd := m.inputModel.Update(msg)
+			cmds = append(cmds, cmd)
+
+			switch {
+			case key.Matches(msg, m.inputModel.KeyMap.Enter):
+				fromM := m.inputModel.GetFromModel()
+				fromM.Focus()
+				m.inputTask.Ext = m.inputModel.Value()
+				cmds = append(cmds, m.SendRunTask(m.inputTask))
+				m.inputModel = nil
 			}
 		case m.quickModel.Focused():
 			// 聚焦在快速访问
@@ -942,6 +998,11 @@ func (m *BDPan) GetRightView() string {
 	rightViews := []string{
 		fileinfoView,
 	}
+	logger.Infof("input focused %v", m.InputFocused())
+	if m.InputFocused() {
+		logger.Infof("input")
+		rightViews = append(rightViews, m.GetInputView())
+	}
 	if m.ConfirmFocused() {
 		rightViews = append(rightViews, m.GetConfirmView())
 	}
@@ -1113,6 +1174,10 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 	}
 	width := m.GetRightWidth()
 	height := m.GetMidHeight() - 4
+	// 减去输入框的高度
+	if m.InputFocused() {
+		height -= lipgloss.Height(m.inputModel.View())
+	}
 	// 减去帮助信息的高度
 	height -= lipgloss.Height(m.GetHelpView())
 	// 需要确认框时减去确认框的高度
@@ -1265,6 +1330,18 @@ func (m *BDPan) GetFileInfoView(f *model.File) string {
 	// return view
 }
 
+func (m *BDPan) GetRightExtModels() []wtea.Model {
+	models := make([]wtea.Model, 0)
+	if m.InputFocused() {
+		models = append(models, m.inputModel)
+	}
+	if m.ConfirmFocused() {
+		models = append(models, m.confirmModel)
+	}
+	models = append(models)
+	return models
+}
+
 func (m *BDPan) GetMidWidth() int {
 	w := m.GetWidth() / 2
 	logger.Infof("View GetMidWidth %d", w)
@@ -1389,16 +1466,6 @@ func (m *BDPan) GetTaskByType(tt TaskType) *Task {
 	return nil
 }
 
-// GetMoveTask 获取移动任务
-// func (m *BDPan) GetMoveTask() *Task {
-// for _, t := range m.taskMap {
-// if t.Type == TypeMove && t.File != nil {
-// return t
-// }
-// }
-// return nil
-// }
-
 func (m *BDPan) GetConfirmTasks() []*Task {
 	tasks := make([]*Task, 0)
 	for _, t := range m.taskMap {
@@ -1407,6 +1474,15 @@ func (m *BDPan) GetConfirmTasks() []*Task {
 		}
 	}
 	return tasks
+}
+
+func (m *BDPan) InputFocused() bool {
+	return m.inputModel != nil && m.inputModel.Focused()
+}
+
+func (m *BDPan) GetInputView() string {
+	m.inputModel.SetWidth(m.GetRightWidth())
+	return m.inputModel.View()
 }
 
 func (m *BDPan) ConfirmFocused() bool {
@@ -1531,6 +1607,31 @@ func (m *BDPan) SendShowConfirm(
 	return func() tea.Msg {
 		return ShowConfirmMsg{
 			Title: title,
+			Data:  data,
+			Model: fromModel,
+		}
+	}
+}
+
+// 发送显示输入框消息
+//
+// 参数:
+//   - title: 展示标题
+//   - text: 展示文本
+//   - data: 确认框携带的额外信息
+//   - fromModel: 从哪个模型跳转的，方便返回聚焦
+func (m *BDPan) SendShowInput(
+	title, text string,
+	data Ext,
+	fromModel wtea.Model,
+) tea.Cmd {
+	fromModel.Blur()
+	m.fileListModel.Blur()
+	m.quickModel.Blur()
+	return func() tea.Msg {
+		return ShowInputMsg{
+			Title: title,
+			Text:  text,
 			Data:  data,
 			Model: fromModel,
 		}

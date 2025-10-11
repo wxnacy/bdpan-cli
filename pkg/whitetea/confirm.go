@@ -42,7 +42,7 @@ type Confirm struct {
 	data      ExtData
 }
 
-type ExtData interface{}
+type ExtData any
 
 func (m *Confirm) Init() tea.Cmd {
 	return nil
@@ -125,6 +125,7 @@ func (m *Confirm) Focused() bool {
 func (m *Confirm) Focus() {
 	m.focus = true
 }
+
 func (m *Confirm) Blur() {
 	m.focus = false
 }

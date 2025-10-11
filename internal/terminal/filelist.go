@@ -239,7 +239,8 @@ type FileListKeyMap struct {
 	Delete   key.Binding
 	Cut      key.Binding // 剪切
 	Paste    key.Binding // 黏贴
-	AddQuick key.Binding
+	AddQuick key.Binding // 添加快速访问
+	Rename   key.Binding // 重命名
 }
 
 // ShortHelp implements the KeyMap interface.
@@ -249,6 +250,7 @@ func (km FileListKeyMap) ShortHelp() []key.Binding {
 
 // FullHelp implements the KeyMap interface.
 func (km FileListKeyMap) FullHelp() [][]key.Binding {
+	// TODO: 更新帮助文档
 	return km.KeyMap.FullHelp()
 }
 
@@ -284,6 +286,10 @@ func DefaultFileListKeyMap() FileListKeyMap {
 		AddQuick: key.NewBinding(
 			key.WithKeys("m"),
 			key.WithHelp("m", "添加快速访问"),
+		),
+		Rename: key.NewBinding(
+			key.WithKeys("r"),
+			key.WithHelp("r", "重命名"),
 		),
 	}
 }
