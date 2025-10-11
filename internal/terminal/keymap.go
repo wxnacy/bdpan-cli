@@ -13,6 +13,7 @@ var KeyDelete = key.NewBinding(
 )
 
 type KeyMap struct {
+	Esc  key.Binding
 	Exit key.Binding
 	Back key.Binding
 	// Right   key.Binding
@@ -57,6 +58,10 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
+		Esc: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "退出当前状态"),
+		),
 		Exit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
 			key.WithHelp("q/ctrl+c", "退出"),
