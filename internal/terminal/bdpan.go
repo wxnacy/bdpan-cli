@@ -92,8 +92,24 @@ func NewBDPan(dir string) (*BDPan, error) {
 	return item, nil
 }
 
+// 重新加载状态
+func (m *BDPan) RestoreState(old *BDPan) {
+	if old == nil {
+		return
+	}
+	m.Dir = old.Dir
+	m.fileCursorMap = old.fileCursorMap
+	// m.selectFileMap = old.selectFileMap
+	// m.cutSelectFileMap = old.cutSelectFileMap
+	m.message = old.message // Carry over the message from the previous run
+}
+
 type BDPan struct {
 	Dir string
+
+	// 需要离开 bubbles 执行的任务通知
+	NextAction    string
+	ActionPayload any
 
 	// Data
 	taskMap          map[int]*Task
@@ -312,12 +328,19 @@ func (m *BDPan) Init() tea.Cmd {
 	m.confirmModel = wtea.NewConfirm("", baseFocusStyle)
 
 	logger.Infof("BDPan Init time used %v ====================", time.Since(begin))
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		m.SendRefreshQuick(),
 		m.SendGoto(m.Dir),
 		m.SendRefreshPan(),
 		m.SendRefreshUser(),
-	)
+	}
+
+	// 初始化展示消息
+	if m.message != "" {
+		cmds = append(cmds, m.SendMessage("%s", m.message))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -646,14 +669,10 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			// 重命名
 			if m.CanSelectFile() {
 				if m.HasSelectFile() {
-					// 批量
-					files := m.GetSelectFiles()
-					_, err := m.fileHandler.BatchRenameFiles(files)
-					if err != nil {
-						cmds = append(cmds, m.SendMessage("重命名失败: %s", err.Error()))
-					} else {
-						cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
-					}
+					// 批量重命名: 设置状态并退出TUI以运行编辑器
+					m.NextAction = "batch-rename"
+					m.ActionPayload = m.GetSelectFiles()
+					return true, tea.Quit
 				} else {
 					// 单个
 					f, err := m.GetSelectFile()
