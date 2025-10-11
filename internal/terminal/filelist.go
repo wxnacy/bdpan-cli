@@ -127,16 +127,18 @@ func NewFileList(
 	t.SetStyles(s)
 
 	return &FileList{
-		model:  t,
-		files:  files,
-		KeyMap: DefaultFileListKeyMap(),
+		model:   t,
+		files:   files,
+		KeyMap:  DefaultFileListKeyMap(),
+		TaskMap: DefaultFileListTaskMap(),
 	}
 }
 
 type FileList struct {
-	model  table.Model
-	files  []*model.File
-	KeyMap FileListKeyMap
+	model   table.Model
+	files   []*model.File
+	KeyMap  FileListKeyMap
+	TaskMap FileListTaskMap
 }
 
 func (m *FileList) GetSelectFile() (*model.File, error) {
@@ -292,4 +294,17 @@ func DefaultFileListKeyMap() FileListKeyMap {
 			key.WithHelp("r", "重命名"),
 		),
 	}
+}
+
+func DefaultFileListTaskMap() FileListTaskMap {
+	return FileListTaskMap{
+		AddQuick: TaskBinding{
+			Title: "Add Quick",
+			Type:  "add_quick",
+		},
+	}
+}
+
+type FileListTaskMap struct {
+	AddQuick TaskBinding
 }

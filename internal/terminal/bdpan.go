@@ -347,6 +347,14 @@ func (m *BDPan) ListenRunTaskMsg(msg RunTaskMsg) (bool, tea.Cmd) {
 		q := t.Data.(*model.Quick)
 		q.Key = t.Ext.(string)
 		model.Save(q)
+	// 文件列表任务
+	case m.fileListModel.TaskMap.AddQuick:
+		// 添加快速访问
+		f := t.Data.(*model.File)
+		q := f.ToQuick()
+		q.Key = t.Ext.(string)
+		model.Save(q)
+		cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问，快速访问键位: g%s", f.Path, q.Key))
 	default:
 		switch t.Type {
 		case TypeRename:
@@ -391,13 +399,6 @@ func (m *BDPan) ListenRunTaskMsg(msg RunTaskMsg) (bool, tea.Cmd) {
 			req := dto.NewDownloadReq()
 			req.Path = t.File.Path
 			err = m.fileHandler.CmdDownload(req)
-		case TaskAddQuick:
-			// 添加快速访问
-			f := t.File
-			q := f.ToQuick()
-			q.Key = t.Ext.(string)
-			model.Save(q)
-			cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问，快速访问键位: g%s", f.Path, q.Key))
 		}
 	}
 	// 将 m.DoneTask(t, err) 放到 cmds 中第一个
@@ -611,7 +612,9 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 						cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
 					} else {
 						// 添加快速访问请求
-						task := m.AddFileTask(f, TaskAddQuick)
+						// task := m.AddFileTask(f, TaskAddQuick)
+						task := m.AddTask(m.fileListModel.TaskMap.AddQuick)
+						task.Data = f
 						cmds = append(cmds, m.SendShowInput(
 							"请输入快速访问 Key", "",
 							task,
