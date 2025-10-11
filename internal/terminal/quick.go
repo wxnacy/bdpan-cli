@@ -11,11 +11,31 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/model"
 )
 
+func NewQuick(title string, items []*model.Quick, opts ...any) *Quick {
+	m := &Quick{
+		model: list.New(
+			model.ToList(items), list.NewDefaultDelegate(), 0, 0),
+		KeyMap:  DefaultQuickKeyMap(),
+		TaskMap: DefaultQuickTaskMap(),
+	}
+	m.model.Title = title
+	// 不展示帮助信息
+	m.model.SetShowHelp(false)
+	for _, v := range opts {
+		switch v := v.(type) {
+		case lipgloss.Style:
+			m.baseStyle = v
+		}
+	}
+	return m
+}
+
 type Quick struct {
 	model         list.Model
 	width, height int
 	baseStyle     lipgloss.Style
 	KeyMap        QuickKeyMap
+	TaskMap       QuickTaskMap
 	focus         bool
 }
 
@@ -103,33 +123,16 @@ func (m *Quick) Blur() {
 	m.focus = false
 }
 
-func NewQuick(title string, items []*model.Quick, opts ...any) *Quick {
-	m := &Quick{
-		model: list.New(
-			model.ToList(items), list.NewDefaultDelegate(), 0, 0),
-		KeyMap: DefaultQuickKeyMap(),
-	}
-	m.model.Title = title
-	// 不展示帮助信息
-	m.model.SetShowHelp(false)
-	for _, v := range opts {
-		switch v := v.(type) {
-		case lipgloss.Style:
-			m.baseStyle = v
-		}
-	}
-	return m
-}
-
 type QuickKeyMap struct {
 	list.KeyMap
 	Enter  key.Binding
+	Edit   key.Binding
 	Delete key.Binding
 }
 
 // ShortHelp implements the KeyMap interface.
 func (km QuickKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.Enter, km.Delete}
+	return []key.Binding{km.Enter, km.Edit, km.Delete}
 }
 
 // FullHelp implements the KeyMap interface.
@@ -144,5 +147,22 @@ func DefaultQuickKeyMap() QuickKeyMap {
 	return QuickKeyMap{
 		Enter:  KeyEnter,
 		Delete: KeyDelete,
+		Edit: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "编辑"),
+		),
 	}
+}
+
+func DefaultQuickTaskMap() QuickTaskMap {
+	return QuickTaskMap{
+		Edit: TaskBinding{
+			Title: "Edit Quick",
+			Type:  "edit_quick",
+		},
+	}
+}
+
+type QuickTaskMap struct {
+	Edit TaskBinding
 }

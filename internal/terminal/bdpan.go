@@ -335,9 +335,78 @@ func (m *BDPan) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m *BDPan) ListenRunTaskMsg(msg RunTaskMsg) (bool, tea.Cmd) {
+	var cmds []tea.Cmd
+	var err error
+	// 运行任务
+	t := msg.Task
+
+	switch t.Binding {
+	case m.quickModel.TaskMap.Edit:
+		// 修改快速访问
+		q := t.Data.(*model.Quick)
+		q.Key = t.Ext.(string)
+		model.Save(q)
+	default:
+		switch t.Type {
+		case TypeRename:
+			_, err = m.fileHandler.RenameFile(t.File.Path, t.Ext.(string))
+			if err == nil {
+				// 删除成功后刷新目录
+				cmds = append(cmds, m.SendGoto(m.Dir))
+			}
+		case TypeDelete:
+			var paths []string
+			if m.HasSelectFile() {
+				// 有选中文件时使用集合删除
+				paths = m.GetSelectFilePaths()
+				m.ClearSelectFileMap()
+			} else {
+				paths = append(paths, t.File.Path)
+			}
+
+			_, err = m.fileHandler.DeleteFiles(paths...)
+			if err == nil {
+				// 删除成功后刷新目录
+				cmds = append(cmds, m.SendGoto(m.Dir))
+			}
+		case TypePaste:
+			// 移动文件
+			cutPaths := m.GetCutSelectFilePaths()
+			if len(cutPaths) > 0 {
+				moveDir := t.Dir
+				logger.Infof("%v Move to %s", cutPaths, moveDir)
+				_, err = m.fileHandler.MoveFiles(moveDir, cutPaths...)
+				m.ClearCutSelectFileMap()
+				if err == nil {
+					// 黏贴成功后刷新目录
+					cmds = append(
+						cmds,
+						m.SendGoto(m.Dir),
+						m.SendMessage("黏贴成功 %s", strings.Join(cutPaths, " ")),
+					)
+				}
+			}
+		case TypeDownload:
+			req := dto.NewDownloadReq()
+			req.Path = t.File.Path
+			err = m.fileHandler.CmdDownload(req)
+		case TaskAddQuick:
+			// 添加快速访问
+			f := t.File
+			q := f.ToQuick()
+			q.Key = t.Ext.(string)
+			model.Save(q)
+			cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问，快速访问键位: g%s", f.Path, q.Key))
+		}
+	}
+	// 将 m.DoneTask(t, err) 放到 cmds 中第一个
+	cmds = append([]tea.Cmd{m.DoneTask(t, err)}, cmds...)
+	return true, tea.Batch(cmds...)
+}
+
 func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 	var flag bool = true
-	var err error
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
@@ -381,64 +450,7 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 		model.DeleteById[model.Quick](int(msg.Quick.ID))
 		cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("删除快速访问 %s", msg.Quick.Path))
 	case RunTaskMsg:
-		// 运行任务
-		t := msg.Task
-
-		switch t.Type {
-		case TypeRename:
-			_, err := m.fileHandler.RenameFile(t.File.Path, t.Ext.(string))
-			cmds = append(cmds, m.DoneTask(t, err))
-			if err == nil {
-				// 删除成功后刷新目录
-				cmds = append(cmds, m.SendGoto(m.Dir))
-			}
-		case TypeDelete:
-			var paths []string
-			if m.HasSelectFile() {
-				// 有选中文件时使用集合删除
-				paths = m.GetSelectFilePaths()
-				m.ClearSelectFileMap()
-			} else {
-				paths = append(paths, t.File.Path)
-			}
-
-			_, err := m.fileHandler.DeleteFiles(paths...)
-			cmds = append(cmds, m.DoneTask(t, err))
-			if err == nil {
-				// 删除成功后刷新目录
-				cmds = append(cmds, m.SendGoto(m.Dir))
-			}
-		case TypePaste:
-			// 移动文件
-			cutPaths := m.GetCutSelectFilePaths()
-			if len(cutPaths) > 0 {
-				moveDir := t.Dir
-				logger.Infof("%v Move to %s", cutPaths, moveDir)
-				_, err := m.fileHandler.MoveFiles(moveDir, cutPaths...)
-				m.ClearCutSelectFileMap()
-				cmds = append(cmds, m.DoneTask(t, err))
-				if err == nil {
-					// 黏贴成功后刷新目录
-					cmds = append(
-						cmds,
-						m.SendGoto(m.Dir),
-						m.SendMessage("黏贴成功 %s", strings.Join(cutPaths, " ")),
-					)
-				}
-			}
-		case TypeDownload:
-			req := dto.NewDownloadReq()
-			req.Path = t.File.Path
-			err = m.fileHandler.CmdDownload(req)
-			cmds = append(cmds, m.DoneTask(t, err))
-		case TaskAddQuick:
-
-			f := t.File
-			q := f.ToQuick()
-			q.Key = t.Ext.(string)
-			model.Save(q)
-			cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问，快速访问键位: g%s", f.Path, q.Key))
-		}
+		return m.ListenRunTaskMsg(msg)
 	case ChangeFilesMsg:
 		// 异步加载文件列表
 		// TODO: 可以删除的地方
@@ -605,9 +617,6 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 							task,
 							m.fileListModel,
 						))
-						// q := f.ToQuick()
-						// model.Save(q)
-						// cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
 					}
 
 				} else {
@@ -713,9 +722,21 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			m.quickModel, cmd = m.quickModel.Update(msg)
 			switch {
 			case key.Matches(msg, m.quickModel.GetKeyMap().Enter):
+				// 跳转
 				m.FileListFocus()
 				q := m.quickModel.GetSelect()
 				cmds = append(cmds, m.SendGoto(q.Path))
+			case key.Matches(msg, m.quickModel.GetKeyMap().Edit):
+				// 修改
+				q := m.quickModel.GetSelect()
+				task := m.AddTask(m.quickModel.TaskMap.Edit)
+				task.Data = q
+				logger.Infof("EditQuick %v", task)
+				cmds = append(cmds, m.SendShowInput(
+					"请输入快速访问 Key", q.Key,
+					task,
+					m.quickModel,
+				))
 			case key.Matches(msg, m.quickModel.GetKeyMap().Delete):
 				q := m.quickModel.GetSelect()
 				cmd = m.SendShowConfirm(
@@ -1331,6 +1352,21 @@ func (m *BDPan) AddFileTask(f *model.File, t TaskType) *Task {
 	return task
 }
 
+func (m *BDPan) AddTask(b TaskBinding) *Task {
+	task := &Task{
+		ID:      int(time.Now().Unix()),
+		Status:  StatusWating,
+		Binding: b,
+	}
+	_, exists := m.taskMap[task.ID]
+	if exists {
+		m.SetSomeTaskMessage()
+	} else {
+		m.taskMap[task.ID] = task
+	}
+	return task
+}
+
 func (m *BDPan) AddOrAppendFileTask(f *model.File, tt TaskType) *Task {
 	var task *Task
 	for _, t := range m.taskMap {
@@ -1522,8 +1558,6 @@ func (m *BDPan) SendShowInput(
 ) tea.Cmd {
 	fromModel.Blur()
 	m.inputTask = task
-	// m.fileListModel.Blur()
-	// m.quickModel.Blur()
 	return func() tea.Msg {
 		return ShowInputMsg{
 			Title: title,

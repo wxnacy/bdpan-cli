@@ -27,6 +27,11 @@ const (
 	StatusFailed
 )
 
+type TaskBinding struct {
+	Title string
+	Type  string
+}
+
 func NewTask(type_ TaskType, f *model.File) *Task {
 	var fsid uint64
 	if f != nil {
@@ -48,13 +53,18 @@ type Task struct {
 	Files     []*model.File
 	Dir       string
 	Type      TaskType
+	Binding   TaskBinding
 	Status    TaskStatus
 	IsConfirm bool
 	err       error
+	Data      Ext
 	Ext       Ext
 }
 
 func (t Task) GetTypeString() string {
+	if t.Binding.Title != "" {
+		return t.Binding.Title
+	}
 	switch t.Type {
 	case TypeDelete:
 		return "Delete"
