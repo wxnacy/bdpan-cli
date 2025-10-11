@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -78,7 +79,10 @@ func (m Input) View() string {
 }
 
 func (m Input) Value() string {
-	return m.model.Value()
+	v := m.model.Value()
+	v = strings.Trim(v, "\n")
+	v = strings.TrimSpace(v)
+	return v
 }
 
 func (m Input) Focus() {

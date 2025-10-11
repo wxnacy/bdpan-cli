@@ -86,7 +86,7 @@ func NewFileList(
 			if tools.ArrayContainsString(cutSelectors, f.Path) {
 				selectIcon = " "
 			}
-			logger.Infof("NewFileList file %#v", f)
+			// logger.Infof("NewFileList file %#v", f)
 			rows = append(rows, table.Row{
 				fmt.Sprintf("%d", f.FSID),
 				fmt.Sprintf("%s%s %s", selectIcon, f.GetFileTypeEmoji(), f.GetFilename()),

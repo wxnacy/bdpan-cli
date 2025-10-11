@@ -34,7 +34,6 @@ type ShowConfirmMsg struct {
 type ShowInputMsg struct {
 	Title string
 	Text  string
-	Data  Ext
 	Model wtea.Model
 }
 
@@ -227,6 +226,7 @@ func (m *BDPan) SetFilesAndFocus(files []*model.File) *BDPan {
 }
 
 func (m *BDPan) GetQuickKeys() []key.Binding {
+	// logger.Infof("GetQuickKeys %v", m.quickKeys)
 	return m.quickKeys
 }
 
@@ -431,6 +431,13 @@ func (m *BDPan) ListenOtherMsg(msg tea.Msg) (bool, tea.Cmd) {
 			req.Path = t.File.Path
 			err = m.fileHandler.CmdDownload(req)
 			cmds = append(cmds, m.DoneTask(t, err))
+		case TaskAddQuick:
+
+			f := t.File
+			q := f.ToQuick()
+			q.Key = t.Ext.(string)
+			model.Save(q)
+			cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问，快速访问键位: g%s", f.Path, q.Key))
 		}
 	case ChangeFilesMsg:
 		// 异步加载文件列表
@@ -591,9 +598,16 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					if q != nil {
 						cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
 					} else {
-						q := f.ToQuick()
-						model.Save(q)
-						cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
+						// 添加快速访问请求
+						task := m.AddFileTask(f, TaskAddQuick)
+						cmds = append(cmds, m.SendShowInput(
+							"请输入快速访问 Key", "",
+							task,
+							m.fileListModel,
+						))
+						// q := f.ToQuick()
+						// model.Save(q)
+						// cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问", f.Path))
 					}
 
 				} else {
@@ -609,7 +623,6 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				}
 				filename := f.GetFilename()
 				task := m.AddFileTask(f, TypeRename)
-				m.inputTask = task
 				cmds = append(cmds, m.SendShowInput(
 					"请输入新名称", filename,
 					task,
@@ -1222,26 +1235,26 @@ func (m *BDPan) GetRightExtModels() []wtea.Model {
 
 func (m *BDPan) GetMidWidth() int {
 	w := m.GetWidth() / 2
-	logger.Infof("View GetMidWidth %d", w)
+	logger.Debugf("View GetMidWidth %d", w)
 	return w
 }
 
 func (m *BDPan) GetMidHeight() int {
 	height := m.GetHeight() - 1 - lipgloss.Height(m.GetMessageView())
-	logger.Infof("View GetMidHeight %d", height)
+	logger.Debugf("View GetMidHeight %d", height)
 	return height
 }
 
 func (m *BDPan) GetLeftWidth() int {
 	w := int(float32(m.GetWidth()) * 0.16)
-	logger.Infof("View GetLeftWidth %d", w)
+	logger.Debugf("View GetLeftWidth %d", w)
 	return w
 }
 
 func (m *BDPan) GetRightWidth() int {
 	// 1 是因为 Left 会多出一个长度
 	w := m.GetWidth() - m.GetMidWidth() - m.GetLeftWidth() - 1
-	logger.Infof("View GetRightWidth %d", w)
+	logger.Debugf("View GetRightWidth %d", w)
 	return w
 }
 
@@ -1500,21 +1513,21 @@ func (m *BDPan) SendShowConfirm(
 // 参数:
 //   - title: 展示标题
 //   - text: 展示文本
-//   - data: 确认框携带的额外信息
+//   - task: 任务
 //   - fromModel: 从哪个模型跳转的，方便返回聚焦
 func (m *BDPan) SendShowInput(
 	title, text string,
-	data Ext,
+	task *Task,
 	fromModel wtea.Model,
 ) tea.Cmd {
 	fromModel.Blur()
-	m.fileListModel.Blur()
-	m.quickModel.Blur()
+	m.inputTask = task
+	// m.fileListModel.Blur()
+	// m.quickModel.Blur()
 	return func() tea.Msg {
 		return ShowInputMsg{
 			Title: title,
 			Text:  text,
-			Data:  data,
 			Model: fromModel,
 		}
 	}

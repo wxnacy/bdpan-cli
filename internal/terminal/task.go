@@ -19,6 +19,7 @@ const (
 	TypeDownload
 	TypePaste
 	TypeRename
+	TaskAddQuick
 
 	StatusWating TaskStatus = iota
 	StatusRunning
@@ -63,6 +64,8 @@ func (t Task) GetTypeString() string {
 		return "Download"
 	case TypeRename:
 		return "Rename"
+	case TaskAddQuick:
+		return "Add Quick"
 	}
 	panic("unkown type")
 }
