@@ -33,6 +33,7 @@ type KeyMap struct {
 	CopyDir                key.Binding
 	CopyFilename           key.Binding
 	CopyFilenameWithoutExt key.Binding
+	CopyFSID               key.Binding
 
 	// Goto 组合键位
 	GotoRoot key.Binding
@@ -112,6 +113,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("cn"),
 			key.WithHelp("cn", "复制文件名称不含扩展"),
 		),
+		CopyFSID: key.NewBinding(
+			key.WithKeys("ci"),
+			key.WithHelp("ci", "复制文件 FSID"),
+		),
 
 		GotoRoot: key.NewBinding(
 			key.WithKeys("g/"),
@@ -124,6 +129,7 @@ func (k KeyMap) GetCopyKeys() []key.Binding {
 	return []key.Binding{
 		k.CopyDir,
 		k.CopyPath,
+		k.CopyFSID,
 		k.CopyFilename,
 		k.CopyFilenameWithoutExt,
 	}

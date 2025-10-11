@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -665,6 +666,10 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				m.InputBlur()
 				m.FileListFocus()
 			}
+			if m.ConfirmFocused() {
+				m.confirmModel.Blur()
+				m.FileListFocus()
+			}
 		case key.Matches(msg, m.KeyMap.Help):
 			// 退出程序
 			m.helpModel.ShowAll = !m.helpModel.ShowAll
@@ -780,6 +785,12 @@ func (m *BDPan) ListenCombKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			case m.MatcheKeys(msg, m.KeyMap.CopyDir):
 				logger.Infoln(m.KeyMap.CopyDir.Help().Desc)
 				copyText = m.Dir
+			case m.MatcheKeys(msg, m.KeyMap.CopyFSID):
+				logger.Infoln(m.KeyMap.CopyFSID.Help().Desc)
+				selectFile, err := m.GetSelectFile()
+				if !m.IsLoadingFileList() && err == nil {
+					copyText = strconv.Itoa(int(selectFile.FSID))
+				}
 			case m.MatcheKeys(msg, m.KeyMap.CopyFilename):
 				logger.Infoln(m.KeyMap.CopyFilename.Help().Desc)
 				selectFile, err := m.GetSelectFile()
