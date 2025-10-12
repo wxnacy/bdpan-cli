@@ -11,6 +11,7 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/pkg/whitetea"
 	"github.com/wxnacy/go-bdpan"
+	"github.com/wxnacy/go-tools"
 	"golang.org/x/term"
 )
 
@@ -308,4 +309,50 @@ func PrintFileInfo(f *bdpan.FileInfo, args ...any) error {
 	view = baseStyle.Render(view)
 	logger.Printf("%s", view)
 	return err
+}
+
+// 获取文件本地地址
+func GetFileLocalPath(f *bdpan.FileInfo) (string, error) {
+	root, err := GetUserDataRoot()
+	if err != nil {
+		return "", err
+	}
+	p := filepath.Join(root, "tmpfile", f.MD5, f.GetFilename())
+	return p, nil
+}
+
+func HasLocalFile(f *bdpan.FileInfo) bool {
+	p, err := GetFileLocalPath(f)
+	if err != nil {
+		return false
+	}
+	return tools.FileExists(p)
+}
+
+// 下载文件到本地
+// 不超过 1 M的文件
+func DownloadFileToLocal(accessToken string, f *bdpan.FileInfo) (string, error) {
+	p, err := GetFileLocalPath(f)
+	if err != nil {
+		return "", err
+	}
+	if HasLocalFile(f) {
+		return p, nil
+	}
+	dir := filepath.Dir(p)
+	tools.DirExistsOrCreate(dir)
+	if f.Dlink == "" {
+		f, err = GetFileInfo(accessToken, f.FSID)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = tools.Download(f.Dlink, p)
+	if err != nil {
+		return "", err
+	}
+	if err != nil {
+		return "", err
+	}
+	return p, nil
 }

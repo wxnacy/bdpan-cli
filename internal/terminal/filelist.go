@@ -307,9 +307,14 @@ func DefaultFileListTaskMap() FileListTaskMap {
 			Title: "Add Quick",
 			Type:  "add_quick",
 		},
+		ShowContent: TaskBinding{
+			Title: "Show Content",
+			Type:  "show_content",
+		},
 	}
 }
 
 type FileListTaskMap struct {
-	AddQuick TaskBinding
+	AddQuick    TaskBinding
+	ShowContent TaskBinding
 }

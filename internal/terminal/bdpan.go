@@ -397,6 +397,10 @@ func (m *BDPan) ListenRunTaskMsg(msg RunTaskMsg) (bool, tea.Cmd) {
 		q.Key = t.Ext.(string)
 		model.Save(q)
 		cmds = append(cmds, m.SendRefreshQuick(), m.SendMessage("%s 已添加快速访问，快速访问键位: g%s", f.Path, q.Key))
+	case m.fileListModel.TaskMap.ShowContent:
+		// 预览文件
+		f := t.Data.(*bdpan.FileInfo)
+		return m.PreviewFile(f)
 	default:
 		switch t.Type {
 		case TypeRename:
@@ -693,17 +697,26 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			}
 		case key.Matches(msg, m.fileListModel.KeyMap.ShowContent):
 			// 显示内容
-			if m.CanSelectFile() {
-				m.fileContentModel = NewFileContent("/Users/wxnacy/Projects/attack/area_code_script.py",
-					baseFocusStyle,
-					wtea.Width(m.GetRightWidth()),
-					wtea.Height(m.GetMidHeight()-3),
-				)
-				m.fileListModel.Blur()
+			if !m.CanSelectFile() {
+				return true, m.SendMessage("没有文件展示")
+			}
+			f, err := m.GetSelectFile()
+			if err != nil {
+				return true, m.SendMessage("选择文件失败 %s", err.Error())
+			}
+			flag, cmd := m.CanPreviewFile(f.FileInfo)
+			if !flag {
+				return true, cmd
+			}
+			if bdtools.HasLocalFile(f.FileInfo) {
+				return m.PreviewFile(f.FileInfo)
 			} else {
+				task := m.AddTask(m.fileListModel.TaskMap.ShowContent)
+				task.Data = f.FileInfo
 				cmds = append(
 					cmds,
-					m.SendMessage("没有文件展示"),
+					// m.SendMessage("开始请求文件"),
+					m.SendRunTask(task),
 				)
 			}
 		}
