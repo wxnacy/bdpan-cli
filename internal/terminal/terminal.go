@@ -63,6 +63,8 @@ func (t *Terminal) Run() error {
 
 		// After Run() returns, check if we need to perform an action outside the TUI
 		switch t.m.NextAction {
+		case "restore":
+			continue
 		case "batch-rename":
 			files, ok := t.m.ActionPayload.([]*model.File)
 			if !ok {

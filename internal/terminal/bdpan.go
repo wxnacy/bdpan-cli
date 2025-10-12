@@ -730,6 +730,10 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			if m.quickModel.Focused() {
 				m.FileListFocus()
 			}
+		case key.Matches(msg, m.KeyMap.Restore):
+			// 重置工作区
+			m.NextAction = "restore"
+			return true, tea.Quit
 		case key.Matches(msg, m.KeyMap.Refresh):
 			// 刷新目录
 			// 盘信息

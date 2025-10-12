@@ -19,10 +19,8 @@ type KeyMap struct {
 	// Right   key.Binding
 	// Left    key.Binding
 	Refresh key.Binding
-	// Space   key.Binding // 空格，选中
-	// Delete key.Binding
-	// Cut     key.Binding // 剪切
-	Help key.Binding // 帮助
+	Restore key.Binding
+	Help    key.Binding // 帮助
 
 	// Pane
 	MovePaneLeft  key.Binding
@@ -82,6 +80,10 @@ func DefaultKeyMap() KeyMap {
 		Refresh: key.NewBinding(
 			key.WithKeys("R"),
 			key.WithHelp("R", "刷新当前目录"),
+		),
+		Restore: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "重置工作区"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
