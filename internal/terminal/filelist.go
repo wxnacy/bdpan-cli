@@ -233,16 +233,17 @@ func (m FileList) GetKeyMap() FileListKeyMap {
 
 type FileListKeyMap struct {
 	table.KeyMap
-	Exit     key.Binding
-	Enter    key.Binding
-	Back     key.Binding
-	Refresh  key.Binding
-	Space    key.Binding // 空格，选中
-	Delete   key.Binding
-	Cut      key.Binding // 剪切
-	Paste    key.Binding // 黏贴
-	AddQuick key.Binding // 添加快速访问
-	Rename   key.Binding // 重命名
+	Exit        key.Binding
+	Enter       key.Binding
+	Back        key.Binding
+	Refresh     key.Binding
+	Space       key.Binding // 空格，选中
+	Delete      key.Binding
+	Cut         key.Binding // 剪切
+	Paste       key.Binding // 黏贴
+	AddQuick    key.Binding // 添加快速访问
+	Rename      key.Binding // 重命名
+	ShowContent key.Binding // 显示内容
 }
 
 // ShortHelp implements the KeyMap interface.
@@ -292,6 +293,10 @@ func DefaultFileListKeyMap() FileListKeyMap {
 		Rename: key.NewBinding(
 			key.WithKeys("r"),
 			key.WithHelp("r", "重命名"),
+		),
+		ShowContent: key.NewBinding(
+			key.WithKeys("i"),
+			key.WithHelp("i", "显示内容"),
 		),
 	}
 }

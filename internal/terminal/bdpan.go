@@ -151,6 +151,9 @@ type BDPan struct {
 	fileListModel     *FileList
 	fileListViewState bool
 
+	// fileContent
+	fileContentModel *FileContent
+
 	// quick
 	quicks     []*model.Quick
 	quickKeys  []key.Binding
@@ -688,6 +691,21 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					))
 				}
 			}
+		case key.Matches(msg, m.fileListModel.KeyMap.ShowContent):
+			// 显示内容
+			if m.CanSelectFile() {
+				m.fileContentModel = NewFileContent("/Users/wxnacy/Projects/attack/area_code_script.py",
+					baseFocusStyle,
+					wtea.Width(m.GetRightWidth()),
+					wtea.Height(m.GetMidHeight()-3),
+				)
+				m.fileListModel.Blur()
+			} else {
+				cmds = append(
+					cmds,
+					m.SendMessage("没有文件展示"),
+				)
+			}
 		}
 	}
 	return flag, tea.Batch(cmds...)
@@ -708,13 +726,17 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			m.ClearSelectFileMap()
 			m.ClearCutSelectFileMap()
 			m.fileListModel = m.NewFileList(m.files)
+			m.FileListFocus()
 			if m.InputFocused() {
 				m.InputBlur()
-				m.FileListFocus()
+				// m.FileListFocus()
 			}
 			if m.ConfirmFocused() {
 				m.confirmModel.Blur()
-				m.FileListFocus()
+				// m.FileListFocus()
+			}
+			if m.FileContentFocused() {
+				m.fileContentModel = nil
 			}
 		case key.Matches(msg, m.KeyMap.Help):
 			// 退出程序
@@ -774,6 +796,17 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				m.inputTask.Ext = m.inputModel.Value()
 				cmds = append(cmds, m.SendRunTask(m.inputTask))
 				m.inputModel = nil
+			}
+		case m.FileContentFocused():
+			// 监听文件内容
+			newM, cmd := m.fileContentModel.Update(msg)
+			m.fileContentModel = newM.(*FileContent)
+			cmds = append(cmds, cmd)
+
+			switch {
+			case key.Matches(msg, m.fileContentModel.KeyMap.Esc):
+				m.FileListFocus()
+				m.fileContentModel = nil
 			}
 		case m.quickModel.Focused():
 			// 聚焦在快速访问
@@ -961,11 +994,14 @@ func (m *BDPan) GetCenterView() string {
 }
 
 func (m *BDPan) GetRightView() string {
+	if m.fileContentModel != nil {
+		return m.fileContentModel.View()
+	}
 	fileinfoView := m.GetFileInfoView(nil)
 	if m.FileListModelIsNotNil() && m.FilesIsNotNil() {
 		f, err := m.fileListModel.GetSelectFile()
 		if err != nil {
-			tea.Quit()
+			// tea.Quit()
 			return ""
 		}
 		fileinfoView = m.GetFileInfoView(f)
@@ -1138,6 +1174,16 @@ func (m *BDPan) GetStatusView() string {
 		fishCake,
 	)
 }
+
+// func (m *BDPan) GetFileContentView() string {
+// // f, err := m.GetSelectFile()
+// // if err != nil {
+// // return ""
+// // }
+// filePath := "/Users/wxnacy/Projects/attack/area_code_script.py"
+// fileContent := NewFileContent(filePath, baseFocusStyle)
+// return fileContent.View()
+// }
 
 func (m *BDPan) GetFileInfoView(f *model.File) string {
 	// leftW := 10
