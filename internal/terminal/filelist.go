@@ -2,7 +2,9 @@ package terminal
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -10,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
+	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
 	"github.com/wxnacy/go-tools"
 )
 
@@ -177,9 +180,6 @@ func (m *FileList) Update(msg tea.Msg) (*FileList, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	logger.Infof("光标移动后的对象: %v", m.model.SelectedRow())
 
-	// _, cmd = m.ListenKeyMsg(msg)
-	// cmds = append(cmds, cmd)
-
 	return m, tea.Batch(cmds...)
 }
 
@@ -198,22 +198,6 @@ func (m FileList) View() string {
 	logger.Infof("FileListView Full Size %dx%d", viewW, viewH)
 	return view
 }
-
-// func (m *FileList) ListenKeyMsg(msg tea.Msg, mainM *BDPan) (bool, tea.Cmd) {
-// flag := true
-// var cmd tea.Cmd
-// switch msg := msg.(type) {
-// case tea.KeyMsg:
-// switch {
-// case key.Matches(msg, m.KeyMap.Exit):
-// // 退出程序
-// return true, tea.Quit
-// }
-// default:
-// flag = false
-// }
-// return flag, cmd
-// }
 
 func (m *FileList) Focus() {
 	m.model.Focus()
@@ -238,6 +222,7 @@ type FileListKeyMap struct {
 	Back        key.Binding
 	Refresh     key.Binding
 	Space       key.Binding // 空格，选中
+	SelectAll   key.Binding // 选中全部
 	Delete      key.Binding
 	Cut         key.Binding // 剪切
 	Paste       key.Binding // 黏贴
@@ -276,6 +261,10 @@ func DefaultFileListKeyMap() FileListKeyMap {
 		Space: key.NewBinding(
 			key.WithKeys(" "),
 			key.WithHelp("Space", "选中"),
+		),
+		SelectAll: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "选中全部"),
 		),
 		Delete: KeyDelete,
 		Cut: key.NewBinding(
@@ -317,4 +306,207 @@ func DefaultFileListTaskMap() FileListTaskMap {
 type FileListTaskMap struct {
 	AddQuick    TaskBinding
 	ShowContent TaskBinding
+}
+
+func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
+	flag := true
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		// 光标聚焦在文件列表中
+		if m.FileListModelIsNotNil() {
+			// 先做原始修改操作
+			// 空格操作不使用原始操作
+			if !key.Matches(msg, m.fileListModel.KeyMap.Space) {
+				m.fileListModel, cmd = m.fileListModel.Update(msg)
+				cmds = append(cmds, cmd)
+			}
+
+			// 记录光标位置
+			m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
+		}
+		switch {
+		case key.Matches(msg, m.KeyMap.MovePaneLeft):
+			// 向左移动面板
+			m.quickModel.Focus()
+			m.fileListModel.Blur()
+		case key.Matches(msg, m.fileListModel.KeyMap.Delete):
+			// 删除
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				task := m.AddFileTask(f, TypeDelete)
+				cmd = m.SendShowConfirm(
+					fmt.Sprintf("确认删除 %s?", f.GetFilename()),
+					task,
+					m.fileListModel,
+				)
+				cmds = append(cmds, cmd)
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Space):
+			// 选中
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				path := f.Path
+				_, exist := m.selectFileMap[path]
+				if exist {
+					delete(m.selectFileMap, path)
+				} else {
+					m.selectFileMap[path] = f
+				}
+				cmds = append(cmds, m.SendMessage("选中文件: %s", f.Path))
+				// 选中后向下移动一行
+				m.fileListModel.model.MoveDown(1)
+				// 记录光标位置
+				m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
+				// 重新设置文件列表，带有选中效果
+				m.fileListModel = m.NewFileList(m.files)
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.SelectAll):
+			// 选中全部
+			if m.CanSelectFile() {
+				for _, file := range m.GetFiles(m.Dir) {
+
+					path := file.Path
+					_, exist := m.selectFileMap[path]
+					if exist {
+						delete(m.selectFileMap, path)
+					} else {
+						m.selectFileMap[path] = file
+					}
+				}
+				// 重新设置文件列表，带有选中效果
+				m.fileListModel = m.NewFileList(m.files)
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Cut):
+			// 剪切
+			if m.CanSelectFile() {
+				// 确认剪切文件
+				if m.HasSelectFile() {
+					m.ClearCutSelectFileMap()
+					m.cutSelectFileMap = m.selectFileMap
+					m.ClearSelectFileMap()
+				} else {
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					m.cutSelectFileMap[f.Path] = f
+				}
+				// 重新设置文件列表，带有选中效果
+				m.fileListModel = m.NewFileList(m.files)
+				cmds = append(cmds, m.SendMessage(
+					"剪切文件: %s",
+					strings.Join(m.GetCutSelectFilePaths(), " "),
+				))
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Paste):
+			// 黏贴
+			task := m.AddFileTask(nil, TypePaste)
+			task.Dir = m.Dir
+			cmds = append(cmds, m.SendRunTask(task))
+		case key.Matches(msg, m.fileListModel.KeyMap.Back):
+			// 返回目录
+			cmds = append(cmds, m.Goto(filepath.Dir(m.Dir)))
+		case key.Matches(msg, m.fileListModel.KeyMap.Enter):
+			if m.CanSelectFile() {
+				f, err := m.fileListModel.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				if f.IsDir() {
+					cmds = append(cmds, m.Goto(f.Path))
+				} else {
+					task := m.AddFileTask(f, TypeDownload)
+					cmd = m.SendShowConfirm(
+						fmt.Sprintf("确认下载 %s?", f.GetFilename()),
+						task,
+						m.fileListModel,
+					)
+					cmds = append(cmds, cmd)
+				}
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.AddQuick):
+			// 添加快速访问
+			if m.CanSelectFile() {
+				f, err := m.GetSelectFile()
+				if err != nil {
+					return true, tea.Quit
+				}
+				if f.IsDir() {
+					q := m.GetQuickByPath(f.Path)
+					if q != nil {
+						cmds = append(cmds, m.SendMessage("该目录已存在快速访问"))
+					} else {
+						// 添加快速访问请求
+						// task := m.AddFileTask(f, TaskAddQuick)
+						task := m.AddTask(m.fileListModel.TaskMap.AddQuick)
+						task.Data = f
+						cmds = append(cmds, m.SendShowInput(
+							"请输入快速访问 Key", "",
+							task,
+							m.fileListModel,
+						))
+					}
+
+				} else {
+					cmds = append(cmds, m.SendMessage("文件不支持添加快速访问"))
+				}
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Rename):
+			// 重命名
+			if m.CanSelectFile() {
+				if m.HasSelectFile() {
+					// 批量重命名: 设置状态并退出TUI以运行编辑器
+					m.NextAction = "batch-rename"
+					m.ActionPayload = m.GetSelectFiles()
+					return true, tea.Quit
+				} else {
+					// 单个
+					f, err := m.GetSelectFile()
+					if err != nil {
+						return true, tea.Quit
+					}
+					filename := f.GetFilename()
+					task := m.AddFileTask(f, TypeRename)
+					cmds = append(cmds, m.SendShowInput(
+						"请输入新名称", filename,
+						task,
+						m.fileListModel,
+					))
+				}
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.ShowContent):
+			// 显示内容
+			if !m.CanSelectFile() {
+				return true, m.SendMessage("没有文件展示")
+			}
+			f, err := m.GetSelectFile()
+			if err != nil {
+				return true, m.SendMessage("选择文件失败 %s", err.Error())
+			}
+			flag, cmd := m.CanPreviewFile(f.FileInfo)
+			if !flag {
+				return true, cmd
+			}
+			if bdtools.HasLocalFile(f.FileInfo) {
+				return m.PreviewFile(f.FileInfo)
+			} else {
+				task := m.AddTask(m.fileListModel.TaskMap.ShowContent)
+				task.Data = f.FileInfo
+				cmds = append(
+					cmds,
+					// m.SendMessage("开始请求文件"),
+					m.SendRunTask(task),
+				)
+			}
+		}
+	}
+	return flag, tea.Batch(cmds...)
 }
