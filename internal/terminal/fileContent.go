@@ -151,12 +151,24 @@ func (km FileContentKeyMap) FullHelp() [][]key.Binding {
 }
 
 func (m *BDPan) CanPreviewFile(f *bdpan.FileInfo) (bool, tea.Cmd) {
-	if f.Category != 4 && f.Category != 6 {
-		return false, m.SendMessage("该文件不支持预览")
-	}
 	if f.IsDir() {
 		return false, m.SendMessage("文件夹不支持预览")
 	}
+	if f.Category != 4 && f.Category != 6 {
+		return false, m.SendMessage("该文件不支持预览")
+	}
+	filename := f.GetFilename()
+	unsupportedSuffixes := []string{
+		".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
+		".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+		".dmg", ".iso", ".exe", ".jar", ".bin", ".img", ".dat",
+	}
+	for _, suffix := range unsupportedSuffixes {
+		if strings.HasSuffix(filename, suffix) {
+			return false, m.SendMessage("该文件不支持预览")
+		}
+	}
+
 	if f.Size > 1024*1024 {
 		return false, m.SendMessage("文件过大，请下载后再查看")
 	}

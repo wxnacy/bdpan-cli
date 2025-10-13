@@ -190,7 +190,7 @@ func UploadFile(accessToken, localFilePath, remoteFilePath string, args ...any) 
 		progressBar.Finish()
 	}
 
-	uPrintf("文件创建成功，fs_id: %d name: %s", createFileRes.FSId, createFileRes.ServerFilename)
+	uPrintf("文件创建成功，fs_id: %d name: %s", createFileRes.FSID, createFileRes.ServerFilename)
 	return createFileRes, nil
 }
 

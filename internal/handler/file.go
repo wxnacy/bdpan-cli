@@ -455,7 +455,7 @@ func (h *FileHandler) UploadFile(
 	uPrintf("上传文件成功")
 	// 保存上传记录
 	saveHistory := &model.UploadHistory{
-		FSID:           createFileRes.FSId,
+		FSID:           createFileRes.FSID,
 		Path:           createFileRes.Path,
 		Size:           createFileRes.Size,
 		Category:       createFileRes.Category,
@@ -469,7 +469,7 @@ func (h *FileHandler) UploadFile(
 	model.Save(saveHistory)
 
 	if printFile {
-		file, err := bdtools.GetFileInfo(h.accessToken, createFileRes.FSId)
+		file, err := bdtools.GetFileInfo(h.accessToken, createFileRes.FSID)
 		if err != nil {
 			return err
 		}

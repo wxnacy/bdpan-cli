@@ -37,7 +37,7 @@ func BatchGetFileInfos(accessToken string, fsids []uint64) ([]*bdpan.FileInfo, e
 		chunk := fsids[i:end]
 
 		batchReq := &bdpan.BatchGetFileInfoReq{
-			FSIds: chunk,
+			FSIDs: chunk,
 			Dlink: 1,
 		}
 		batchRes, err := bdpan.BatchGetFileInfo(accessToken, batchReq)
