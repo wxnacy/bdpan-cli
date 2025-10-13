@@ -229,6 +229,7 @@ type FileListKeyMap struct {
 	AddQuick    key.Binding // 添加快速访问
 	Rename      key.Binding // 重命名
 	ShowContent key.Binding // 显示内容
+	Filter      key.Binding // 过滤
 }
 
 // ShortHelp implements the KeyMap interface.
@@ -287,6 +288,10 @@ func DefaultFileListKeyMap() FileListKeyMap {
 			key.WithKeys("i"),
 			key.WithHelp("i", "显示内容"),
 		),
+		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "过滤"),
+		),
 	}
 }
 
@@ -300,12 +305,17 @@ func DefaultFileListTaskMap() FileListTaskMap {
 			Title: "Show Content",
 			Type:  "show_content",
 		},
+		Filter: TaskBinding{
+			Title: "Filter files",
+			Type:  "filter_files",
+		},
 	}
 }
 
 type FileListTaskMap struct {
 	AddQuick    TaskBinding
 	ShowContent TaskBinding
+	Filter      TaskBinding
 }
 
 func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
@@ -366,12 +376,12 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 				// 记录光标位置
 				m.fileCursorMap[m.Dir] = m.fileListModel.GetCursor()
 				// 重新设置文件列表，带有选中效果
-				m.fileListModel = m.NewFileList(m.files)
+				m.fileListModel = m.NewFileList(m.GetCurrFiles())
 			}
 		case key.Matches(msg, m.fileListModel.KeyMap.SelectAll):
 			// 选中全部
 			if m.CanSelectFile() {
-				for _, file := range m.GetFiles(m.Dir) {
+				for _, file := range m.GetCurrFiles() {
 
 					path := file.Path
 					_, exist := m.selectFileMap[path]
@@ -382,7 +392,7 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					}
 				}
 				// 重新设置文件列表，带有选中效果
-				m.fileListModel = m.NewFileList(m.files)
+				m.fileListModel = m.NewFileList(m.GetCurrFiles())
 			}
 		case key.Matches(msg, m.fileListModel.KeyMap.Cut):
 			// 剪切
@@ -400,7 +410,7 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					m.cutSelectFileMap[f.Path] = f
 				}
 				// 重新设置文件列表，带有选中效果
-				m.fileListModel = m.NewFileList(m.files)
+				m.fileListModel = m.NewFileList(m.GetCurrFiles())
 				cmds = append(cmds, m.SendMessage(
 					"剪切文件: %s",
 					strings.Join(m.GetCutSelectFilePaths(), " "),
@@ -505,6 +515,16 @@ func (m *BDPan) ListenFileListKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 					// m.SendMessage("开始请求文件"),
 					m.SendRunTask(task),
 				)
+			}
+		case key.Matches(msg, m.fileListModel.KeyMap.Filter):
+			// 过滤
+			if m.CanSelectFile() {
+				task := m.AddTask(m.fileListModel.TaskMap.Filter)
+				cmds = append(cmds, m.SendShowInput(
+					"请输入过滤信息", "",
+					task,
+					m.fileListModel,
+				))
 			}
 		}
 	}

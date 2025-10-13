@@ -137,6 +137,7 @@ func (h *FileHandler) BatchRenameFiles(files []*model.File) (*bdpan.ManageFileRe
 	for i, f := range files {
 		reqManagers = append(reqManagers, bdpan.NewFileManager(f.Path, "", newNames[i]))
 	}
+	logger.Printf("开始重命名，请稍后...")
 	return bdpan.RenameFiles(h.accessToken, reqManagers...)
 }
 

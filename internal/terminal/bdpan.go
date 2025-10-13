@@ -117,6 +117,7 @@ type BDPan struct {
 	user             *model.User
 	selectFileMap    map[string]*model.File // 选中的文件集合
 	cutSelectFileMap map[string]*model.File // 剪切选中的文件集合
+	Filter           string                 // 过滤信息
 
 	// message
 	message         string
@@ -242,10 +243,24 @@ func (m *BDPan) GetFiles(dir string) []*model.File {
 	return files
 }
 
+func (m *BDPan) GetCurrFiles() []*model.File {
+	files := m.files
+	if m.Filter != "" {
+		newFiles := make([]*model.File, 0)
+		for _, file := range files {
+			if strings.Contains(file.GetFilename(), m.Filter) {
+				newFiles = append(newFiles, file)
+			}
+		}
+		return newFiles
+	}
+	return files
+}
+
 func (m *BDPan) SetFiles(files []*model.File) *BDPan {
 	m.files = files
 	m.filesMap[m.Dir] = files
-	m.fileListModel = m.NewFileList(m.files)
+	m.fileListModel = m.NewFileList(m.GetCurrFiles())
 	m.DisableLoadingFileList()
 	m.RefreshQuickSelect()
 	// TODO: 已经在 fileListModel 渲染之前设置光标，理论上可以删除这里的设置
@@ -401,6 +416,10 @@ func (m *BDPan) ListenRunTaskMsg(msg RunTaskMsg) (bool, tea.Cmd) {
 		// 预览文件
 		f := t.Data.(*bdpan.FileInfo)
 		return m.PreviewFile(f)
+	case m.fileListModel.TaskMap.Filter:
+		// 过滤
+		m.Filter = t.Ext.(string)
+		m.fileListModel = m.NewFileList(m.GetCurrFiles())
 	default:
 		switch t.Type {
 		case TypeRename:
@@ -549,9 +568,10 @@ func (m *BDPan) ListenKeyMsg(msg tea.Msg) (bool, tea.Cmd) {
 			return true, tea.Quit
 		case key.Matches(msg, m.KeyMap.Esc):
 			// 退出当前状态
+			m.Filter = ""
 			m.ClearSelectFileMap()
 			m.ClearCutSelectFileMap()
-			m.fileListModel = m.NewFileList(m.files)
+			m.fileListModel = m.NewFileList(m.GetCurrFiles())
 			m.FileListFocus()
 			if m.InputFocused() {
 				m.InputBlur()
@@ -796,7 +816,7 @@ func (m *BDPan) GetFileListView() string {
 		// 尺寸改变重新加载
 		// 有多选时也重新加载
 		if m.changeWindowSizeState {
-			m.fileListModel = m.NewFileList(m.files)
+			m.fileListModel = m.NewFileList(m.GetCurrFiles())
 			m.changeWindowSizeState = false
 		}
 		// 渲染之前设置光标位置
@@ -808,7 +828,11 @@ func (m *BDPan) GetFileListView() string {
 }
 
 func (m *BDPan) GetDirView() string {
-	return baseStyle.Width(m.GetMidWidth()-2).Render("当前目录", m.Dir)
+	content := fmt.Sprintf("当前目录 %s", m.Dir)
+	if m.Filter != "" {
+		content = fmt.Sprintf("%s Filter: '%s' %d items", content, m.Filter, len(m.GetCurrFiles()))
+	}
+	return baseStyle.Width(m.GetMidWidth() - 2).Render(content)
 }
 
 func (m *BDPan) GetCenterView() string {
@@ -1270,7 +1294,7 @@ func (m *BDPan) FileListModelIsNil() bool {
 }
 
 func (m *BDPan) FilesIsNotNil() bool {
-	return m.files != nil && len(m.files) > 0
+	return m.GetCurrFiles() != nil && len(m.GetCurrFiles()) > 0
 }
 
 func (m *BDPan) CanSelectFile() bool {
