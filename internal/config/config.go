@@ -32,7 +32,7 @@ logger:
     isSave: false
     level: info
     logFileConfig:
-        filename: bdpan-cli.log
+        filename: ~/Library/Application Support/bdpan/log/bdpan-cli.log
 `)
 )
 
