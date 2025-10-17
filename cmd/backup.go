@@ -14,6 +14,8 @@ var backupCmd = &cobra.Command{
 	Long: `
 备份本地文件夹到网盘
 每次执行将在指定 --path 下生成 Backups/2006-01-02-150405 格式目录进行备份
+
+bdpan backup --local 本地文件夹 --path 网盘目录
 	`,
 	Run: func(cmd *cobra.Command, args []string) {
 		backupReq.GlobalReq = *GetGlobalReq()
