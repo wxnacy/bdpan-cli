@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
 	"github.com/wxnacy/bdpan-cli/pkg/whitetea"
@@ -59,7 +60,12 @@ func NewFileContent(filePath string, opts ...any) (*FileContent, error) {
 		return nil, fmt.Errorf("该文件不支持预览")
 	}
 
-	highlightedCode, err := highlight(lexerName, string(content))
+	var highlightedCode string
+	if lexerName == "markdown" {
+		highlightedCode, err = glamour.Render(string(content), "dark")
+	} else {
+		highlightedCode, err = highlight(lexerName, string(content))
+	}
 	if err != nil {
 		return nil, err
 	}
