@@ -1,0 +1,81 @@
+version: 2
+project_name: bdpan
+
+before:
+  hooks: []
+
+builds:
+  - id: bdpan
+    main: ./cmd/bdpan
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/wxnacy/bdpan-cli/cmd.Version={{.Version}}
+
+archives:
+  - id: bdpan-archive
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - '^chore'
+      - '^style'
+      - '^ci'
+      - '^build'
+      - '^test'
+      - '^Merge pull request'
+      - '^Merge branch'
+  groups:
+    - title: 'Features'
+      regexp: '^feat'
+    - title: 'Bug Fixes'
+      regexp: '^fix'
+    - title: 'Performance'
+      regexp: '^perf'
+    - title: 'Refactor'
+      regexp: '^refactor'
+    - title: 'Documentation'
+      regexp: '^docs'
+    - title: 'Build & CI'
+      regexp: '^(build|ci)'
+    - title: 'Tests'
+      regexp: '^test'
+    - title: 'Chores'
+      regexp: '^chore'
+
+brews:
+  - name: bdpan
+    description: "百度网盘命令行工具"
+    homepage: "https://github.com/wxnacy/bdpan-cli"
+    license: "MIT"
+    repository:
+      owner: wxnacy
+      name: homebrew-tap
+    directory: Formula
+    commit_author:
+      name: "wxnacy"
+      email: ""
+    skip_upload: false
+    install: |
+      bin.install "bdpan"
+      generate_completions_from_executable(bin/"bdpan", "completion", base_name: "bdpan")
+
+release:
+  github:
+    owner: wxnacy
+    name: bdpan-cli
