@@ -48,13 +48,6 @@ var rootCmd = &cobra.Command{
 		startTime = time.Now()
 		// 初始化应用
 		initial.InitApp(globalReq)
-		// 检查是否登录
-		if cmd.Use != "login" {
-			access, err := config.GetAccess()
-			if err != nil || access.IsExpired() {
-				return errors.New("登录过期，请重新登录")
-			}
-		}
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -62,6 +55,18 @@ var rootCmd = &cobra.Command{
 		logger.Infof("命令执行耗时: %v\n", duration)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		// 检查是否登录
+		if cmd.Use != "login" {
+			access, err := config.GetAccess()
+			if err != nil {
+				logger.Printf("请先登录: bdpan login")
+				return
+			}
+			if err != nil || access.IsExpired() {
+				logger.Printf("登录过期，请重新登录: bdpan login")
+				return
+			}
+		}
 		req := GetGlobalReq()
 		path := req.Path
 		if len(args) > 0 {
