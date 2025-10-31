@@ -46,8 +46,9 @@ var rootCmd = &cobra.Command{
 	Version: Version,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		startTime = time.Now()
+		handler.GetRequest().GlobalReq = *globalReq
 		// 初始化应用
-		initial.InitApp(globalReq)
+		initial.InitApp()
 		return nil
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {

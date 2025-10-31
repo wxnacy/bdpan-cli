@@ -5,32 +5,23 @@ import (
 
 	"github.com/wxnacy/bdpan-cli/configs"
 	"github.com/wxnacy/bdpan-cli/internal/config"
-	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/handler"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/go-tools"
 )
 
 // InitApp initial app configuration
-func InitApp(req *dto.GlobalReq) {
+func InitApp() {
 	begin := time.Now()
-	initConfig(req)
+	initConfig()
 
 	// initial logger
 	logger.Init()
-	logger.Debugf("Init Config %#v time used %v", config.Get(), time.Now().Sub(begin))
+	logger.Debugf("Init Config %#v time used %v", config.Get(), time.Since(begin))
 }
 
-func initConfig(req *dto.GlobalReq) {
-	var configPath string
-	var err error
-	if req.Config != "" {
-		configPath = req.Config
-	} else {
-		configPath, err = config.GetDefaultConfigPath()
-		if err != nil {
-			panic("get config path error: " + err.Error())
-		}
-	}
+func initConfig() {
+	configPath := handler.GetRequest().GetConfigPath()
 	config.SetConfigPath(configPath)
 
 	var errConfig error

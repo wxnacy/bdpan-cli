@@ -23,7 +23,7 @@ database:
     driver: sqlite
     sqlite:
         connMaxLifetime: 60
-        dbFile: ~/.config/bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc
+        dbfile: ~/.local/share/bdpan/bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc
         enableLog: false
         maxIdleConns: 10
         maxOpenConns: 100
@@ -32,7 +32,7 @@ logger:
     isSave: false
     level: info
     logFileConfig:
-        filename: ~/Library/Application Support/bdpan/log/bdpan-cli.log
+        filename: ~/.local/share/bdpan/log/bdpan.log
 `)
 )
 
