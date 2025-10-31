@@ -71,12 +71,13 @@ func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
 	conf := config.Get()
 	c := conf.Credential
 	if c.IsNil() {
-		c = *getCredentialByInut()
+		newC, err := getCredentialByInut()
+		c = *newC
 		if c.IsNil() {
 			return fmt.Errorf("请正确输入 Credential 信息")
 		}
 		// 保存配置
-		err := config.SaveCredential(c)
+		err = config.SaveCredential(c)
 		if err != nil {
 			return err
 		}
@@ -145,29 +146,56 @@ func (h *AuthHandler) loginByCredential() error {
 }
 
 // 从输入中创建用户信息
-func getCredentialByInut() *config.Credential {
+// 功能需求：
+// - 使用 huh.Form 完成 Credential 中 AppID/AppKey/SecretKey 信息的收集
+func getCredentialByInut() (*config.Credential, error) {
 	item := &config.Credential{}
 
 	appId := ""
-	huh.NewInput().
-		Title("AppId").
-		Value(&appId).
-		Run()
 
-	huh.NewInput().
-		Title("AppKey").
-		Value(&item.AppKey).
-		Run()
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("AppId").
+				Value(&appId).
+				Validate(func(s string) error {
+					if s == "" {
+						return errors.New("AppID 不能为空")
+					}
+					if _, err := strconv.Atoi(s); err != nil {
+						return errors.New("AppID 必须为数字")
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title("AppKey").
+				Value(&item.AppKey).
+				Validate(func(s string) error {
+					if s == "" {
+						return errors.New("AppKey 不能为空")
+					}
+					return nil
+				}),
+			huh.NewInput().
+				Title("SecretKey").
+				Value(&item.SecretKey).
+				Validate(func(s string) error {
+					if s == "" {
+						return errors.New("SecretKey 不能为空")
+					}
+					return nil
+				}),
+		),
+	)
 
-	huh.NewInput().
-		Title("SecretKey").
-		Value(&item.SecretKey).
-		Run()
+	if err := form.Run(); err != nil {
+		return nil, err
+	}
 
 	id, err := strconv.Atoi(appId)
 	if err != nil {
-		panic("AppID 输入错误")
+		return nil, fmt.Errorf("AppID: %s 输入错误", appId)
 	}
 	item.AppID = id
-	return item
+	return item, nil
 }
