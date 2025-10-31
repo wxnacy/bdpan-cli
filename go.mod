@@ -8,15 +8,17 @@ require (
 	github.com/boombuler/barcode v1.0.2
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.2.0
+	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/huh v0.6.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-dev-frame/sponge v1.12.7
-	github.com/hpcloud/tail v1.0.0
+	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/gamut v0.3.1
+	github.com/nxadm/tail v1.4.11
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.19.0
@@ -24,6 +26,7 @@ require (
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/term v0.35.0
+	gorm.io/gorm v1.25.7-0.20240204074919-46816ad31dde
 )
 
 require (
@@ -32,12 +35,6 @@ require (
 	github.com/wxnacy/go-bdpan v0.1.8
 	github.com/wxnacy/go-tasker v1.0.0
 	github.com/wxnacy/go-tools v0.0.14
-)
-
-require (
-	github.com/charmbracelet/glamour v0.10.0
-	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
-	gorm.io/gorm v1.25.7-0.20240204074919-46816ad31dde
 )
 
 require (
@@ -62,7 +59,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.15.0 // indirect
-	github.com/fsnotify/fsnotify v1.8.0 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
@@ -140,7 +137,6 @@ require (
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
-	gopkg.in/fsnotify.v1 v1.0.0-00010101000000-000000000000 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -157,5 +153,3 @@ require (
 // replace github.com/wxnacy/go-tools => /Users/wxnacy/Documents/Projects/wxnacy/gotool
 
 // replace github.com/wxnacy/go-tasker => /Users/wxnacy/Documents/Projects/wxnacy/go-tasker
-
-replace gopkg.in/fsnotify.v1 => github.com/fsnotify/fsnotify v1.4.9
