@@ -102,7 +102,7 @@ func Execute() {
 func init() {
 	// 全局参数
 	defaultConfig, _ := config.GetDefaultConfigPath()
-	rootCmd.PersistentFlags().BoolVarP(&globalReq.IsVerbose, "verbose", "v", false, "打印赘余信息")
+	rootCmd.PersistentFlags().BoolVarP(&globalReq.IsVerbose, "verbose", "V", false, "打印赘余信息")
 	rootCmd.PersistentFlags().StringVarP(&globalReq.Config, "config", "c", defaultConfig, "指定配置文件地址")
 
 	// root 参数

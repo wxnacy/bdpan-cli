@@ -1,12 +1,15 @@
 
 .PHONY: install install-completion
 
+GO ?= go
+
 # Get the GOPATH
 GOPATH:=$(shell go env GOPATH)
 
 install:
 	@echo "Installing bdpan to $(GOPATH)/bin..."
-	@go build -ldflags "-X main.Version=dev" -o $(GOPATH)/bin/bdpan .
+	# @go build -ldflags "-X main.Version=dev" -o $(GOPATH)/bin/bdpan .
+	$(GO) install ./cmd/bdpan
 	@echo "bdpan installed successfully."
 	@$(MAKE) install-completion
 
