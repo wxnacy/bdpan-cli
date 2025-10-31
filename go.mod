@@ -34,7 +34,7 @@ require (
 	github.com/wxnacy/dler/godler v0.0.0-20230502090212-1854c87e8009
 	github.com/wxnacy/go-bdpan v0.1.8
 	github.com/wxnacy/go-tasker v1.0.0
-	github.com/wxnacy/go-tools v0.0.14
+	github.com/wxnacy/go-tools v0.0.15
 )
 
 require (

@@ -278,6 +278,8 @@ github.com/wxnacy/go-tasker v1.0.0 h1:Kj/IM5149y7dabe8+yzEtZbMJAsoS8ijptMllz6A8Z
 github.com/wxnacy/go-tasker v1.0.0/go.mod h1:v0VWS7Emx5jDZsFd8kuU0zOLLV+c6JtuDI2LKlL7K/s=
 github.com/wxnacy/go-tools v0.0.14 h1:lTUsMQIa61FNjloPutC+iDjlNlHlyq6HFx+T3B9Fo9Y=
 github.com/wxnacy/go-tools v0.0.14/go.mod h1:OeZz8EfZRlResutXQdg4nph7megyQPd1kSDK75wc+6M=
+github.com/wxnacy/go-tools v0.0.15 h1:mOajZGk3zzBWTpqjczz0Dw0ThZIjPG40QYd93hqfzKo=
+github.com/wxnacy/go-tools v0.0.15/go.mod h1:ae8/XP4sMJX9J6btDJeQIX1biFeb5MOgb7RSKFRoe28=
 github.com/wxnacy/gotool v0.0.5 h1:ua0Fchz5KI9BxvuxVyNSUKZdCctAjnA05Z2je1kN+uw=
 github.com/wxnacy/gotool v0.0.5/go.mod h1:yHj/jvel69XkKNsAI5ZX9KCS8WO6f8kOnk0Yj7KotTY=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
