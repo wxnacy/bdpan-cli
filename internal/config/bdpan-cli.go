@@ -35,13 +35,6 @@ type Config struct {
 	Logger     Logger     `yaml:"logger" json:"logger"`
 }
 
-type Credential struct {
-	AppID     int    `yaml:"appId" json:"appId"`
-	AppKey    string `yaml:"appKey" json:"appKey"`
-	SecretKey string `yaml:"secretKey" json:"secretKey"`
-	SignKey   string `yaml:"signKey" json:"signKey"`
-}
-
 type Sqlite struct {
 	ConnMaxLifetime int    `yaml:"connMaxLifetime" json:"connMaxLifetime"`
 	DBFile          string `yaml:"dbFile" json:"dbFile"`
@@ -70,4 +63,5 @@ type App struct {
 	Name       string `yaml:"name" json:"name"`
 	Scope      string `yaml:"scope" json:"scope"`
 	AccessPath string `yaml:"accessPath" json:"accessPath"`
+	DataDir    string `yaml:"dataDir" json:"dataDir"`
 }

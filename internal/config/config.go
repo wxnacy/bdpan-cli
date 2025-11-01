@@ -18,7 +18,7 @@ var (
 app:
     name: bdpan-cli
     scope: basic,netdisk
-    accessPath: ""
+	dataDir: "~/.local/share/bdpan"
 database:
     driver: sqlite
     sqlite:

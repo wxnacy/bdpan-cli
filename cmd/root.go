@@ -18,6 +18,7 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/terminal"
 	"github.com/wxnacy/go-bdpan"
+	"github.com/wxnacy/go-tools"
 )
 
 var (
@@ -57,7 +58,10 @@ var rootCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		// 检查是否登录
-		if cmd.Use != "login" {
+		if tools.ArrayContainsString([]string{
+			"login",
+			"log",
+		}, cmd.Use) {
 			access, err := config.GetAccess()
 			if err != nil {
 				logger.Printf("请先登录: bdpan login")

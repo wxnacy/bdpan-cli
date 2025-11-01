@@ -11,7 +11,6 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/qrcode"
-	"github.com/wxnacy/bdpan/auth"
 	"github.com/wxnacy/go-bdpan"
 	"github.com/wxnacy/go-tools"
 )
@@ -68,16 +67,14 @@ func (h *AuthHandler) RefreshPan() (*model.Pan, error) {
 }
 
 func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
-	conf := config.Get()
-	c := conf.Credential
-	if c.IsNil() {
-		newC, err := getCredentialByInut()
-		c = *newC
+	c, err := config.GetCredential()
+	if err != nil || c.IsNil() {
+		c, err = getCredentialByInut()
 		if c.IsNil() {
 			return fmt.Errorf("请正确输入 Credential 信息")
 		}
 		// 保存配置
-		err = config.SaveCredential(c)
+		err = config.SaveCredential(*c)
 		if err != nil {
 			return err
 		}
@@ -118,7 +115,7 @@ func (h *AuthHandler) loginByCredential() error {
 	appKey := config.Get().Credential.AppKey
 	secretKey := config.Get().Credential.SecretKey
 	scope := config.Get().App.Scope
-	deviceCode, err := auth.GetDeviceCode(appKey, scope)
+	deviceCode, err := bdpan.GetDeviceCode(appKey, scope)
 	if err != nil {
 		return errors.New("AppKey 不正确")
 	}
@@ -128,7 +125,7 @@ func (h *AuthHandler) loginByCredential() error {
 		if err != nil {
 			return err
 		}
-		deviceToken, err := auth.GetDeviceToken(appKey, secretKey, deviceCode.DeviceCode)
+		deviceToken, err := bdpan.GetDeviceToken(appKey, secretKey, deviceCode.DeviceCode)
 		if err == nil {
 			var access config.Access
 			access.AccessToken = deviceToken.AccessToken
@@ -142,7 +139,7 @@ func (h *AuthHandler) loginByCredential() error {
 			return nil
 		}
 	}
-	return errors.New("登录超时")
+	return errors.New("登录超时，请重试")
 }
 
 // 从输入中创建用户信息

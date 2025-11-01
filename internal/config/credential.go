@@ -1,11 +1,45 @@
 package config
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 
-	"github.com/spf13/viper"
-	"github.com/wxnacy/go-tools"
+	"github.com/mitchellh/go-homedir"
 )
+
+func getCredentialPath() (string, error) {
+	dataDir := Get().App.DataDir
+	if dataDir == "" {
+		panic("config.dataDir is empty")
+	}
+	p := filepath.Join(dataDir, "credential.json")
+	return homedir.Expand(p)
+}
+
+func GetCredential() (*Credential, error) {
+	p, err := getCredentialPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return nil, err
+	}
+	var a Credential
+	err = json.Unmarshal(data, &a)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+type Credential struct {
+	AppID     int    `yaml:"appId" json:"appId"`
+	AppKey    string `yaml:"appKey" json:"appKey"`
+	SecretKey string `yaml:"secretKey" json:"secretKey"`
+	SignKey   string `yaml:"signKey" json:"signKey"`
+}
 
 func (c *Credential) IsNil() bool {
 	if c.AppID == 0 ||
@@ -17,12 +51,13 @@ func (c *Credential) IsNil() bool {
 }
 
 func SaveCredential(c Credential) error {
-	viper.Set("credential", c)
-	path := GetConfigPath()
-	configDir := filepath.Dir(path)
-	err := tools.DirExistsOrCreate(configDir)
+	p, err := getCredentialPath()
 	if err != nil {
 		return err
 	}
-	return viper.WriteConfigAs(path)
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(p, data, 0o644)
 }

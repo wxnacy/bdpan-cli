@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/mitchellh/go-homedir"
 )
 
 type Access struct {
@@ -31,13 +33,12 @@ func (a *Access) IsExpired() bool {
 }
 
 func getAccessPath() (string, error) {
-	accessPath := Get().App.AccessPath
-	if accessPath != "" {
-		return accessPath, nil
+	dataDir := Get().App.DataDir
+	if dataDir == "" {
+		panic("config.dataDir is empty")
 	}
-
-	configPath := GetConfigPath()
-	return filepath.Join(filepath.Dir(configPath), "access.json"), nil
+	p := filepath.Join(dataDir, "access.json")
+	return homedir.Expand(p)
 }
 
 func SaveAccess(a Access) error {

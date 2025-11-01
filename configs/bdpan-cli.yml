@@ -1,11 +1,7 @@
 app:
     name: bdpan-cli
     scope: basic,netdisk
-credential:
-    appId: 0
-    appKey: ""
-    secretKey: ""
-    signKey: ""
+    dataDir: ""
 database:
     driver: sqlite
     sqlite:
