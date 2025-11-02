@@ -22,7 +22,7 @@ func SetLogLevel(level logrus.Level) {
 }
 
 func SetLogFile() {
-	logPath := config.Get().Logger.LogFileConfig.Filename
+	logPath := config.GetLogFile()
 	tools.DirExistsOrCreate(filepath.Dir(logPath))
 	// 设置按日期分割日志，最多十个文件
 	logf, err := rotatelogs.New(

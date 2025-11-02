@@ -15,7 +15,7 @@ var logCmd = &cobra.Command{
 	Use:   "log",
 	Short: "Tail log file",
 	Run: func(cmd *cobra.Command, args []string) {
-		logFile := config.Get().Logger.LogFileConfig.Filename
+		logFile := config.GetLogFile()
 		if logFile == "" {
 			fmt.Println("Log file not configured")
 			return

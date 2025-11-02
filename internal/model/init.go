@@ -3,7 +3,6 @@ package model
 
 import (
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,28 +23,42 @@ import (
 var ErrRecordNotFound = gorm.ErrRecordNotFound
 
 var (
-	db    *gorm.DB
-	once1 sync.Once
+	db       *gorm.DB
+	once1    sync.Once
+	dbConfig = Sqlite{
+		Connmaxlifetime: 60,
+		Enablelog:       false,
+		Maxidleconns:    10,
+		Maxopenconns:    100,
+	}
 )
+
+type Sqlite struct {
+	Connmaxlifetime int  `yaml:"connmaxlifetime" json:"connmaxlifetime"`
+	Enablelog       bool `yaml:"enablelog" json:"enablelog"`
+	Maxidleconns    int  `yaml:"maxidleconns" json:"maxidleconns"`
+	Maxopenconns    int  `yaml:"maxopenconns" json:"maxopenconns"`
+}
 
 // InitDB connect database
 func InitDB() {
-	switch strings.ToLower(config.Get().Database.Driver) {
-	case ggorm.DBDriverSqlite:
-		InitSqlite()
-	default:
-		panic("InitDB error, unsupported database driver: " + config.Get().Database.Driver)
-	}
+	InitSqlite()
+	// switch strings.ToLower(config.Get().Database.Driver) {
+	// case ggorm.DBDriverSqlite:
+	// InitSqlite()
+	// default:
+	// panic("InitDB error, unsupported database driver: " + config.Get().Database.Driver)
+	// }
 }
 
 // InitSqlite connect sqlite
 func InitSqlite() {
 	opts := []ggorm.Option{
-		ggorm.WithMaxIdleConns(config.Get().Database.Sqlite.MaxIdleConns),
-		ggorm.WithMaxOpenConns(config.Get().Database.Sqlite.MaxOpenConns),
-		ggorm.WithConnMaxLifetime(time.Duration(config.Get().Database.Sqlite.ConnMaxLifetime) * time.Minute),
+		ggorm.WithMaxIdleConns(dbConfig.Maxidleconns),
+		ggorm.WithMaxOpenConns(dbConfig.Maxopenconns),
+		ggorm.WithConnMaxLifetime(time.Duration(dbConfig.Connmaxlifetime) * time.Minute),
 	}
-	if config.Get().Database.Sqlite.EnableLog {
+	if dbConfig.Enablelog {
 		l := logger.Get()
 		// 配置日志输出到文件
 		encoderConfig := zapcore.EncoderConfig{
@@ -61,7 +74,7 @@ func InitSqlite() {
 			EncodeDuration: zapcore.SecondsDurationEncoder,
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		}
-		logFile, err := os.OpenFile(config.Get().Logger.LogFileConfig.Filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModeAppend|os.ModePerm)
+		logFile, err := os.OpenFile(config.GetLogFile(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModeAppend|os.ModePerm)
 		if err != nil {
 			panic(err)
 		}
@@ -84,7 +97,7 @@ func InitSqlite() {
 	// }
 
 	var err error
-	dbFile := utils.AdaptiveSqlite(config.Get().Database.Sqlite.DBFile)
+	dbFile := utils.AdaptiveSqlite(config.GetDBFile())
 	dbFile, _ = homedir.Expand(dbFile)
 	db, err = ggorm.InitSqlite(dbFile, opts...)
 	if err != nil {

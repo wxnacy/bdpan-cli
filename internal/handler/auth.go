@@ -21,8 +21,12 @@ func GetAuthHandler() *AuthHandler {
 	if authHandler == nil {
 		authHandler = &AuthHandler{
 			accessToken: config.GetAccessToken(),
-			appID:       config.Get().Credential.AppID,
 		}
+		c, err := config.GetCredential()
+		if err != nil {
+			panic("请先登录")
+		}
+		authHandler.appID = c.AppID
 	}
 	return authHandler
 }
@@ -112,8 +116,12 @@ func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
 }
 
 func (h *AuthHandler) loginByCredential() error {
-	appKey := config.Get().Credential.AppKey
-	secretKey := config.Get().Credential.SecretKey
+	c, err := config.GetCredential()
+	if err != nil {
+		return errors.New("Credential 不存在")
+	}
+	appKey := c.AppKey
+	secretKey := c.SecretKey
 	scope := config.Get().App.Scope
 	deviceCode, err := bdpan.GetDeviceCode(appKey, scope)
 	if err != nil {

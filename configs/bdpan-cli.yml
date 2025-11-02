@@ -1,18 +1,4 @@
 app:
-    name: bdpan-cli
+    name: bdpan
     scope: basic,netdisk
-    dataDir: ""
-database:
-    driver: sqlite
-    sqlite:
-        connmaxlifetime: 60
-        dbfile: ""
-        enablelog: false
-        maxidleconns: 10
-        maxopenconns: 100
-logger:
-    format: console
-    issave: false
-    level: info
-    logfileconfig:
-        filename: bdpan-cli.log
+data_dir: "~/.local/share/bdpan"

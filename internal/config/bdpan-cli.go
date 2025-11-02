@@ -29,39 +29,11 @@ func Set(conf *Config) {
 }
 
 type Config struct {
-	App        App        `yaml:"app" json:"app"`
-	Credential Credential `yaml:"credential" json:"credential"`
-	Database   Database   `yaml:"database" json:"database"`
-	Logger     Logger     `yaml:"logger" json:"logger"`
-}
-
-type Sqlite struct {
-	ConnMaxLifetime int    `yaml:"connMaxLifetime" json:"connMaxLifetime"`
-	DBFile          string `yaml:"dbFile" json:"dbFile"`
-	EnableLog       bool   `yaml:"enableLog" json:"enableLog"`
-	MaxIdleConns    int    `yaml:"maxIdleConns" json:"maxIdleConns"`
-	MaxOpenConns    int    `yaml:"maxOpenConns" json:"maxOpenConns"`
-}
-
-type Database struct {
-	Driver string `yaml:"driver" json:"driver"`
-	Sqlite Sqlite `yaml:"sqlite" json:"sqlite"`
-}
-
-type LogFileConfig struct {
-	Filename string `yaml:"filename" json:"filename"`
-}
-
-type Logger struct {
-	Format        string        `yaml:"format" json:"format"`
-	IsSave        bool          `yaml:"isSave" json:"isSave"`
-	Level         string        `yaml:"level" json:"level"`
-	LogFileConfig LogFileConfig `yaml:"logFileConfig" json:"logFileConfig"`
+	App     App    `yaml:"app" json:"app"`
+	DataDir string `yaml:"data_dir" json:"data_dir" mapstructure:"data_dir"`
 }
 
 type App struct {
-	Name       string `yaml:"name" json:"name"`
-	Scope      string `yaml:"scope" json:"scope"`
-	AccessPath string `yaml:"accessPath" json:"accessPath"`
-	DataDir    string `yaml:"dataDir" json:"dataDir"`
+	Name  string `yaml:"name" json:"name"`
+	Scope string `yaml:"scope" json:"scope"`
 }

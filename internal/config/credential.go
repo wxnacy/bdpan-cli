@@ -9,7 +9,7 @@ import (
 )
 
 func getCredentialPath() (string, error) {
-	dataDir := Get().App.DataDir
+	dataDir := Get().DataDir
 	if dataDir == "" {
 		panic("config.dataDir is empty")
 	}

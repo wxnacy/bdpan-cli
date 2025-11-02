@@ -16,23 +16,9 @@ var (
 	configPath string
 	configYml  = []byte(`
 app:
-    name: bdpan-cli
+    name: bdpan
     scope: basic,netdisk
-	dataDir: "~/.local/share/bdpan"
-database:
-    driver: sqlite
-    sqlite:
-        connMaxLifetime: 60
-        dbfile: ~/.local/share/bdpan/bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc
-        enableLog: false
-        maxIdleConns: 10
-        maxOpenConns: 100
-logger:
-    format: console
-    isSave: false
-    level: info
-    logFileConfig:
-        filename: ~/.local/share/bdpan/log/bdpan.log
+data_dir: "~/.local/share/bdpan"
 `)
 )
 
@@ -86,28 +72,14 @@ func InitConfigByCode() error {
 func FormatConfig(config *Config) error {
 	if config == nil {
 		return fmt.Errorf("config not found")
-
-		// if strings.HasPrefix(config.Database.Sqlite.DBFile, "~/") {
-		// home, err := os.UserHomeDir()
-		// if err != nil {
-		// return err
-		// }
-		// config.Database.Sqlite.DBFile = filepath.Join(home, config.Database.Sqlite.DBFile[2:])
-		// }
 	}
 	var path string
 	var err error
-	path, err = homedir.Expand(config.Database.Sqlite.DBFile)
+	path, err = homedir.Expand(config.DataDir)
 	if err != nil {
 		return err
 	}
-	config.Database.Sqlite.DBFile = path
-
-	path, err = homedir.Expand(config.Logger.LogFileConfig.Filename)
-	if err != nil {
-		return err
-	}
-	config.Logger.LogFileConfig.Filename = path
+	config.DataDir = path
 	return nil
 }
 
@@ -133,4 +105,12 @@ func GetDefaultConfigPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, ".config", "bdpan-cli", "config.yml"), nil
+}
+
+func GetLogFile() string {
+	return filepath.Join(Get().DataDir, "log", "bdpan.log")
+}
+
+func GetDBFile() string {
+	return filepath.Join(Get().DataDir, "bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc")
 }
