@@ -61,6 +61,7 @@ var rootCmd = &cobra.Command{
 		if tools.ArrayContainsString([]string{
 			"login",
 			"log",
+			"config",
 		}, cmd.Use) {
 			access, err := config.GetAccess()
 			if err != nil {
