@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/pkg/whitetea"
 	"github.com/wxnacy/go-bdpan"
@@ -313,11 +314,7 @@ func PrintFileInfo(f *bdpan.FileInfo, args ...any) error {
 
 // 获取文件本地地址
 func GetFileLocalPath(f *bdpan.FileInfo) (string, error) {
-	root, err := GetUserDataRoot()
-	if err != nil {
-		return "", err
-	}
-	p := filepath.Join(root, "tmpfile", f.MD5, f.GetFilename())
+	p := filepath.Join(config.GetCacheDir(), f.MD5, f.GetFilename())
 	return p, nil
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
+	"github.com/wxnacy/bdpan-cli/internal/utils"
 )
 
 var (
@@ -32,7 +33,9 @@ data_dir: "~/.local/share/bdpan"
 // - 如果 configFile 地址存在
 //   - 如果内容不是 Yml 配置，则报错
 //   - 是配置文件，则对 config 进行合并，字段值以文件中优先
+//
 // - *_dir/*_file 后缀的字段，使用 homedir.Expand 做 ~/ 地址开头解析
+// - 如果 DataDir 为空，需要使用 utils.GetUserDataRoot 获取默认值
 //
 // 单元测试见本包 _test
 func Init(configFile string) error {
@@ -76,15 +79,20 @@ func Init(configFile string) error {
 			return
 		}
 
-		// 4) 路径展开：*_dir/*_file
-		// 目前仅有 DataDir
-		if cfg.DataDir != "" {
-			if expanded, err := homedir.Expand(cfg.DataDir); err == nil {
-				cfg.DataDir = expanded
+		// 4) DataDir 默认与路径展开（使用 utils.GetUserDataRoot）
+		if strings.TrimSpace(cfg.DataDir) == "" {
+			if root, err := utils.GetUserDataRoot(); err == nil {
+				cfg.DataDir = root
 			} else {
 				initErr = err
 				return
 			}
+		}
+		if expanded, err := homedir.Expand(cfg.DataDir); err == nil {
+			cfg.DataDir = expanded
+		} else {
+			initErr = err
+			return
 		}
 
 		// 5) 设置全局
@@ -182,4 +190,9 @@ func GetLogFile() string {
 
 func GetDBFile() string {
 	return filepath.Join(Get().DataDir, "bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc")
+}
+
+// 获取缓存目录
+func GetCacheDir() string {
+	return filepath.Join(Get().DataDir, "cache")
 }

@@ -1,4 +1,4 @@
-package bdtools
+package utils
 
 import (
 	"fmt"
