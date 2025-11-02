@@ -8,11 +8,6 @@ import (
 
 var config *Config
 
-func Init(configFile string, fs ...func()) error {
-	config = &Config{}
-	return conf.Parse(configFile, config, fs...)
-}
-
 func Show(hiddenFields ...string) string {
 	return conf.Show(config, hiddenFields...)
 }
