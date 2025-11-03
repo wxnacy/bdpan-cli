@@ -58,7 +58,7 @@ var rootCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		// 检查是否登录
-		if tools.ArrayContainsString([]string{
+		if !tools.ArrayContainsString([]string{
 			"login",
 			"log",
 			"config",

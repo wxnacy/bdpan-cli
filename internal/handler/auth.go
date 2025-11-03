@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/wxnacy/bdpan-cli/internal/config"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
+	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
 	"github.com/wxnacy/bdpan-cli/internal/qrcode"
 	"github.com/wxnacy/go-bdpan"
@@ -24,9 +25,10 @@ func GetAuthHandler() *AuthHandler {
 		}
 		c, err := config.GetCredential()
 		if err != nil {
-			panic("请先登录")
+			logger.Errorf("获取用户信息失败: %v", err)
+		} else {
+			authHandler.appID = c.AppID
 		}
-		authHandler.appID = c.AppID
 	}
 	return authHandler
 }
@@ -82,10 +84,10 @@ func (h *AuthHandler) CmdLogin(req *dto.LoginReq) error {
 		if err != nil {
 			return err
 		}
-		config.ReInitConfig()
-		if err != nil {
-			return err
-		}
+		// config.ReInitConfig()
+		// if err != nil {
+		// return err
+		// }
 	}
 
 	access, err := config.GetAccess()
