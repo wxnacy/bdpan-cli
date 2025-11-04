@@ -189,7 +189,14 @@ func GetLogFile() string {
 }
 
 func GetDBFile() string {
-	return filepath.Join(Get().DataDir, "bdpan.db?_busy_timeout=2&check_same_thread=false&cache=shared&mode=rwc")
+	// SQLite DSN 参数说明:
+	// - _journal_mode=wal: 启用 WAL 模式，支持多读少写并发
+	// - _synchronous=normal: 配合 WAL 使用，平衡性能与安全
+	// - _busy_timeout=5000: 等待锁超时 5 秒，避免 "database is locked" 错误
+	// - _foreign_keys=on: 启用外键约束
+	// - mode=rwc: 读写模式，不存在时创建
+	// - check_same_thread=false: 允许跨线程使用（mattn/go-sqlite3）
+	return filepath.Join(Get().DataDir, "bdpan.db?_journal_mode=wal&_synchronous=normal&_busy_timeout=5000&_foreign_keys=on&mode=rwc&check_same_thread=false")
 }
 
 // 获取缓存目录
