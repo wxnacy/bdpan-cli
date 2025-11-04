@@ -22,6 +22,7 @@ type ProgressModel struct {
 	quitting   bool
 	err        error
 	cancelFunc context.CancelFunc // 取消下载的函数
+	status     string             // 状态行（例如当前文件）
 }
 
 // progressMsg 进度更新消息
@@ -35,6 +36,9 @@ type completedMsg struct{}
 
 // errorMsg 错误消息
 type errorMsg struct{ err error }
+
+// statusMsg 状态更新消息
+type statusMsg struct{ text string }
 
 // NewProgressModel 创建进度条 Model
 func NewProgressModel(filename string, totalSize int64, cancelFunc context.CancelFunc) ProgressModel {
@@ -75,10 +79,7 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.downloaded = msg.downloaded
 		if m.downloaded >= m.totalSize {
 			m.quitting = true
-			return m, tea.Sequence(
-				tea.Printf("✓ 下载完成: %s", m.filename),
-				tea.Quit,
-			)
+			return m, tea.Quit
 		}
 		return m, nil
 
@@ -90,6 +91,10 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		m.quitting = true
 		return m, tea.Quit
+
+	case statusMsg:
+		m.status = msg.text
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.progress.Width = msg.Width - 20
@@ -107,19 +112,12 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ProgressModel) View() string {
 	if m.err != nil {
-		// 友好的错误显示
-		if m.err.Error() == "context canceled" {
-			return "\n✗ 下载已取消\n"
-		}
-		return fmt.Sprintf("\n✗ 下载失败: %v\n", m.err)
+		// 让外层控制错误/取消的显示
+		return ""
 	}
 
 	if m.quitting {
-		// 如果是手动退出（Ctrl+C 或 q）
-		if m.downloaded < m.totalSize {
-			return "\n✗ 下载已取消\n"
-		}
-		// 下载完成
+		// 让外层控制完成或取消的提示
 		return ""
 	}
 
@@ -129,7 +127,16 @@ func (m ProgressModel) View() string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
 	b.WriteString("\n")
 	b.WriteString(titleStyle.Render(fmt.Sprintf("下载: %s", m.filename)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+
+	// 状态行（可选）
+	if m.status != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+		b.WriteString(statusStyle.Render(m.status))
+		b.WriteString("\n\n")
+	} else {
+		b.WriteString("\n")
+	}
 
 	// 进度条（确保从行首开始）
 	percent := float64(m.downloaded) / float64(m.totalSize)
@@ -228,6 +235,13 @@ func (pw *ProgressWriter) UpdateProgress(downloaded, total int64) {
 			downloaded: downloaded,
 			total:      total,
 		})
+	}
+}
+
+// UpdateStatus 更新状态行
+func (pw *ProgressWriter) UpdateStatus(text string) {
+	if pw.program != nil {
+		pw.program.Send(statusMsg{text: text})
 	}
 }
 

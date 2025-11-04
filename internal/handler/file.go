@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/wxnacy/bdpan-cli/internal/api"
 	"github.com/wxnacy/bdpan-cli/internal/config"
@@ -150,13 +153,14 @@ func (h *FileHandler) BatchRenameFiles(files []*model.File) (*bdpan.ManageFileRe
 // 返回：
 // - error: 错误信息
 //
-// 实现逻辑:
+// 实现逻辑：
 //
 // 1. 根据路径查找文件信息
 // 2. 判断是文件夹还是文件，分别调用对应方法
 // 3. 如果是文件夹，调用 h.DownloadDir
 // 4. 如果是文件，调用 h.DownloadFile
 // 5. 输出下载结果
+// 6. 意外失败，使用 logger.Errorf 写入日志，返回友好错误信息，提示 bdpan log 查看原因
 func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 	fmt.Printf("正在查找文件: %s\n", req.Path)
 
@@ -181,7 +185,9 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 				fmt.Println("\n✗ 下载已取消")
 				return nil
 			}
-			return err
+			// 记录详细错误到日志，返回友好提示
+			logger.Errorf("下载文件夹失败: %v", err)
+			return fmt.Errorf("网络原因下载失败，请重试，具体报错请通过 bdpan log 命令查看")
 		}
 		fmt.Printf("\n✓ 文件夹下载完成: %s\n", outputDir)
 	} else {
@@ -194,7 +200,9 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 				fmt.Println("\n✗ 下载已取消")
 				return nil
 			}
-			return err
+			// 记录详细错误到日志，返回友好提示
+			logger.Errorf("下载文件失败: %v", err)
+			return fmt.Errorf("网络原因下载失败，请重试，具体报错请通过 bdpan log 命令查看")
 		}
 		fmt.Printf("\n✓ 文件下载完成: %s\n", outputPath)
 	}
@@ -212,7 +220,7 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 // - string: 下载的文件夹路径
 // - error: 错误信息
 //
-// 实现逻辑:
+// 实现逻辑：
 //
 // 1. 获取文件夹下的所有文件列表（递归）
 // 2. 使用 `bdtools.BatchGetFileInfos` 批量获取文件详情（包含下载链接）
@@ -256,18 +264,76 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 		return "", fmt.Errorf("获取文件详情失败: %w", err)
 	}
 
+	// 计算总字节数，用于聚合进度条
+	var totalBytes int64
+	for _, f := range detailFiles {
+		totalBytes += int64(f.Size)
+	}
+
 	// 3. 并发下载文件
 	var (
-		wg           sync.WaitGroup
-		concurrency  = 3
-		sem          = make(chan struct{}, concurrency)
-		errChan      = make(chan error, len(detailFiles))
-		successCount int
-		failedCount  int
-		mu           sync.Mutex
+		wg               sync.WaitGroup
+		concurrency      = 3
+		sem              = make(chan struct{}, concurrency)
+		errChan          = make(chan error, len(detailFiles))
+		successCount     int
+		failedCount      int
+		mu               sync.Mutex
+		globalMu         sync.Mutex
+		globalDownloaded int64
+		progWriter       *downloader.ProgressWriter
+		activeMu         sync.Mutex
+		activeSet        = make(map[string]struct{})
 	)
 
+	// 父级上下文与取消，统一控制所有任务
+	parentCtx, parentCancel := context.WithCancel(context.Background())
+	defer parentCancel()
+
+	// 捕获 Ctrl+C，统一取消
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	canceledOnce := make(chan struct{}, 1)
+	go func() {
+		<-sigCh
+		select {
+		case canceledOnce <- struct{}{}:
+			parentCancel()
+		default:
+		}
+	}()
+
+	// 启动聚合 TUI 进度条（按 q 或 Ctrl+C 取消所有）
+	if totalBytes > 0 {
+		// 仅传入文件夹名，避免标题出现重复的“下载:”前缀
+		model := downloader.NewProgressModel(filepath.Base(file.Path), totalBytes, parentCancel)
+		p := tea.NewProgram(model)
+		progWriter = downloader.NewProgressWriter(p, totalBytes)
+		go func() {
+			if _, err := p.Run(); err != nil {
+				logger.Errorf("目录进度条运行错误: %v", err)
+			}
+		}()
+	}
+
 	fmt.Printf("开始并发下载（并发数: %d）\n", concurrency)
+
+	// 组装当前活跃下载状态行（展示最多3个）
+	buildActiveStatus := func() string {
+		activeMu.Lock()
+		defer activeMu.Unlock()
+		if len(activeSet) == 0 {
+			return ""
+		}
+		names := make([]string, 0, 3)
+		for name := range activeSet {
+			names = append(names, name)
+			if len(names) >= 3 {
+				break
+			}
+		}
+		return "正在下载: " + strings.Join(names, " | ")
+	}
 	for _, f := range detailFiles {
 		wg.Add(1)
 		go func(fileInfo *bdpan.FileInfo) {
@@ -282,32 +348,62 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 
 			// 检查文件是否已存在
 			if _, err := os.Stat(targetPath); err == nil {
-				fmt.Printf("✓ 文件已存在，跳过: %s\n", relPath)
+				if progWriter != nil {
+					progWriter.UpdateStatus("✓ 文件已存在，跳过: " + relPath)
+				} else {
+					fmt.Printf("✓ 文件已存在，跳过: %s\n", relPath)
+				}
 				mu.Lock()
 				successCount++
 				mu.Unlock()
 				return
 			}
 
-			// 下载文件
-			downloadReq := &dto.DownloadReq{
-				OutputPath: targetPath,
-				OutputDir:  filepath.Dir(targetPath),
-				IsSync:     req.IsSync,
+			// 使用无 TUI 的单文件下载，继承父级上下文，统一取消
+			if progWriter != nil {
+				activeMu.Lock()
+				activeSet[relPath] = struct{}{}
+				activeMu.Unlock()
+				progWriter.UpdateStatus(buildActiveStatus())
+			} else {
+				fmt.Printf("↓ 下载: %s\n", relPath)
 			}
-
-			fmt.Printf("↓ 下载: %s\n", relPath)
-			if _, err := h.DownloadFile(fileInfo, downloadReq); err != nil {
+			if err := h.downloadSingleNoTUIWithAgg(parentCtx, fileInfo, targetPath, req.IsSync, progWriter, &globalDownloaded, &globalMu, totalBytes); err != nil {
+				// 用户取消不重复打印
+				if errors.Is(err, context.Canceled) {
+					if progWriter != nil {
+						activeMu.Lock()
+						delete(activeSet, relPath)
+						activeMu.Unlock()
+						progWriter.UpdateStatus(buildActiveStatus())
+					}
+					errChan <- err
+					return
+				}
 				errChan <- fmt.Errorf("下载 %s 失败: %w", fileInfo.Path, err)
 				mu.Lock()
 				failedCount++
 				mu.Unlock()
-				fmt.Printf("✗ 下载失败: %s - %v\n", relPath, err)
+				if progWriter != nil {
+					activeMu.Lock()
+					delete(activeSet, relPath)
+					activeMu.Unlock()
+					progWriter.UpdateStatus(buildActiveStatus())
+				} else {
+					fmt.Printf("✗ 下载失败: %s - %v\n", relPath, err)
+				}
 			} else {
 				mu.Lock()
 				successCount++
 				mu.Unlock()
-				fmt.Printf("✓ 下载完成: %s\n", relPath)
+				if progWriter != nil {
+					activeMu.Lock()
+					delete(activeSet, relPath)
+					activeMu.Unlock()
+					progWriter.UpdateStatus(buildActiveStatus())
+				} else {
+					fmt.Printf("✓ 下载完成: %s\n", relPath)
+				}
 			}
 		}(f)
 	}
@@ -322,12 +418,115 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 	fmt.Printf("保存目录: %s\n", outputDir)
 	fmt.Println("================================")
 
-	// 如果有错误，返回第一个错误
-	if len(errChan) > 0 {
-		return outputDir, <-errChan
+	// 结束聚合进度条
+	if progWriter != nil {
+		if successCount == len(detailFiles) {
+			progWriter.Complete()
+		}
+		// 给 UI 一点渲染时间
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// 如果因取消导致的错误，统一返回 context.Canceled
+	for e := range errChan {
+		if errors.Is(e, context.Canceled) {
+			if progWriter != nil {
+				progWriter.Error(context.Canceled)
+				time.Sleep(100 * time.Millisecond)
+			}
+			return outputDir, context.Canceled
+		}
+		// 返回第一个非取消错误
+		if progWriter != nil {
+			progWriter.Error(e)
+			time.Sleep(100 * time.Millisecond)
+		}
+		return outputDir, e
 	}
 
 	return outputDir, nil
+}
+
+// downloadSingleNoTUI 目录下载场景下的单文件下载（无 TUI），可继承外部上下文
+func (h *FileHandler) downloadSingleNoTUI(ctx context.Context, file *bdpan.FileInfo, targetPath string, isSync bool) error {
+	// 确保输出目录存在
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+
+	// 创建缓存目录
+	cacheDir := filepath.Join(config.GetCacheDir(), file.MD5)
+
+	d := downloader.NewChunkDownloader(file.Dlink, targetPath, cacheDir)
+
+	// 继承外部上下文，统一取消
+	// 若外部 ctx 为空，则使用内部自带
+	if ctx != nil {
+		// 我们无法获得外部 cancel，这里仅覆盖 ctx，内部 Cancel 仍可单独调用
+		d.SetContext(ctx, nil)
+	}
+
+	// 设置并发
+	if isSync {
+		d.SetConcurrency(1)
+	} else {
+		d.SetConcurrency(3)
+	}
+
+	// 不启用 TUI，避免多任务并发导致界面错乱
+
+	if err := d.Start(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (h *FileHandler) downloadSingleNoTUIWithAgg(
+	ctx context.Context,
+	file *bdpan.FileInfo,
+	targetPath string,
+	isSync bool,
+	progWriter *downloader.ProgressWriter,
+	globalDownloaded *int64,
+	globalMu *sync.Mutex,
+	totalBytes int64,
+) error {
+	// 确保输出目录存在
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		return err
+	}
+	// 创建缓存目录
+	cacheDir := filepath.Join(config.GetCacheDir(), file.MD5)
+
+	d := downloader.NewChunkDownloader(file.Dlink, targetPath, cacheDir)
+	if ctx != nil {
+		d.SetContext(ctx, nil)
+	}
+	if isSync {
+		d.SetConcurrency(1)
+	} else {
+		d.SetConcurrency(3)
+	}
+
+	// 将该文件的进度累计到全局
+	var last int64
+	d.SetProgressFunc(func(downloaded, _ int64) {
+		if progWriter == nil {
+			return
+		}
+		delta := downloaded - last
+		if delta <= 0 {
+			return
+		}
+		last = downloaded
+		globalMu.Lock()
+		*globalDownloaded += delta
+		current := *globalDownloaded
+		globalMu.Unlock()
+		progWriter.UpdateProgress(current, totalBytes)
+	})
+
+	return d.Start()
 }
 
 // 分片断点下载文件

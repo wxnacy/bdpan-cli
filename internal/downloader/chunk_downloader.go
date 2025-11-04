@@ -85,9 +85,16 @@ func NewChunkDownloader(url, outputPath, cacheDir string) *ChunkDownloader {
 		Concurrency: DefaultConcurrency,
 		client: &http.Client{
 			Timeout: 30 * time.Minute,
+			Transport: &http.Transport{
+				// 关闭 keep-alive，避免空闲连接上服务端的额外输出触发标准库日志
+				DisableKeepAlives: true,
+			},
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				// 保持 User-Agent 在跳转中不变
 				req.Header.Set("User-Agent", userAgent)
+				// 保证重定向请求也不复用连接
+				req.Close = true
+				req.Header.Set("Connection", "close")
 				return nil
 			},
 		},
@@ -192,12 +199,16 @@ func (d *ChunkDownloader) Start() error {
 	// 6. 并发下载分片
 	err = d.downloadChunks()
 	if err != nil {
-		if d.progressWriter != nil {
-			d.progressWriter.Error(err)
-			time.Sleep(200 * time.Millisecond) // 等待 UI 显示错误消息
-		}
-		return err
-	}
+        // 对于用户取消，不向 TUI 输出错误，直接返回
+        if err == context.Canceled {
+            return err
+        }
+        if d.progressWriter != nil {
+            d.progressWriter.Error(err)
+            time.Sleep(200 * time.Millisecond) // 等待 UI 显示错误消息
+        }
+        return err
+    }
 
 	// 7. 合并分片
 	logger.Infof("开始合并分片...")
@@ -226,6 +237,17 @@ func (d *ChunkDownloader) Cancel() {
 	d.cancel()
 }
 
+// SetContext 允许外部覆盖上下文与取消函数，用于批量任务统一取消
+func (d *ChunkDownloader) SetContext(ctx context.Context, cancel context.CancelFunc) *ChunkDownloader {
+    if ctx != nil {
+        d.ctx = ctx
+    }
+    if cancel != nil {
+        d.cancel = cancel
+    }
+    return d
+}
+
 // getFileSize 获取文件大小并检查是否支持 Range 下载
 func (d *ChunkDownloader) getFileSize() (int64, bool, error) {
 	req, err := http.NewRequestWithContext(d.ctx, "HEAD", d.URL, nil)
@@ -233,6 +255,9 @@ func (d *ChunkDownloader) getFileSize() (int64, bool, error) {
 		return 0, false, err
 	}
 	req.Header.Set("User-Agent", userAgent)
+	// 使用短连接，避免空闲连接引发标准库日志
+	req.Close = true
+	req.Header.Set("Connection", "close")
 
 	resp, err := d.client.Do(req)
 	if err != nil {
@@ -347,6 +372,9 @@ func (d *ChunkDownloader) downloadChunk(chunk *ChunkInfo) error {
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+	// 使用短连接
+	req.Close = true
+	req.Header.Set("Connection", "close")
 
 	// 发起请求
 	resp, err := d.client.Do(req)
@@ -402,6 +430,9 @@ func (d *ChunkDownloader) downloadDirect() error {
 		return err
 	}
 	req.Header.Set("User-Agent", userAgent)
+	// 使用短连接
+	req.Close = true
+	req.Header.Set("Connection", "close")
 
 	resp, err := d.client.Do(req)
 	if err != nil {
