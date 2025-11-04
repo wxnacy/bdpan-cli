@@ -11,29 +11,7 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/handler"
 )
 
-var (
-	downloadReq = dto.NewDownloadReq()
-)
-
-func InitDownloadReq(c *cobra.Command, req *dto.DownloadReq) {
-
-	c.Flags().StringVarP(&req.OutputDir, "output-dir", "d", "~/Downloads", "保存目录。默认为当前目录")
-	c.Flags().StringVarP(&req.OutputPath, "output-path", "o", "", "保存地址。覆盖已存在文件，优先级比 --output-dir 高")
-
-	c.Flags().BoolVar(&req.IsSync, "sync", false, "是否同步进行")
-	c.Flags().BoolVarP(&req.IsRecursion, "recursion", "r", false, "是否递归下载")
-
-}
-
-func runDownload(cmd *cobra.Command, args []string) error {
-	downloadReq.GlobalReq = *GetGlobalReq()
-	if len(args) > 0 {
-		downloadReq.Path = args[0]
-	}
-	dir, _ := homedir.Expand(downloadReq.OutputDir)
-	downloadReq.OutputDir = dir
-	return handler.GetFileHandler().CmdDownload(downloadReq)
-}
+var downloadReq = dto.NewDownloadReq()
 
 // downloadCmd represents the download command
 var downloadCmd = &cobra.Command{
@@ -45,10 +23,23 @@ var downloadCmd = &cobra.Command{
 	`,
 	DisableFlagsInUseLine: true,
 	Long:                  ``,
-	RunE:                  runDownload,
+	Run: func(cmd *cobra.Command, args []string) {
+		downloadReq.GlobalReq = *GetGlobalReq()
+		if len(args) > 0 {
+			downloadReq.Path = args[0]
+		}
+		dir, _ := homedir.Expand(downloadReq.OutputDir)
+		downloadReq.OutputDir = dir
+		err := handler.GetFileHandler().CmdDownload(downloadReq)
+		handleCmdErr(err)
+	},
 }
 
 func init() {
-	InitDownloadReq(downloadCmd, downloadReq)
+	downloadCmd.Flags().StringVarP(&downloadReq.OutputDir, "output-dir", "d", "~/Downloads", "保存目录。默认为当前目录")
+	downloadCmd.Flags().StringVarP(&downloadReq.OutputPath, "output-path", "o", "", "保存地址。覆盖已存在文件，优先级比 --output-dir 高")
+
+	downloadCmd.Flags().BoolVar(&downloadReq.IsSync, "sync", false, "是否同步进行")
+	downloadCmd.Flags().BoolVarP(&downloadReq.IsRecursion, "recursion", "r", false, "是否递归下载")
 	rootCmd.AddCommand(downloadCmd)
 }

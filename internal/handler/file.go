@@ -1,23 +1,24 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/wxnacy/bdpan-cli/internal/api"
 	"github.com/wxnacy/bdpan-cli/internal/config"
+	"github.com/wxnacy/bdpan-cli/internal/downloader"
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
-	"github.com/wxnacy/bdpan-cli/internal/tasker"
 	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
-	"github.com/wxnacy/dler"
 	"github.com/wxnacy/go-bdpan"
 	gotasker "github.com/wxnacy/go-tasker"
 	"github.com/wxnacy/go-tools"
@@ -141,36 +142,252 @@ func (h *FileHandler) BatchRenameFiles(files []*model.File) (*bdpan.ManageFileRe
 	return bdpan.RenameFiles(h.accessToken, reqManagers...)
 }
 
+// 执行下载命令
+//
+// 参数：
+// - req: 具体字段描述见 cmd/download.ga init() 中每个 cobra.Command 初始化 usage 字段
+//
+// 返回：
+// - error: 错误信息
+//
+// 实现逻辑:
+//
+// 1. 根据路径查找文件信息
+// 2. 判断是文件夹还是文件，分别调用对应方法
+// 3. 如果是文件夹，调用 h.DownloadDir
+// 4. 如果是文件，调用 h.DownloadFile
+// 5. 输出下载结果
 func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
-	fmt.Printf("查找文件地址: %s\n", req.Path)
+	fmt.Printf("正在查找文件: %s\n", req.Path)
+
+	// 1. 查找文件
 	f, err := h.GetFileByPath(req.Path)
 	if err != nil {
-		return err
+		return fmt.Errorf("查找文件失败: %w", err)
 	}
+
+	fmt.Printf("文件名: %s\n", f.GetFilename())
 	fmt.Printf("文件ID: %d\n", f.FSID)
-	if f.IsDir() {
-		fmt.Println("文件类型是文件夹")
-		_, name := filepath.Split(f.Path)
-		tasker.DownloadFile(f, filepath.Join(req.OutputDir, name))
-	} else {
-		fmt.Printf("文件下载地址: %s\n", f.Dlink)
-		t := dler.NewFileDownloadTasker(f.Dlink).
-			SetDownloadPath(req.OutputPath).SetDownloadDir(req.OutputDir).
-			SetCacheDir(req.OutputDir)
-		if req.IsVerbose {
-			t.Request.EnableVerbose()
-		}
-		// t.Out = d.Out
-		// t.IsNotCover = d.IsNotCover
-		// t.OutputFunc = LogInfoString
+	fmt.Printf("文件大小: %s\n", tools.FormatSize(int64(f.Size)))
 
-		// t.Config.UseProgressBar = true
-		err = t.Exec()
+	// 2. 根据文件类型处理
+	if f.IsDir() {
+		// 下载文件夹
+		fmt.Println("\n开始下载文件夹...")
+		outputDir, err := h.DownloadDir(f, req)
+		if err != nil {
+			// 处理用户取消
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("\n✗ 下载已取消")
+				return nil
+			}
+			return err
+		}
+		fmt.Printf("\n✓ 文件夹下载完成: %s\n", outputDir)
+	} else {
+		// 下载单个文件
+		fmt.Println("\n开始下载文件...")
+		outputPath, err := h.DownloadFile(f, req)
+		if err != nil {
+			// 处理用户取消
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("\n✗ 下载已取消")
+				return nil
+			}
+			return err
+		}
+		fmt.Printf("\n✓ 文件下载完成: %s\n", outputPath)
 	}
 
-	// downloadSmallFile(f.Dlink, "/Users/wxnacy/Downloads/test1212.mp4")
+	return nil
+}
 
-	return err
+// 下载文件夹
+//
+// 参数：
+// - file: 查询到的百度文件夹实例
+// - req: 具体字段描述见 cmd/download.ga init() 中每个 cobra.Command 初始化 usage 字段
+//
+// 返回：
+// - string: 下载的文件夹路径
+// - error: 错误信息
+//
+// 实现逻辑:
+//
+// 1. 获取文件夹下的所有文件列表（递归）
+// 2. 使用 `bdtools.BatchGetFileInfos` 批量获取文件详情（包含下载链接）
+// 3. 并发下载文件，默认并发数 3
+// 4. 显示下载进度，统计已下载/总数量
+func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (string, error) {
+	// 确定下载目标目录
+	_, dirName := filepath.Split(file.Path)
+	outputDir := filepath.Join(req.OutputDir, dirName)
+
+	fmt.Printf("开始下载文件夹: %s -> %s\n", file.Path, outputDir)
+
+	// 1. 获取文件夹下的所有文件
+	files, err := h.GetDirAllFiles(file.Path)
+	if err != nil {
+		return "", fmt.Errorf("获取文件列表失败: %w", err)
+	}
+
+	// 过滤出文件（排除文件夹）
+	fileList := make([]*bdpan.FileInfo, 0)
+	for _, f := range files {
+		if !f.IsDir() {
+			fileList = append(fileList, f)
+		}
+	}
+
+	fmt.Printf("找到 %d 个文件\n", len(fileList))
+	if len(fileList) == 0 {
+		return outputDir, nil
+	}
+
+	// 2. 批量获取文件详情（获取 Dlink）
+	fsids := make([]uint64, 0, len(fileList))
+	for _, f := range fileList {
+		fsids = append(fsids, f.FSID)
+	}
+
+	fmt.Println("正在获取文件下载链接...")
+	detailFiles, err := bdtools.BatchGetFileInfos(h.accessToken, fsids)
+	if err != nil {
+		return "", fmt.Errorf("获取文件详情失败: %w", err)
+	}
+
+	// 3. 并发下载文件
+	var (
+		wg           sync.WaitGroup
+		concurrency  = 3
+		sem          = make(chan struct{}, concurrency)
+		errChan      = make(chan error, len(detailFiles))
+		successCount int
+		failedCount  int
+		mu           sync.Mutex
+	)
+
+	fmt.Printf("开始并发下载（并发数: %d）\n", concurrency)
+	for _, f := range detailFiles {
+		wg.Add(1)
+		go func(fileInfo *bdpan.FileInfo) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			// 计算目标文件路径（保持相对路径结构）
+			relPath := strings.TrimPrefix(fileInfo.Path, file.Path)
+			relPath = strings.TrimPrefix(relPath, "/")
+			targetPath := filepath.Join(outputDir, relPath)
+
+			// 检查文件是否已存在
+			if _, err := os.Stat(targetPath); err == nil {
+				fmt.Printf("✓ 文件已存在，跳过: %s\n", relPath)
+				mu.Lock()
+				successCount++
+				mu.Unlock()
+				return
+			}
+
+			// 下载文件
+			downloadReq := &dto.DownloadReq{
+				OutputPath: targetPath,
+				OutputDir:  filepath.Dir(targetPath),
+				IsSync:     req.IsSync,
+			}
+
+			fmt.Printf("↓ 下载: %s\n", relPath)
+			if _, err := h.DownloadFile(fileInfo, downloadReq); err != nil {
+				errChan <- fmt.Errorf("下载 %s 失败: %w", fileInfo.Path, err)
+				mu.Lock()
+				failedCount++
+				mu.Unlock()
+				fmt.Printf("✗ 下载失败: %s - %v\n", relPath, err)
+			} else {
+				mu.Lock()
+				successCount++
+				mu.Unlock()
+				fmt.Printf("✓ 下载完成: %s\n", relPath)
+			}
+		}(f)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	// 统计结果
+	fmt.Println("\n================================")
+	fmt.Printf("下载完成！\n")
+	fmt.Printf("总数: %d, 成功: %d, 失败: %d\n", len(detailFiles), successCount, failedCount)
+	fmt.Printf("保存目录: %s\n", outputDir)
+	fmt.Println("================================")
+
+	// 如果有错误，返回第一个错误
+	if len(errChan) > 0 {
+		return outputDir, <-errChan
+	}
+
+	return outputDir, nil
+}
+
+// 分片断点下载文件
+//
+// 参数：
+// - file: 查询到的百度文件实例
+// - req: 具体字段描述见 cmd/download.ga init() 中每个 cobra.Command 初始化 usage 字段
+//
+// 返回：
+// - string: 下载的文件路径
+// - error: 错误信息
+//
+// 实现逻辑:
+//
+// 1. 确定输出文件路径（优先级: OutputPath > OutputDir + filename）
+// 2. 处理文件名冲突（数字后缀递增）
+// 3. 创建缓存目录（使用 config.GetCacheDir() + file.MD5），下载完成后缓存目录需要一并删除
+// 4. 创建分片下载器，设置分片大小为 5MB
+// 5. 设置并发数（同步模式为 1，异步模式为 4）
+// 6. 设置进度回调函数，显示下载进度
+// 7. 开始下载，支持断点续传
+// 8. 进度条样式使用 https://github.com/charmbracelet/bubbletea/tree/main/examples/progress-download
+// 9. 使用file.Dlink时，必须在请求header中设置User-Agent字段为pan.baidu.com
+// 10. 进度条与上下文字必须左对齐，禁止在信息行和提示行前添加前导空格
+func (h *FileHandler) DownloadFile(file *bdpan.FileInfo, req *dto.DownloadReq) (string, error) {
+	// 1. 确定输出文件路径
+	var outputPath string
+	if req.OutputPath != "" {
+		outputPath = req.OutputPath
+	} else {
+		_, filename := filepath.Split(file.Path)
+		outputPath = filepath.Join(req.OutputDir, filename)
+	}
+
+	// 2. 处理文件名冲突
+	outputPath = h.resolveOutputPath(outputPath)
+
+	// 3. 创建缓存目录
+	cacheDir := filepath.Join(config.GetCacheDir(), file.MD5)
+
+	// 4. 创建分片下载器
+	d := downloader.NewChunkDownloader(file.Dlink, outputPath, cacheDir)
+
+	// 5. 设置并发数
+	if req.IsSync {
+		d.SetConcurrency(1)
+	} else {
+		d.SetConcurrency(4)
+	}
+
+	// 6. 启用 TUI 进度条（漂亮的彩色进度条）
+	_, filename := filepath.Split(file.Path)
+	d.EnableTUI(filename)
+
+	// 7. 开始下载
+	if err := d.Start(); err != nil {
+		return "", fmt.Errorf("下载失败: %w", err)
+	}
+
+	return outputPath, nil
 }
 
 // 根据地址查找文件
@@ -525,4 +742,25 @@ func FormatPath(path string) string {
 func PrintFileInfo(file *bdpan.FileInfo) {
 	logger.Printf("文件详情")
 	bdtools.PrintFileInfo(file)
+}
+
+// resolveOutputPath 解决文件路径冲突
+//
+// 如果文件已存在，自动添加数字后缀
+// 例如: file.txt -> file(1).txt -> file(2).txt
+func (h *FileHandler) resolveOutputPath(path string) string {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return path
+	}
+
+	// 文件已存在，添加数字后缀
+	ext := filepath.Ext(path)
+	name := strings.TrimSuffix(path, ext)
+
+	for i := 1; ; i++ {
+		newPath := fmt.Sprintf("%s(%d)%s", name, i, ext)
+		if _, err := os.Stat(newPath); os.IsNotExist(err) {
+			return newPath
+		}
+	}
 }

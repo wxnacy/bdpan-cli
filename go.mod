@@ -30,11 +30,11 @@ require (
 )
 
 require (
-	github.com/wxnacy/dler v0.8.3
 	github.com/wxnacy/dler/godler v0.0.0-20230502090212-1854c87e8009
 	github.com/wxnacy/go-bdpan v0.1.9
 	github.com/wxnacy/go-tasker v1.0.0
 	github.com/wxnacy/go-tools v0.0.15
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -117,6 +117,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.2.3 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelsql v0.2.3 // indirect
+	github.com/wxnacy/dler v0.8.3 // indirect
 	github.com/wxnacy/go-pretty v0.0.1 // indirect
 	github.com/wxnacy/gotool v0.0.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
@@ -139,7 +140,6 @@ require (
 	google.golang.org/grpc v1.67.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.2 // indirect
 	gorm.io/driver/postgres v1.5.4 // indirect
 	gorm.io/driver/sqlite v1.5.7 // indirect
