@@ -308,7 +308,7 @@ func PrintFileInfo(f *bdpan.FileInfo, args ...any) error {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240"))
 	view = baseStyle.Render(view)
-	logger.Printf("%s", view)
+	fmt.Printf("%s", view)
 	return err
 }
 
