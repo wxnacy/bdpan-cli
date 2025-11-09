@@ -231,6 +231,9 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 // 2. 使用 `bdtools.BatchGetFileInfos` 批量获取文件详情（包含下载链接）
 // 3. 并发下载文件，默认并发数 3
 // 4. 显示下载进度，统计已下载/总数量
+// 5. 任务检测（幂等）：使用 `taskstore.BuildIdentitySHA1("download","dir", 源目录Path, 输出目录)` 生成稳定 identity
+// 6. 任务领取：`taskstore.ClaimOrCreate` 若已有“运行中且仍存活”的任务则返回 attached=true 并直接退出；否则创建/接管并返回 task_id
+// 7. 心跳与取消：循环每 5s `taskstore.Heartbeat` 更新进度，若返回 cancelRequested==true 则取消父上下文协作退出
 func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (string, error) {
 	// 确定下载目标目录
 	_, dirName := filepath.Split(file.Path)
@@ -276,16 +279,22 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 	}
 
 	// ===== Task detection & claim =====
+	// 任务检测：使用 taskstore.BuildIdentitySHA1 生成稳定 identity，用于任务的唯一标识
 	identity := taskstore.BuildIdentitySHA1("download", "dir", file.Path, outputDir)
+	// 任务数据：记录下载任务的相关信息
 	tdata := taskstore.DownloadData{Path: file.Path, OutputDir: outputDir, IsDir: true}
+	// 任务领取：若已有“运行中且仍存活”的任务则返回 attached=true 并直接退出；否则创建/接管并返回 task_id
 	taskID, attached, err := taskstore.ClaimOrCreate(context.Background(), taskstore.TaskTypeDownload, identity, "", totalBytes, tdata)
 	if err != nil {
 		return "", err
 	}
+	// 已有任务正在运行，直接退出
 	if attached {
 		fmt.Printf("已有下载任务正在运行: %s\n使用: bdpan task status %s 查看进度\n", taskID, taskID)
 		return "", nil
 	}
+	// 新创建/接管的任务，打印 task_id 便于用户后续通过命令查看
+	fmt.Printf("任务ID: %s\n", taskID)
 
 	// 3. 并发下载文件
 	var (
@@ -610,6 +619,9 @@ func (h *FileHandler) downloadSingleNoTUIWithAgg(
 // 8. 进度条样式使用 https://github.com/charmbracelet/bubbletea/tree/main/examples/progress-download
 // 9. 使用file.Dlink时，必须在请求header中设置User-Agent字段为pan.baidu.com
 // 10. 进度条与上下文字必须左对齐，禁止在信息行和提示行前添加前导空格
+// 11. 任务检测（幂等）：使用 `taskstore.BuildIdentitySHA1("download","file", 源文件Path, 输出目录)` 生成稳定 identity，避免因目标文件重命名导致命中失败
+// 12. 任务领取：`taskstore.ClaimOrCreate` 若已有“运行中且仍存活”的任务则返回 attached=true 并直接退出；否则创建/接管并返回 task_id
+// 13. 心跳与取消：循环每 5s `taskstore.Heartbeat` 更新进度，若返回 cancelRequested==true 则取消下载上下文
 func (h *FileHandler) DownloadFile(file *bdpan.FileInfo, req *dto.DownloadReq) (string, error) {
 	// 1. 确定输出文件路径
 	var outputPath string
@@ -640,6 +652,8 @@ func (h *FileHandler) DownloadFile(file *bdpan.FileInfo, req *dto.DownloadReq) (
 		fmt.Printf("已有下载任务正在运行: %s\n使用: bdpan task status %s 查看进度\n", taskID, taskID)
 		return "", nil
 	}
+	// 新创建/接管的任务，打印 task_id 便于用户后续通过命令查看
+	fmt.Printf("任务ID: %s\n", taskID)
 
 	// 4. 创建分片下载器
 	d := downloader.NewChunkDownloader(file.Dlink, outputPath, cacheDir)
