@@ -59,7 +59,9 @@ func NewTask(id, typ, identity string, totalBytes int64, pid int, hostname strin
 		ID:              id,
 		Type:            typ,
 		Identity:        identity,
-		Status:          "running",
+		// 注意：初始状态需与 taskstore 中的常量保持一致（"运行中"），
+		// 否则运行中任务在二次调用 ClaimOrCreate 时无法被判定为已运行，导致重复启动。
+		Status:          "运行中",
 		Progress:        0,
 		TotalBytes:      totalBytes,
 		DownloadedBytes: 0,

@@ -194,18 +194,20 @@ func SetCanceled(ctx context.Context, taskID string) error {
 }
 
 func isAlive(t model.Task) bool {
-	if t.PID <= 0 {
-		return false
-	}
-	// fresh heartbeat within 15s
-	if ut, err := time.Parse(time.RFC3339, t.UpdateTime); err == nil {
-		if time.Since(ut) > 15*time.Second {
-			return false
-		}
-	}
-	// syscall.Kill(pid, 0) to check existence
-	if err := syscall.Kill(t.PID, 0); err != nil {
-		return false
-	}
-	return true
+    // 优先依据心跳时间判断，15 秒内视为存活
+    if ut, err := time.Parse(time.RFC3339, t.UpdateTime); err == nil {
+        if time.Since(ut) <= 15*time.Second {
+            return true
+        }
+    }
+
+    // 进程探测作为补充。macOS 上不同权限可能返回 EPERM，遇到 EPERM 也视为进程存在。
+    if t.PID > 0 {
+        if err := syscall.Kill(t.PID, 0); err == nil {
+            return true
+        } else if errors.Is(err, syscall.EPERM) {
+            return true
+        }
+    }
+    return false
 }

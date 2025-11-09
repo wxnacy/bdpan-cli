@@ -627,7 +627,10 @@ func (h *FileHandler) DownloadFile(file *bdpan.FileInfo, req *dto.DownloadReq) (
 	cacheDir := filepath.Join(config.GetCacheDir(), file.MD5)
 
 	// ===== Task detection & claim =====
-	identity := taskstore.BuildIdentitySHA1("download", "file", file.Path, outputPath)
+	// 注意：身份标识 identity 需保持稳定，避免因输出文件名冲突（resolveOutputPath 可能改名）
+	// 导致重复执行时无法命中同一任务。这里使用“源文件路径 + 输出目录”作为幂等键。
+	identity := taskstore.BuildIdentitySHA1("download", "file", file.Path, req.OutputDir)
+	// Data 中仍记录实际的目标路径，便于展示与排查。
 	tdata := taskstore.DownloadData{FSID: file.FSID, Path: file.Path, MD5: file.MD5, TargetPath: outputPath, OutputDir: req.OutputDir, IsDir: false}
 	taskID, attached, err := taskstore.ClaimOrCreate(context.Background(), taskstore.TaskTypeDownload, identity, "", int64(file.Size), tdata)
 	if err != nil {
