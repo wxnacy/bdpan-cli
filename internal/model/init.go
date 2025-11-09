@@ -57,7 +57,7 @@ func InitSqlite() {
 	var err error
 	db, err = gorm.Open(sqlite.Open(dbFile), &gorm.Config{
 		Logger:      logger.Default.LogMode(logger.Silent), // 禁用 SQL 日志
-		PrepareStmt: true,                                  // 启用预编译语句
+		PrepareStmt: false,                                 // 关闭预编译，避免 SQLite 事务提交时出现未结束语句
 	})
 	if err != nil {
 		panic("InitSqlite: failed to open database: " + err.Error())
@@ -88,7 +88,7 @@ func InitSqlite() {
 
 	// 6. 自动迁移表结构
 	begin := time.Now()
-	if err := db.AutoMigrate(&UploadHistory{}, &File{}, &Quick{}); err != nil {
+	if err := db.AutoMigrate(&UploadHistory{}, &File{}, &Quick{}, &Task{}, &TaskChild{}); err != nil {
 		panic("InitSqlite: AutoMigrate failed: " + err.Error())
 	}
 	log.Debugf("DB AutoMigrate time used %v", time.Since(begin))

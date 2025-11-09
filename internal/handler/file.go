@@ -21,6 +21,7 @@ import (
 	"github.com/wxnacy/bdpan-cli/internal/dto"
 	"github.com/wxnacy/bdpan-cli/internal/logger"
 	"github.com/wxnacy/bdpan-cli/internal/model"
+	"github.com/wxnacy/bdpan-cli/internal/taskstore"
 	"github.com/wxnacy/bdpan-cli/pkg/bdtools"
 	"github.com/wxnacy/go-bdpan"
 	gotasker "github.com/wxnacy/go-tasker"
@@ -189,7 +190,9 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 			logger.Errorf("下载文件夹失败: %v", err)
 			return fmt.Errorf("网络原因下载失败，请重试，具体报错请通过 bdpan log 命令查看")
 		}
-		fmt.Printf("\n✓ 文件夹下载完成: %s\n", outputDir)
+		if outputDir != "" {
+			fmt.Printf("\n✓ 文件夹下载完成: %s\n", outputDir)
+		}
 	} else {
 		// 下载单个文件
 		fmt.Println("\n开始下载文件...")
@@ -204,7 +207,9 @@ func (h *FileHandler) CmdDownload(req *dto.DownloadReq) error {
 			logger.Errorf("下载文件失败: %v", err)
 			return fmt.Errorf("网络原因下载失败，请重试，具体报错请通过 bdpan log 命令查看")
 		}
-		fmt.Printf("\n✓ 文件下载完成: %s\n", outputPath)
+		if outputPath != "" {
+			fmt.Printf("\n✓ 文件下载完成: %s\n", outputPath)
+		}
 	}
 
 	return nil
@@ -270,6 +275,18 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 		totalBytes += int64(f.Size)
 	}
 
+	// ===== Task detection & claim =====
+	identity := taskstore.BuildIdentitySHA1("download", "dir", file.Path, outputDir)
+	tdata := taskstore.DownloadData{Path: file.Path, OutputDir: outputDir, IsDir: true}
+	taskID, attached, err := taskstore.ClaimOrCreate(context.Background(), taskstore.TaskTypeDownload, identity, "", totalBytes, tdata)
+	if err != nil {
+		return "", err
+	}
+	if attached {
+		fmt.Printf("已有下载任务正在运行: %s\n使用: bdpan task status %s 查看进度\n", taskID, taskID)
+		return "", nil
+	}
+
 	// 3. 并发下载文件
 	var (
 		wg               sync.WaitGroup
@@ -285,6 +302,22 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 		activeMu         sync.Mutex
 		activeSet        = make(map[string]struct{})
 	)
+
+	buildActiveStatus := func() string {
+		activeMu.Lock()
+		defer activeMu.Unlock()
+		if len(activeSet) == 0 {
+			return ""
+		}
+		names := make([]string, 0, 3)
+		for name := range activeSet {
+			names = append(names, name)
+			if len(names) >= 3 {
+				break
+			}
+		}
+		return "正在下载: " + strings.Join(names, " | ")
+	}
 
 	// 父级上下文与取消，统一控制所有任务
 	parentCtx, parentCancel := context.WithCancel(context.Background())
@@ -318,22 +351,46 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 
 	fmt.Printf("开始并发下载（并发数: %d）\n", concurrency)
 
-	// 组装当前活跃下载状态行（展示最多3个）
-	buildActiveStatus := func() string {
-		activeMu.Lock()
-		defer activeMu.Unlock()
-		if len(activeSet) == 0 {
-			return ""
-		}
-		names := make([]string, 0, 3)
-		for name := range activeSet {
-			names = append(names, name)
-			if len(names) >= 3 {
-				break
+	// ===== 5s Heartbeat to DB =====
+	hbTicker := time.NewTicker(5 * time.Second)
+	hbQuit := make(chan struct{})
+	go func() {
+		defer hbTicker.Stop()
+		var last int64
+		for {
+			select {
+			case <-hbQuit:
+				return
+			case <-parentCtx.Done():
+				return
+			case <-hbTicker.C:
+				globalMu.Lock()
+				cur := globalDownloaded
+				globalMu.Unlock()
+				delta := cur - last
+				if delta < 0 {
+					delta = 0
+				}
+				last = cur
+				speed := delta / 5
+				prog := 0.0
+				if totalBytes > 0 {
+					prog = float64(cur) / float64(totalBytes)
+				}
+				cancelReq, _ := taskstore.Heartbeat(context.Background(), taskID, taskstore.HeartbeatData{
+					DownloadedBytes: cur,
+					TotalBytes:      totalBytes,
+					Progress:        prog,
+					SpeedBPS:        speed,
+					ETASeconds:      0,
+				})
+				if cancelReq {
+					parentCancel()
+				}
 			}
 		}
-		return "正在下载: " + strings.Join(names, " | ")
-	}
+	}()
+
 	for _, f := range detailFiles {
 		wg.Add(1)
 		go func(fileInfo *bdpan.FileInfo) {
@@ -434,6 +491,8 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 				progWriter.Error(context.Canceled)
 				time.Sleep(100 * time.Millisecond)
 			}
+			close(hbQuit)
+			_ = taskstore.SetCanceled(context.Background(), taskID)
 			return outputDir, context.Canceled
 		}
 		// 返回第一个非取消错误
@@ -441,9 +500,13 @@ func (h *FileHandler) DownloadDir(file *bdpan.FileInfo, req *dto.DownloadReq) (s
 			progWriter.Error(e)
 			time.Sleep(100 * time.Millisecond)
 		}
+		close(hbQuit)
+		_ = taskstore.Fail(context.Background(), taskID, e.Error())
 		return outputDir, e
 	}
 
+	close(hbQuit)
+	_ = taskstore.Complete(context.Background(), taskID)
 	return outputDir, nil
 }
 
@@ -457,27 +520,23 @@ func (h *FileHandler) downloadSingleNoTUI(ctx context.Context, file *bdpan.FileI
 	// 创建缓存目录
 	cacheDir := filepath.Join(config.GetCacheDir(), file.MD5)
 
+	// 4. 创建分片下载器
 	d := downloader.NewChunkDownloader(file.Dlink, targetPath, cacheDir)
 
-	// 继承外部上下文，统一取消
-	// 若外部 ctx 为空，则使用内部自带
-	if ctx != nil {
-		// 我们无法获得外部 cancel，这里仅覆盖 ctx，内部 Cancel 仍可单独调用
-		d.SetContext(ctx, nil)
-	}
-
-	// 设置并发
+	// 5. 设置并发数
 	if isSync {
 		d.SetConcurrency(1)
 	} else {
 		d.SetConcurrency(3)
 	}
 
-	// 不启用 TUI，避免多任务并发导致界面错乱
+	// 无 TUI，不设置进度回调
 
+	// 7. 开始下载
 	if err := d.Start(); err != nil {
-		return err
+		return fmt.Errorf("下载失败: %w", err)
 	}
+
 	return nil
 }
 
@@ -567,6 +626,18 @@ func (h *FileHandler) DownloadFile(file *bdpan.FileInfo, req *dto.DownloadReq) (
 	// 3. 创建缓存目录
 	cacheDir := filepath.Join(config.GetCacheDir(), file.MD5)
 
+	// ===== Task detection & claim =====
+	identity := taskstore.BuildIdentitySHA1("download", "file", file.Path, outputPath)
+	tdata := taskstore.DownloadData{FSID: file.FSID, Path: file.Path, MD5: file.MD5, TargetPath: outputPath, OutputDir: req.OutputDir, IsDir: false}
+	taskID, attached, err := taskstore.ClaimOrCreate(context.Background(), taskstore.TaskTypeDownload, identity, "", int64(file.Size), tdata)
+	if err != nil {
+		return "", err
+	}
+	if attached {
+		fmt.Printf("已有下载任务正在运行: %s\n使用: bdpan task status %s 查看进度\n", taskID, taskID)
+		return "", nil
+	}
+
 	// 4. 创建分片下载器
 	d := downloader.NewChunkDownloader(file.Dlink, outputPath, cacheDir)
 
@@ -577,15 +648,58 @@ func (h *FileHandler) DownloadFile(file *bdpan.FileInfo, req *dto.DownloadReq) (
 		d.SetConcurrency(4)
 	}
 
-	// 6. 启用 TUI 进度条（漂亮的彩色进度条）
+	// 6. 进度回调 + 启用 TUI
+	var singleDownloaded int64
+	d.SetProgressFunc(func(downloaded, _ int64) {
+		singleDownloaded = downloaded
+	})
 	_, filename := filepath.Split(file.Path)
 	d.EnableTUI(filename)
 
-	// 7. 开始下载
+	// 7. Heartbeat 5s + cancel check
+	ctx, cancel := context.WithCancel(context.Background())
+	d.SetContext(ctx, cancel)
+	hbTicker := time.NewTicker(5 * time.Second)
+	defer hbTicker.Stop()
+	go func() {
+		var last int64
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-hbTicker.C:
+				cur := singleDownloaded
+				delta := cur - last
+				if delta < 0 {
+					delta = 0
+				}
+				last = cur
+				speed := delta / 5
+				prog := 0.0
+				if file.Size > 0 {
+					prog = float64(cur) / float64(file.Size)
+				}
+				cancelReq, _ := taskstore.Heartbeat(context.Background(), taskID, taskstore.HeartbeatData{
+					DownloadedBytes: cur,
+					TotalBytes:      int64(file.Size),
+					Progress:        prog,
+					SpeedBPS:        speed,
+					ETASeconds:      0,
+				})
+				if cancelReq {
+					cancel()
+				}
+			}
+		}
+	}()
+
+	// 8. 开始下载
 	if err := d.Start(); err != nil {
+		_ = taskstore.Fail(context.Background(), taskID, err.Error())
 		return "", fmt.Errorf("下载失败: %w", err)
 	}
 
+	_ = taskstore.Complete(context.Background(), taskID)
 	return outputPath, nil
 }
 
