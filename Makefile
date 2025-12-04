@@ -21,3 +21,6 @@ run:
 run_dev:
 	$(GO) run ./cmd/bdpan/main.go -V
 
+# 查看日志
+log:
+	$(GO) run ./cmd/bdpan/main.go log
