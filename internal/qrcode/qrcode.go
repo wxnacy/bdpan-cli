@@ -153,18 +153,18 @@ func tickCmd() tea.Cmd {
 // 消息处理逻辑：
 //
 // 1. tea.KeyMsg - 键盘输入
-//    - q/Ctrl+C/Esc: 用户主动取消，设置 interrupted=true，退出程序
-//    - 其他按键: 忽略
+//   - q/Ctrl+C/Esc: 用户主动取消，设置 interrupted=true，退出程序
+//   - 其他按键: 忽略
 //
 // 2. tickMsg - 每秒倒计时
-//    - remaining 减 1
-//    - 记录日志用于调试
-//    - 如果 remaining <= 0: 设置 timeout=true，退出程序
-//    - 否则: 返回新的 tickCmd 继续倒计时
+//   - remaining 减 1
+//   - 记录日志用于调试
+//   - 如果 remaining <= 0: 设置 timeout=true，退出程序
+//   - 否则: 返回新的 tickCmd 继续倒计时
 //
 // 3. loginSuccessMsg - 外部登录成功通知
-//    - 设置 loginDone=true，立即退出程序
-//    - 由外部 goroutine 通过 p.Send() 发送此消息
+//   - 设置 loginDone=true，立即退出程序
+//   - 由外部 goroutine 通过 p.Send() 发送此消息
 //
 // 设计要点：
 // - 三种退出状态互斥：interrupted、timeout、loginDone
@@ -204,16 +204,16 @@ func (m qrModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // 渲染逻辑：
 //
 // 1. 如果正在退出（quitting=true），根据状态显示不同的退出提示：
-//    - interrupted: 显示红色 "登录已取消"
-//    - loginDone: 显示绿色 "✓ 登录成功！"
-//    - timeout: 显示橙色 "登录超时，请重试"
-//    - 其他: 返回空字符串（不应该发生）
+//   - interrupted: 显示红色 "登录已取消"
+//   - loginDone: 显示绿色 "✓ 登录成功！"
+//   - timeout: 显示橙色 "登录超时，请重试"
+//   - 其他: 返回空字符串（不应该发生）
 //
 // 2. 正常显示时，从上到下渲染：
-//    - 标题: "BDPan 登录" (蓝色加粗，居中)
-//    - 二维码: 带圆角边框和内边距 (蓝色边框)
-//    - 提示文字: "请使用百度网盘APP扫描二维码登录 (倒计时: X秒)" (橙色)
-//    - 帮助文字: "按 q 或 Ctrl+C 取消" (灰色)
+//   - 标题: "BDPan 登录" (蓝色加粗，居中)
+//   - 二维码: 带圆角边框和内边距 (蓝色边框)
+//   - 提示文字: "请使用百度网盘APP扫描二维码登录 (倒计时: X秒)" (橙色)
+//   - 帮助文字: "按 q 或 Ctrl+C 取消" (灰色)
 //
 // 样式说明：
 // - 使用 lipgloss 库实现样式
@@ -306,22 +306,22 @@ func ShowQRCodeWithLipgloss(imageURL string, timeout time.Duration) error {
 // 实现逻辑：
 //
 // 1. 下载并转换二维码图片
-//    - 从 imageURL 下载图片
-//    - 将图片转换为终端字符串（使用半块字符 █▀▄ 渲染）
+//   - 从 imageURL 下载图片
+//   - 将图片转换为终端字符串（使用半块字符 █▀▄ 渲染）
 //
 // 2. 创建 bubbletea Model
-//    - 初始化 qrModel，设置二维码内容和倒计时
-//    - 启动 bubbletea 程序
+//   - 初始化 qrModel，设置二维码内容和倒计时
+//   - 启动 bubbletea 程序
 //
 // 3. 监听外部登录成功通知
-//    - 如果提供了 successChan，启动 goroutine 监听
-//    - 接收到通知后，通过 p.Send() 发送 loginSuccessMsg
-//    - 触发 Model 的 Update 方法，设置 loginDone=true 并退出
+//   - 如果提供了 successChan，启动 goroutine 监听
+//   - 接收到通知后，通过 p.Send() 发送 loginSuccessMsg
+//   - 触发 Model 的 Update 方法，设置 loginDone=true 并退出
 //
 // 4. 等待程序结束并处理最终状态
-//    - interrupted: 向 cancelChan 发送 true
-//    - timeout: 向 timeoutChan 发送 true
-//    - loginDone: 不发送任何通知，由外部已经知道
+//   - interrupted: 向 cancelChan 发送 true
+//   - timeout: 向 timeoutChan 发送 true
+//   - loginDone: 不发送任何通知，由外部已经知道
 //
 // 设计要点：
 // - 所有 channel 均为可选，传 nil 表示不需要该通知
@@ -343,7 +343,7 @@ func ShowQRCodeWithCallback(imageURL string, timeout time.Duration, successChan 
 
 	// 运行bubbletea程序
 	p := tea.NewProgram(m)
-	
+
 	// 如果提供了成功通知channel，启动监听goroutine
 	if successChan != nil {
 		go func() {
@@ -417,21 +417,21 @@ func downloadAndConvertQRCode(imageURL string) (string, error) {
 // 转换算法：
 //
 // 1. 自动缩放
-//    - 计算缩放比例，使二维码宽度适配终端（目标宽度 50 字符）
-//    - scale = width / 50，最小为 1
+//   - 计算缩放比例，使二维码宽度适配终端（目标宽度 50 字符）
+//   - scale = width / 50，最小为 1
 //
 // 2. 半块字符渲染
-//    - 每 2 行像素合并为 1 行字符，提高显示密度
-//    - 使用 RGBA() 获取像素颜色，计算灰度值 (0-255)
-//    - 根据两个像素的灰度值选择字符：
-//      - 两个都暗 (< 128): █ 全实心
-//      - 上暗下亮: ▀ 上半实心
-//      - 上亮下暗: ▄ 下半实心
-//      - 两个都亮 (≥ 128): 空格
+//   - 每 2 行像素合并为 1 行字符，提高显示密度
+//   - 使用 RGBA() 获取像素颜色，计算灰度值 (0-255)
+//   - 根据两个像素的灰度值选择字符：
+//   - 两个都暗 (< 128): █ 全实心
+//   - 上暗下亮: ▀ 上半实心
+//   - 上亮下暗: ▄ 下半实心
+//   - 两个都亮 (≥ 128): 空格
 //
 // 3. 灰度值计算
-//    - RGBA() 返回 0-65535 范围的值
-//    - gray = (r + g + b) / 3 / 257，转换为 0-255 范围
+//   - RGBA() 返回 0-65535 范围的值
+//   - gray = (r + g + b) / 3 / 257，转换为 0-255 范围
 //
 // 设计要点：
 // - 使用半块字符可以将垂直分辨率提高 2 倍
@@ -442,36 +442,63 @@ func imageToString(img image.Image) string {
 	width := bounds.Max.X - bounds.Min.X
 
 	// 计算缩放比例，使二维码适合终端显示（目标宽度约50字符）
-	targetWidth := 50
+	// 提高目标宽度，提升分辨率，便于手机识别
+	// 同时保留半块字符渲染以尽量保持纵横比
+	targetWidth := 100
 	scale := width / targetWidth
 	if scale < 1 {
 		scale = 1
 	}
 
 	var qrStrBuilder strings.Builder
+
+	// 添加顶部静区（quiet zone），2 行空白，增强识别稳定性
+	for i := 0; i < 2; i++ {
+		qrStrBuilder.WriteString("\n")
+	}
+
 	for y := bounds.Min.Y; y < bounds.Max.Y; y += scale * 2 {
+		// 左侧静区（适当留白）
+		qrStrBuilder.WriteString("    ")
+
 		for x := bounds.Min.X; x < bounds.Max.X; x += scale {
 			// 使用半块字符来提高密度
 			c1 := img.At(x, y)
-			c2 := img.At(x, y+scale)
+			// y+scale 可能越界，进行边界保护
+			y2 := y + scale
+			if y2 >= bounds.Max.Y {
+				y2 = bounds.Max.Y - 1
+			}
+			c2 := img.At(x, y2)
 
-			// 转换为灰度值
+			// 转换为灰度值（0-255）
 			r1, g1, b1, _ := c1.RGBA()
 			r2, g2, b2, _ := c2.RGBA()
-			gray1 := (r1 + g1 + b1) / 3 / 257 // 转换为0-255范围
+			gray1 := (r1 + g1 + b1) / 3 / 257
 			gray2 := (r2 + g2 + b2) / 3 / 257
 
+			// 更严格的二值化，尽量避免灰度过渡造成的锯齿
+			const threshold uint32 = 140
+
 			// 根据灰度值选择字符
-			if gray1 < 128 && gray2 < 128 {
+			if gray1 < threshold && gray2 < threshold {
 				qrStrBuilder.WriteString("█") // 全实心
-			} else if gray1 < 128 && gray2 >= 128 {
+			} else if gray1 < threshold && gray2 >= threshold {
 				qrStrBuilder.WriteString("▀") // 上半
-			} else if gray1 >= 128 && gray2 < 128 {
+			} else if gray1 >= threshold && gray2 < threshold {
 				qrStrBuilder.WriteString("▄") // 下半
 			} else {
 				qrStrBuilder.WriteString(" ") // 空白
 			}
 		}
+
+		// 右侧静区
+		qrStrBuilder.WriteString("    ")
+		qrStrBuilder.WriteString("\n")
+	}
+
+	// 底部静区
+	for i := 0; i < 2; i++ {
 		qrStrBuilder.WriteString("\n")
 	}
 
